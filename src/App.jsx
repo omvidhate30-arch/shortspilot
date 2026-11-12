@@ -3,14 +3,40 @@ import {
   Sparkles, Upload, Play, CheckCircle2, Zap, Shield, Lock,
   Youtube, Instagram, Sliders, X, Trash2, Download,
   CreditCard, AlertCircle, Check, RefreshCw, Link2, Radio, Send,
-  Scissors, HardDrive, LogOut, UserCheck, Smartphone, Copy, QrCode
+  Scissors, HardDrive, LogOut, UserCheck, Smartphone, Copy
 } from 'lucide-react';
 
-// अपनी Google Cloud Console से मिली Client ID यहाँ पेस्ट करें
-const DEFAULT_GOOGLE_CLIENT_ID = '';
+// अपनी Google Cloud Console से मिली Client ID यहाँ पेस्ट करें ताकि सभी क्लाइंट्स को 1-क्लिक लॉगिन मिले
+const DEFAULT_GOOGLE_CLIENT_ID = '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
 
-// अपनी असली Receiver UPI ID यहाँ डालें (एडमिन पैनल से भी बदल सकते हैं)
-const DEFAULT_RECEIVER_UPI = 'shortspilot@ptyes';
+// कस्टम Futurstic 'P' प्ले-एरो लोगो (आपका सिलेक्ट किया हुआ डिज़ाइन)
+function ShortsPilotLogo({ className = 'w-5 h-5' }) {
+  return (
+    <svg viewBox="0 0 64 64" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="spGrad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#38bdf8" />
+          <stop offset="50%" stopColor="#818cf8" />
+          <stop offset="100%" stopColor="#ec4899" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M20 12H36C44.8366 12 52 19.1634 52 28C52 36.8366 44.8366 44 36 44H25L20 54V36"
+        stroke="url(#spGrad)"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 28H26M26 21L38 28L26 35V21Z"
+        stroke="url(#spGrad)"
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export default function App() {
   // Persistent Client & Subscription State
@@ -19,7 +45,7 @@ export default function App() {
   const [videoQueue, setVideoQueue] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Persistent Gmail User + YouTube Channel State
+  // Persistent Gmail User + YouTube Channel State (Survives Page Refresh)
   const [gmailUser, setGmailUser] = useState(() => {
     try {
       const saved = localStorage.getItem('sp_gmail_user');
@@ -52,12 +78,10 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [previewClip, setPreviewClip] = useState(null);
 
-  // Direct UPI Payment State
+  // Checkout / Direct UPI Payment State
   const [upiId, setUpiId] = useState('');
   const [utrNumber, setUtrNumber] = useState('');
-  const [upiLaunched, setUpiLaunched] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
-  const [showQrCode, setShowQrCode] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
@@ -67,7 +91,7 @@ export default function App() {
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
   const [receiverUpi, setReceiverUpi] = useState(
-    () => localStorage.getItem('sp_receiver_upi') || DEFAULT_RECEIVER_UPI
+    () => localStorage.getItem('sp_receiver_upi') || '9767905729@paytm'
   );
   const [backendUrl, setBackendUrl] = useState(
     () => localStorage.getItem('sp_backend_url') || ''
@@ -77,43 +101,23 @@ export default function App() {
   );
   const [autoCleanupDays, setAutoCleanupDays] = useState('15');
   const [storageUsedGB, setStorageUsedGB] = useState(14.8);
-  const [transactions, setTransactions] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sp_transactions');
-      return saved
-        ? JSON.parse(saved)
-        : [
-            {
-              id: 'TXN-8841',
-              upi: 'rohan.create@okicici',
-              utr: '431892019482',
-              plan: '₹2 Trial → ₹1,999/yr',
-              status: 'Active',
-              time: '12 mins ago'
-            }
-          ];
-    } catch {
-      return [];
+  const [transactions, setTransactions] = useState([
+    {
+      id: 'TXN-8841',
+      upi: 'rohan.create@okicici',
+      utr: '431892019482',
+      plan: '₹2 Trial → ₹1,999/yr Pro',
+      status: 'Active',
+      time: '12 mins ago'
     }
-  });
+  ]);
 
   const fileInputRef = useRef(null);
   const ytChannelRef = useRef(ytChannel);
   const tokenClientRef = useRef(null);
   const MASTER_PIN = '9767905729';
 
-  // Build Official UPI Deep Link (Opens GPay, PhonePe, Paytm automatically on Android)
-  const cleanReceiverUpi = (receiverUpi || DEFAULT_RECEIVER_UPI).trim();
-  const upiDeepLink = `upi://pay?pa=${encodeURIComponent(
-    cleanReceiverUpi
-  )}&pn=${encodeURIComponent('ShortsPilot Pro')}&am=2.00&cu=INR&tn=${encodeURIComponent(
-    'ShortsPilot 7-Day Trial'
-  )}`;
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&bgcolor=ffffff&color=06080d&data=${encodeURIComponent(
-    upiDeepLink
-  )}`;
-
-  // Sync states to localStorage
+  // Sync states to localStorage automatically so refresh NEVER logs user out
   useEffect(() => {
     ytChannelRef.current = ytChannel;
     if (ytChannel) {
@@ -139,10 +143,6 @@ export default function App() {
     localStorage.setItem('sp_quota_used', String(quotaUsed));
   }, [quotaUsed]);
 
-  useEffect(() => {
-    localStorage.setItem('sp_transactions', JSON.stringify(transactions));
-  }, [transactions]);
-
   // Secret Admin Access: ?admin=true OR Ctrl/Cmd + Shift + O
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -160,7 +160,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Load Google Identity Services SDK
+  // Load Google Identity Services SDK & Initialize Token Client
   useEffect(() => {
     if (!googleClientId) return;
 
@@ -174,6 +174,7 @@ export default function App() {
             if (tokenResponse && tokenResponse.access_token) {
               const expiresAt = Date.now() + (Number(tokenResponse.expires_in) || 3500) * 1000;
 
+              // 1. Fetch Gmail Profile (Name, Email, Picture)
               try {
                 const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                   headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
@@ -190,6 +191,7 @@ export default function App() {
                 // Keep existing profile
               }
 
+              // 2. Fetch YouTube Channel Info
               try {
                 const res = await fetch(
                   'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true',
@@ -239,6 +241,7 @@ export default function App() {
     };
   }, [googleClientId]);
 
+  // 1-Click Gmail + YouTube Sign-In
   const handleOneClickGoogleConnect = (silent = false) => {
     setConnectError('');
     if (!googleClientId.trim()) {
@@ -261,6 +264,7 @@ export default function App() {
     }
   };
 
+  // Full Logout
   const handleDisconnectAll = () => {
     setYtChannel(null);
     setGmailUser(null);
@@ -270,6 +274,7 @@ export default function App() {
     setIsSettingsOpen(false);
   };
 
+  // Quick Handle Link
   const handleQuickConnectYouTube = (e) => {
     e.preventDefault();
     setConnectError('');
@@ -422,6 +427,7 @@ export default function App() {
     });
   };
 
+  // Sync rendered 9:16 clip to Owner's 5TB Google Drive Cloud
   const syncClipTo5TBCloud = async (blob, title) => {
     const sizeInGB = Number(((blob.size || 2000000) / (1024 * 1024 * 1024)).toFixed(3));
     setStorageUsedGB((prev) => Number((prev + Math.max(sizeInGB, 0.015)).toFixed(2)));
@@ -442,6 +448,7 @@ export default function App() {
     }
   };
 
+  // Direct YouTube Shorts Upload Function
   const uploadClipToYouTubeAPI = async (clipId, title, blob, channelOverride = null) => {
     const activeChannel = channelOverride || ytChannelRef.current;
     if (!activeChannel) {
@@ -541,6 +548,7 @@ export default function App() {
     }, 1000);
   };
 
+  // Main File Processing Pipeline
   const processNewFile = async (file) => {
     if (tier === 'free' && quotaUsed >= 5) {
       setIsPricingOpen(true);
@@ -615,15 +623,13 @@ export default function App() {
     }
   };
 
-  // Auto-Open Installed UPI App (GPay / PhonePe / Paytm) on Android
-  const handleLaunchUpiApp = () => {
-    setCheckoutError('');
-    setUpiLaunched(true);
-    window.location.href = upiDeepLink;
-  };
+  // Direct UPI Deep Link for Android GPay / PhonePe / Paytm
+  const upiDeepLink = `upi://pay?pa=${encodeURIComponent(receiverUpi)}&pn=${encodeURIComponent(
+    'ShortsPilot Pro'
+  )}&am=2.00&cu=INR&tn=${encodeURIComponent('ShortsPilot 7-Day Trial')}`;
 
-  const handleCopyUpiId = () => {
-    navigator.clipboard?.writeText(cleanReceiverUpi);
+  const handleCopyUpi = () => {
+    navigator.clipboard?.writeText(receiverUpi);
     setCopiedUpi(true);
     setTimeout(() => setCopiedUpi(false), 2000);
   };
@@ -632,7 +638,7 @@ export default function App() {
     e.preventDefault();
     setCheckoutError('');
     if (!/^\d{12}$/.test(utrNumber.trim())) {
-      setCheckoutError('Enter the exact 12-digit UPI Reference / UTR number from GPay/PhonePe/Paytm.');
+      setCheckoutError('Enter the exact 12-digit UPI Reference / UTR number from GPay/PhonePe.');
       return;
     }
 
@@ -640,9 +646,914 @@ export default function App() {
       id: `TXN-${Math.floor(1000 + Math.random() * 9000)}`,
       upi: upiId.trim() || gmailUser?.email || 'UPI User',
       utr: utrNumber.trim(),
-      plan: '₹2 Trial → ₹1,999/yr',
+      plan: '₹2 Trial → ₹1,999/yr Pro',
       status: 'Active',
       time: 'Just now'
     };
 
-    setTransactions((prev) => [newTxn, ...prev
+    setTransactions((prev) => [newTxn, ...prev]);
+    setTier('pro');
+    setCheckoutSuccess(true);
+
+    setTimeout(() => {
+      setIsPricingOpen(false);
+      setCheckoutSuccess(false);
+      setUtrNumber('');
+    }, 1500);
+  };
+
+  const handleAdminUnlock = (e) => {
+    e.preventDefault();
+    if (pinInput === MASTER_PIN) {
+      setIsAdminUnlocked(true);
+      setPinError('');
+    } else {
+      setPinError('Invalid Master Security PIN');
+    }
+  };
+
+  const saveAdminCloudConfig = () => {
+    localStorage.setItem('sp_google_client_id', googleClientId.trim());
+    localStorage.setItem('sp_backend_url', backendUrl.trim());
+    localStorage.setItem('sp_drive_folder_id', driveFolderId.trim());
+    localStorage.setItem('sp_receiver_upi', receiverUpi.trim());
+    alert('5TB Cloud, UPI & OAuth settings saved!');
+  };
+
+  return (
+    <div className="min-h-screen w-full max-w-[100vw] bg-[#06080d] text-slate-100 font-sans selection:bg-pink-500/30 selection:text-pink-200 relative overflow-x-hidden">
+      {/* Ambient Jet Black + Cerulean Blue + Neon Rose Glows */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-36 left-0 w-72 sm:w-[540px] h-72 sm:h-[540px] rounded-full bg-sky-500/12 blur-[110px]" />
+        <div className="absolute top-1/3 right-0 w-64 sm:w-[460px] h-64 sm:h-[460px] rounded-full bg-pink-600/12 blur-[115px]" />
+      </div>
+
+      {/* Android-Responsive Floating Glass Header */}
+      <header className="sticky top-2.5 sm:top-4 z-30 w-full max-w-6xl mx-auto px-3 sm:px-4">
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl bg-[#090d16]/90 backdrop-blur-xl border border-sky-500/20 shadow-[0_0_25px_rgba(0,123,255,0.12)]">
+          {/* Brand with Custom Delta-P Logo */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-pink-500 p-[1px]">
+              <div className="w-full h-full bg-[#06080d] rounded-[11px] flex items-center justify-center">
+                <ShortsPilotLogo className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+            </div>
+            <span className="font-bold text-base sm:text-lg tracking-tight bg-gradient-to-r from-white via-sky-200 to-pink-300 bg-clip-text text-transparent">
+              ShortsPilot
+            </span>
+          </div>
+
+          {/* Right Controls */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+            <button
+              onClick={() => setIsConnectModalOpen(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition-all border max-w-[145px] sm:max-w-[200px] ${
+                gmailUser || ytChannel
+                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
+                  : 'bg-rose-500/15 active:scale-95 border-rose-500/40 text-rose-300'
+              }`}
+            >
+              {gmailUser?.picture ? (
+                <img
+                  src={gmailUser.picture}
+                  alt="Profile"
+                  className="w-4 h-4 rounded-full shrink-0"
+                />
+              ) : (
+                <Youtube
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    ytChannel ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                />
+              )}
+              <span className="truncate">
+                {ytChannel
+                  ? ytChannel.handle
+                  : gmailUser
+                  ? gmailUser.name
+                  : 'Sign In / YT'}
+              </span>
+            </button>
+
+            {tier === 'pro' ? (
+              <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-pink-500/15 border border-pink-500/40 text-[11px] font-semibold text-pink-200 shrink-0">
+                <Sparkles className="w-3 h-3 text-pink-400" />
+                <span>Pro</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsPricingOpen(true)}
+                className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 rounded-full bg-[#0c1220] border border-sky-500/30 text-[11px] sm:text-xs font-medium text-slate-200 shrink-0 active:scale-95"
+              >
+                <span className="text-sky-400 font-semibold">{quotaUsed}/5</span>
+                <span className="text-pink-400 font-semibold">Pro</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2 rounded-xl bg-[#0c1220] border border-slate-800 text-slate-300 shrink-0 active:scale-95"
+              aria-label="Studio Settings"
+            >
+              <Sliders className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Studio Workspace */}
+      <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-6 sm:pt-10 pb-20">
+        {/* Hero Headline */}
+        <div className="text-center max-w-2xl mx-auto mb-6 sm:mb-9">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/30 text-pink-300 text-[11px] sm:text-xs font-medium mb-3">
+            <Scissors className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+            <span>9:16 Vertical Shorts + YouTube Auto-Post</span>
+          </div>
+          <h1 className="text-2xl sm:text-5xl font-bold tracking-tight text-white mb-3 leading-snug sm:leading-tight">
+            Turn Raw Videos Into{' '}
+            <span className="bg-gradient-to-r from-sky-400 via-blue-400 to-pink-500 bg-clip-text text-transparent">
+              Viral Shorts
+            </span>
+          </h1>
+          <p className="text-slate-400 text-xs sm:text-base px-1">
+            Select any video from your gallery. ShortsPilot crops it into a 9:16 vertical clip and publishes straight to YouTube.
+          </p>
+        </div>
+
+        {/* Persistent Gmail + YouTube Channel Status Banner */}
+        {!ytChannel && !gmailUser ? (
+          <div className="mb-5 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-rose-500/10 via-[#090d16] to-sky-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                <Youtube className="w-5 h-5 text-rose-400" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white">
+                  Step 1: Sign in with Gmail & Connect YouTube
+                </div>
+                <div className="text-xs text-slate-400">
+                  Stays logged in automatically even after page refresh.
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsConnectModalOpen(true)}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-500 active:bg-rose-600 text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-[0_0_20px_rgba(244,63,94,0.3)]"
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              Sign in with Google
+            </button>
+          </div>
+        ) : (
+          <div className="mb-5 p-3 px-4 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {gmailUser?.picture ? (
+                <img
+                  src={gmailUser.picture}
+                  alt="Gmail"
+                  className="w-7 h-7 rounded-full border border-emerald-400/50 shrink-0"
+                />
+              ) : (
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              )}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs sm:text-sm font-semibold text-white truncate">
+                    {ytChannel?.handle || gmailUser?.name}
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shrink-0">
+                    Connected
+                  </span>
+                </div>
+                {gmailUser?.email && (
+                  <div className="text-[11px] text-slate-400 truncate">{gmailUser.email}</div>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => setIsConnectModalOpen(true)}
+              className="text-xs text-sky-400 shrink-0 font-medium"
+            >
+              Account
+            </button>
+          </div>
+        )}
+
+        {/* Upload Dropzone */}
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          className={`relative rounded-3xl p-7 sm:p-14 text-center transition-all border-2 border-dashed mb-6 ${
+            isDragging
+              ? 'border-pink-500 bg-pink-500/10'
+              : 'border-sky-500/35 bg-[#080c15]/95 shadow-[0_0_30px_rgba(0,123,255,0.08)]'
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+
+          <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-sky-500/20 to-pink-500/20 border border-sky-400/30 flex items-center justify-center">
+            <Upload className="w-6 h-6 sm:w-7 sm:h-7 text-sky-400" />
+          </div>
+
+          <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">
+            Select Video from Gallery
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
+            Choose any MP4/MOV video. Automatically crops to 9:16 vertical Short & uploads to YouTube.
+          </p>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full sm:w-auto justify-center px-6 py-3.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 active:scale-[0.98] transition-all shadow-[0_0_25px_rgba(255,16,110,0.35)] flex items-center gap-2 mx-auto"
+          >
+            <Upload className="w-4 h-4" />
+            Choose Video File
+          </button>
+        </div>
+
+        {/* 3-Step Bento Pipeline */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 mb-7">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-[#090d16]/90 border border-sky-500/20 flex items-center gap-3">
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/30 shrink-0">
+              01
+            </span>
+            <div>
+              <div className="text-sm font-semibold text-white">Select Raw Video</div>
+              <div className="text-xs text-slate-400">From phone gallery or files</div>
+            </div>
+          </div>
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-[#090d16]/90 border border-pink-500/20 flex items-center gap-3">
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-pink-500/15 text-pink-400 border border-pink-500/30 shrink-0">
+              02
+            </span>
+            <div>
+              <div className="text-sm font-semibold text-white">AI Hook & 9:16 Crop</div>
+              <div className="text-xs text-slate-400">Vertical Shorts framing</div>
+            </div>
+          </div>
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-[#090d16]/90 border border-sky-500/20 flex items-center gap-3">
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/30 shrink-0">
+              03
+            </span>
+            <div>
+              <div className="text-sm font-semibold text-white">YouTube Auto-Post</div>
+              <div className="text-xs text-slate-400">Direct Shorts publishing</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Auto-Pilot Publishing Queue */}
+        {videoQueue.length > 0 && (
+          <section className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Radio className="w-4 h-4 text-pink-500 animate-pulse" />
+                <h3 className="text-base sm:text-lg font-bold text-white">Publishing Queue</h3>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                  {videoQueue.length}
+                </span>
+              </div>
+              <button
+                onClick={() => setVideoQueue([])}
+                className="text-xs text-slate-400 hover:text-pink-400"
+              >
+                Clear All
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {videoQueue.map((clip) => (
+                <div
+                  key={clip.id}
+                  className="p-4 sm:p-5 rounded-2xl bg-[#090d16] border border-sky-500/20 flex flex-col justify-between gap-3.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30">
+                          Hook {clip.hookScore}
+                        </span>
+                        <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                          9:16 • {clip.duration}
+                        </span>
+                      </div>
+                      <h4 className="font-semibold text-white text-sm truncate">
+                        {clip.title}
+                      </h4>
+                    </div>
+                    <button
+                      onClick={() =>
+                        setVideoQueue((prev) => prev.filter((item) => item.id !== clip.id))
+                      }
+                      className="text-slate-500 hover:text-pink-400 p-1.5 shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {clip.croppedUrl && (
+                    <div
+                      onClick={() => setPreviewClip(clip)}
+                      className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] h-56 mx-auto w-32 cursor-pointer"
+                    >
+                      <video
+                        src={clip.croppedUrl}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                      />
+                      <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                        <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
+                          <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <span className="text-sky-300 font-medium">
+                        {clip.status === 'analyzing' && 'Scanning Viral Hook...'}
+                        {clip.status === 'cropping' && 'Rendering 9:16 Short...'}
+                        {clip.status === 'ready' && '9:16 Short Ready'}
+                        {clip.status === 'uploading' && 'Uploading to YouTube...'}
+                        {clip.status === 'published' && 'Published to YouTube ✓'}
+                      </span>
+                      <span className="text-slate-400">{clip.progress}%</span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-500 ${
+                          clip.status === 'published'
+                            ? 'bg-emerald-400'
+                            : 'bg-gradient-to-r from-sky-400 to-pink-500'
+                        }`}
+                        style={{ width: `${clip.progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80 text-xs gap-2">
+                    {clip.croppedUrl ? (
+                      <a
+                        href={clip.croppedUrl}
+                        download={`${clip.title}_9x16.mp4`}
+                        className="px-3 py-2 rounded-lg bg-slate-800 active:bg-slate-700 text-slate-200 font-medium flex items-center gap-1.5"
+                      >
+                        <Download className="w-3.5 h-3.5 text-sky-400" />
+                        Save 9:16
+                      </a>
+                    ) : (
+                      <span className="text-slate-500">Processing...</span>
+                    )}
+
+                    {clip.status === 'ready' && (
+                      <button
+                        onClick={() => handleManualPublishClick(clip)}
+                        className="px-3.5 py-2 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1.5"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        {ytChannel ? 'Post to YT' : 'Link YT'}
+                      </button>
+                    )}
+
+                    {clip.status === 'published' && (
+                      <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                        <CheckCircle2 className="w-4 h-4" />
+                        {clip.youtubeUrl ? (
+                          <a href={clip.youtubeUrl} target="_blank" rel="noreferrer" className="underline">
+                            Open Short ↗
+                          </a>
+                        ) : (
+                          'Posted'
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
+
+      {/* Full 9:16 Clip Preview Modal */}
+      {previewClip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="relative w-full max-w-[300px] rounded-3xl bg-[#080c15] border border-sky-500/30 p-3">
+            <button
+              onClick={() => setPreviewClip(null)}
+              className="absolute -top-3 -right-3 p-2.5 rounded-full bg-slate-900 border border-slate-700 text-white z-10"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <video
+              src={previewClip.croppedUrl}
+              controls
+              autoPlay
+              playsInline
+              className="w-full rounded-2xl aspect-[9/16] bg-black"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Connect Gmail & YouTube Channel Modal */}
+      {isConnectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border-t sm:border border-rose-500/35 p-5 sm:p-7 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setIsConnectModalOpen(false)}
+              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-11 h-11 rounded-2xl bg-rose-500/15 border border-rose-500/35 flex items-center justify-center mb-3">
+              <Youtube className="w-6 h-6 text-rose-400" />
+            </div>
+
+            <h3 className="text-lg sm:text-xl font-bold text-white mb-1">
+              Gmail & YouTube Account
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Your Gmail login & YouTube channel stay saved even if you refresh or close the app.
+            </p>
+
+            {(gmailUser || ytChannel) && (
+              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 mb-4 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {gmailUser?.picture ? (
+                    <img
+                      src={gmailUser.picture}
+                      alt="Profile"
+                      className="w-9 h-9 rounded-full shrink-0"
+                    />
+                  ) : (
+                    <UserCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white truncate">
+                      {ytChannel?.handle || gmailUser?.name}
+                    </div>
+                    <div className="text-[11px] text-emerald-300 truncate">
+                      {gmailUser?.email || 'Saved in Browser Storage'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDisconnectAll}
+                  className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 text-xs font-semibold flex items-center gap-1 shrink-0"
+                >
+                  <LogOut className="w-3.5 h-3.5" /> Logout
+                </button>
+              </div>
+            )}
+
+            <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/25 mb-4 space-y-2.5">
+              <div className="text-xs font-semibold text-sky-300">
+                1-Click Google OAuth (Gmail + YouTube Auto-Upload)
+              </div>
+              <button
+                type="button"
+                onClick={() => handleOneClickGoogleConnect(false)}
+                className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-sky-500 to-blue-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              >
+                <Youtube className="w-4 h-4" />
+                {gmailUser ? 'Switch Gmail / Re-Authorize' : 'Sign in with Google'}
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickConnectYouTube} className="space-y-3">
+              <div className="text-xs font-semibold text-slate-400">
+                Or Save Channel Handle Manually
+              </div>
+              <input
+                type="text"
+                value={ytHandleInput}
+                onChange={(e) => setYtHandleInput(e.target.value)}
+                placeholder="@YourChannelHandle"
+                className="w-full px-3.5 py-3 rounded-xl bg-[#05070c] border border-slate-700 focus:border-rose-500 text-sm text-white outline-none"
+              />
+
+              {connectError && <p className="text-xs text-rose-400">{connectError}</p>}
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-rose-500 to-pink-600 active:scale-[0.98]"
+              >
+                Save Channel Handle
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ₹2 Trial + ₹1,999/Year Direct UPI Payment Modal (Opens GPay/PhonePe/Paytm on Android) */}
+      {isPricingOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border-t sm:border border-sky-500/30 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
+            <button
+              onClick={() => setIsPricingOpen(false)}
+              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/15 border border-pink-500/40 text-pink-300 text-xs font-semibold mb-2.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>7-Day Trial • 1-Year Pro Unlock</span>
+            </div>
+
+            <h3 className="text-xl sm:text-2xl font-bold text-white mb-1">
+              Start for <span className="text-sky-400">₹2</span> Today
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Pay ₹2 via GPay, PhonePe, or Paytm for 7-day Pro access (₹1,999/yr after trial).
+            </p>
+
+            <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/25 mb-4">
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-2xl font-bold text-white">₹2</span>
+                <span className="text-xs text-slate-400">for 7 days, then ₹1,999/year</span>
+              </div>
+              <ul className="space-y-1.5 text-xs text-slate-300">
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-sky-400 shrink-0" /> Unlimited 9:16 AI Shorts & Reels
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-sky-400 shrink-0" /> Direct YouTube Auto-Publishing
+                </li>
+              </ul>
+            </div>
+
+            {checkoutSuccess ? (
+              <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/40 text-center">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
+                <div className="font-bold text-white text-base">1-Year Pro Plan Activated!</div>
+              </div>
+            ) : (
+              <div className="space-y-3.5">
+                {/* Step 1: 1-Tap Open Android UPI App */}
+                <a
+                  href={upiDeepLink}
+                  className="w-full py-3.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-emerald-500 to-teal-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  Step 1: Pay ₹2 via GPay / PhonePe / Paytm
+                </a>
+
+                {/* Copy UPI ID Fallback */}
+                <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#0c1220] border border-slate-800 text-xs">
+                  <span className="text-slate-400 truncate">
+                    UPI ID: <strong className="text-sky-300 font-mono">{receiverUpi}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyUpi}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1 shrink-0"
+                  >
+                    <Copy className="w-3 h-3" />
+                    {copiedUpi ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+
+                {/* Step 2: Enter 12-Digit UTR to Unlock Instantly */}
+                <form onSubmit={handleVerifyPayment} className="space-y-3 pt-1">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Step 2: Enter 12-Digit UPI UTR Reference Number
+                    </label>
+                    <input
+                      type="tel"
+                      maxLength={12}
+                      value={utrNumber}
+                      onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="e.g. 431982746102"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 text-sm font-mono text-white outline-none"
+                      required
+                    />
+                  </div>
+
+                  {checkoutError && (
+                    <div className="flex items-center gap-2 text-xs text-pink-400 bg-pink-500/10 border border-pink-500/30 p-2.5 rounded-xl">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{checkoutError}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 flex items-center justify-center gap-2"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    Verify ₹2 & Unlock Pro
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Client Settings Drawer */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/75 backdrop-blur-sm">
+          <div className="w-full max-w-xs sm:max-w-sm bg-[#080c15] border-l border-sky-500/25 h-full p-5 flex flex-col justify-between overflow-y-auto">
+            <div>
+              <div className="flex items-center justify-between pb-3.5 border-b border-slate-800">
+                <h3 className="font-bold text-white text-base">Studio Preferences</h3>
+                <button
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                {gmailUser && (
+                  <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/30 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-white truncate">
+                        {gmailUser.name}
+                      </div>
+                      <div className="text-[11px] text-slate-400 truncate">{gmailUser.email}</div>
+                    </div>
+                    <button
+                      onClick={handleDisconnectAll}
+                      className="text-xs text-rose-400 font-semibold shrink-0"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                )}
+
+                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800">
+                  <div className="text-xs text-slate-400 mb-1">Current Plan</div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-white text-sm">
+                      {tier === 'pro' ? 'ShortsPilot Pro (1-Yr)' : 'Starter Free Tier'}
+                    </span>
+                    {tier !== 'pro' && (
+                      <button
+                        onClick={() => {
+                          setIsSettingsOpen(false);
+                          setIsPricingOpen(true);
+                        }}
+                        className="text-xs text-sky-400 font-medium"
+                      >
+                        Try ₹2
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  <div className="p-3.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-sky-400" />
+                      <span className="text-sm text-slate-200">Auto-Publish to YT</span>
+                    </div>
+                    <button
+                      onClick={() => setAutoPublishEnabled(!autoPublishEnabled)}
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${
+                        autoPublishEnabled
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {autoPublishEnabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Youtube className="w-4 h-4 text-rose-500 shrink-0" />
+                      <span className="text-sm text-slate-200 truncate">
+                        {ytChannel ? ytChannel.handle : 'YouTube Shorts'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsSettingsOpen(false);
+                        setIsConnectModalOpen(true);
+                      }}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 shrink-0"
+                    >
+                      {ytChannel ? 'Manage' : 'Connect'}
+                    </button>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Instagram className="w-4 h-4 text-pink-400" />
+                      <span className="text-sm text-slate-200">Instagram Reels</span>
+                    </div>
+                    <button
+                      onClick={() => setIgAutoSync(!igAutoSync)}
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${
+                        igAutoSync
+                          ? 'bg-sky-500/20 text-sky-300'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {igAutoSync ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-500 border-t border-slate-800 pt-3">
+              ShortsPilot Android Studio v3.5
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden Owner Control Center (?admin=true) */}
+      {isAdminOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-lg">
+          <div className="relative w-full max-w-xl rounded-t-3xl sm:rounded-3xl bg-[#070a12] border-t sm:border border-pink-500/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
+            <button
+              onClick={() => setIsAdminOpen(false)}
+              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {!isAdminUnlocked ? (
+              <form onSubmit={handleAdminUnlock} className="py-4 text-center">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-pink-500/15 border border-pink-500/40 flex items-center justify-center">
+                  <Lock className="w-6 h-6 text-pink-400" />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-1">Owner Control Center</h3>
+                <p className="text-xs text-slate-400 mb-5">
+                  Enter Master PIN to manage 5TB Drive Vault, OAuth & Payments.
+                </p>
+
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  placeholder="Enter Master PIN"
+                  className="w-full max-w-xs mx-auto block px-4 py-3 rounded-xl bg-[#05070c] border border-slate-700 text-center text-white tracking-widest outline-none mb-3"
+                  autoFocus
+                />
+
+                {pinError && <p className="text-xs text-pink-400 mb-3">{pinError}</p>}
+
+                <button
+                  type="submit"
+                  className="px-8 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-pink-600 text-white text-sm font-semibold"
+                >
+                  Unlock Console
+                </button>
+              </form>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-pink-400" />
+                    <h3 className="text-base sm:text-lg font-bold text-white">Owner Control Center</h3>
+                  </div>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    5 TB Active
+                  </span>
+                </div>
+
+                {/* 5TB Google Drive Storage Meter */}
+                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 mb-3.5">
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span className="flex items-center gap-1.5 font-semibold text-sky-300">
+                      <HardDrive className="w-4 h-4" /> Google Drive 5 TB Vault
+                    </span>
+                    <span className="font-mono text-slate-300">
+                      {storageUsedGB} / 5,120 GB
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden mb-3">
+                    <div
+                      className="h-full bg-gradient-to-r from-sky-400 to-pink-500"
+                      style={{ width: `${Math.max(1, (storageUsedGB / 5120) * 100)}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">
+                        Drive Target Folder
+                      </label>
+                      <input
+                        type="text"
+                        value={driveFolderId}
+                        onChange={(e) => setDriveFolderId(e.target.value)}
+                        className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-sky-300 font-mono outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">
+                        Auto-Cleanup Raw Files
+                      </label>
+                      <select
+                        value={autoCleanupDays}
+                        onChange={(e) => setAutoCleanupDays(e.target.value)}
+                        className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-200 outline-none"
+                      >
+                        <option value="7">7 Days</option>
+                        <option value="15">15 Days</option>
+                        <option value="30">30 Days</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Google OAuth Client ID */}
+                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800 mb-3.5 space-y-2.5">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">
+                      Google OAuth Client ID
+                    </label>
+                    <input
+                      type="text"
+                      value={googleClientId}
+                      onChange={(e) => setGoogleClientId(e.target.value)}
+                      placeholder="123456789-xxxx.apps.googleusercontent.com"
+                      className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs font-mono text-white outline-none"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={backendUrl}
+                      onChange={(e) => setBackendUrl(e.target.value)}
+                      placeholder="Optional FFmpeg Server URL"
+                      className="flex-1 min-w-0 bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs font-mono text-sky-300 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={saveAdminCloudConfig}
+                      className="px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-semibold shrink-0"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+
+                {/* Receiver UPI & Subscribers */}
+                <div className="grid grid-cols-2 gap-2.5 mb-3.5">
+                  <div className="p-3 rounded-2xl bg-[#0c1220] border border-sky-500/20">
+                    <div className="text-[11px] text-slate-400">Your Receiver UPI ID</div>
+                    <input
+                      type="text"
+                      value={receiverUpi}
+                      onChange={(e) => setReceiverUpi(e.target.value)}
+                      className="mt-1 w-full bg-transparent text-xs font-mono text-sky-300 font-semibold outline-none"
+                    />
+                  </div>
+                  <div className="p-3 rounded-2xl bg-[#0c1220] border border-pink-500/20">
+                    <div className="text-[11px] text-slate-400">Pro Subscribers</div>
+                    <div className="mt-1 text-sm font-bold text-pink-400">
+                      {transactions.length} Active
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                  <button
+                    onClick={() => {
+                      setTier(tier === 'pro' ? 'free' : 'pro');
+                      setQuotaUsed(0);
+                    }}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Tier: {tier.toUpperCase()}
+                  </button>
+                  <button
+                    onClick={() => setIsAdminUnlocked(false)}
+                    className="text-xs text-slate-400 hover:text-pink-400"
+                  >
+                    Lock Console
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
