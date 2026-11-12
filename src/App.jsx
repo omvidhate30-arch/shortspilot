@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles, Upload, Play, CheckCircle2, Zap, Shield, Lock,
-  Youtube, Sliders, X, Trash2, Download, CreditCard, AlertCircle,
-  Check, RefreshCw, Link2, Radio, Send, Scissors, HardDrive,
-  LogOut, UserCheck, Megaphone, Wrench, Globe, IndianRupee,
-  BarChart3, Calendar, Clock, Eye, ThumbsUp, Users, Bot, Volume2, ExternalLink
+  Youtube, Sliders, X, Trash2, Download, CreditCard,
+  RefreshCw, Link2, Radio, Send, Scissors, HardDrive,
+  Megaphone, Wrench, IndianRupee, BarChart3, Calendar,
+  Clock, Eye, ThumbsUp, Users, Bot, Volume2, ExternalLink,
+  Crown, Flame, TrendingUp, Award, Check
 } from 'lucide-react';
 
 // आपकी Google Cloud OAuth Client ID और Firebase Live Database URL
 const DEFAULT_GOOGLE_CLIENT_ID = '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
 const FIREBASE_DB_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 
-// आपकी दोनों AI API Keys (DeepSeek और Claude)
+// GitHub Secret Scanning से बचने के लिए इन्हें खाली रखें (Admin Panel ?admin=true से डालें)
 const DEFAULT_DEEPSEEK_KEY = '';
 const DEFAULT_CLAUDE_KEY = '';
 
-// कस्टम Futuristic 'P' प्ले-एरो लोगो
 function ShortsPilotLogo({ className = 'w-5 h-5' }) {
   return (
     <svg viewBox="0 0 64 64" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -45,35 +45,31 @@ function ShortsPilotLogo({ className = 'w-5 h-5' }) {
 }
 
 export default function App() {
-  // Global Remote Config (Firebase से सभी यूज़र्स के लिए लाइव सिंक होता है)
   const [globalConfig, setGlobalConfig] = useState({
     cashfreeLink: '',
     receiverUpi: '9767905729@paytm',
     trialPrice: '2',
     yearlyPrice: '1999',
-    freeLimit: 5,
-    bannerText: '🔥 Launch Offer: Start 7-Day Pro Trial for just ₹2!',
+    freeLimit: 3,
+    bannerText: '⚡ FLASH OFFER: Unlock All Pro AI Tools for 7 Days at just ₹2 (99% OFF)!',
     bannerActive: true,
     maintenanceMode: false,
     ytAutoUploadActive: true,
     googleClientId: DEFAULT_GOOGLE_CLIENT_ID,
-    aiProvider: 'deepseek', // 'deepseek' | 'claude'
+    aiProvider: 'deepseek',
     deepseekApiKey: DEFAULT_DEEPSEEK_KEY,
     claudeApiKey: DEFAULT_CLAUDE_KEY
   });
   const [isSyncingGlobal, setIsSyncingGlobal] = useState(false);
 
-  // Navigation Tabs ('studio' | 'analytics')
   const [activeTab, setActiveTab] = useState('studio');
-
-  // Local User State
   const [tier, setTier] = useState(() => localStorage.getItem('sp_tier') || 'free');
   const [quotaUsed, setQuotaUsed] = useState(() => Number(localStorage.getItem('sp_quota_used') || 0));
   const [videoQueue, setVideoQueue] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [clipMode, setClipMode] = useState('3clips'); // '3clips' (1 video -> 3 shorts) | '1clip'
+  const [clipMode, setClipMode] = useState('1clip');
+  const [offerSeconds, setOfferSeconds] = useState(899); // 14:59 countdown timer
 
-  // Persistent Gmail + YouTube Channel State
   const [gmailUser, setGmailUser] = useState(() => {
     try {
       const saved = localStorage.getItem('sp_gmail_user');
@@ -92,7 +88,6 @@ export default function App() {
     }
   });
 
-  // Live YouTube Analytics State
   const [ytStats, setYtStats] = useState({
     subscribers: '—',
     totalViews: '—',
@@ -106,18 +101,16 @@ export default function App() {
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [connectError, setConnectError] = useState('');
 
-  // Modals & Drawers
   const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [previewClip, setPreviewClip] = useState(null);
   const [scheduleTimes, setScheduleTimes] = useState({});
 
-  // Cashfree / Checkout State
   const [utrNumber, setUtrNumber] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
-  // Owner Control Center State
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -136,12 +129,28 @@ export default function App() {
   const activeClientId =
     globalConfig.googleClientId || localStorage.getItem('sp_google_client_id') || DEFAULT_GOOGLE_CLIENT_ID;
 
-  // 1. Check URL Params for ?admin=true OR ?payment=success
+  // Countdown Timer for Launch Offer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setOfferSeconds((prev) => (prev > 60 ? prev - 1 : 899));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTimer = (sec) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const openProModalWithReason = (reasonText = '') => {
+    setUpgradeReason(reasonText);
+    setIsPricingOpen(true);
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('admin') === 'true') {
-      setIsAdminOpen(true);
-    }
+    if (params.get('admin') === 'true') setIsAdminOpen(true);
     if (params.get('payment') === 'success' || params.get('order_status') === 'PAID') {
       setTier('pro');
       localStorage.setItem('sp_tier', 'pro');
@@ -159,7 +168,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // 2. Fetch Global Website Settings from Firebase
+  // Fetch Global Config from Firebase
   useEffect(() => {
     const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
     if (!dbBase) return;
@@ -205,13 +214,14 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('sp_tier', tier);
+    if (tier === 'pro') setClipMode('3clips');
   }, [tier]);
 
   useEffect(() => {
     localStorage.setItem('sp_quota_used', String(quotaUsed));
   }, [quotaUsed]);
 
-  // 3. Initialize Google OAuth
+  // Google OAuth Setup
   useEffect(() => {
     if (!activeClientId) return;
 
@@ -288,7 +298,7 @@ export default function App() {
     };
   }, [activeClientId]);
 
-  // 4. Fetch Live YouTube Channel & Shorts Performance Analytics
+  // Live YouTube Analytics
   const fetchYouTubeAnalytics = async () => {
     if (!ytChannel?.accessToken) return;
     setYtStats((prev) => ({ ...prev, loading: true }));
@@ -327,7 +337,6 @@ export default function App() {
             thumbnail: v.snippet?.thumbnails?.medium?.url,
             views: Number(v.statistics?.viewCount || 0).toLocaleString(),
             likes: Number(v.statistics?.likeCount || 0).toLocaleString(),
-            comments: Number(v.statistics?.commentCount || 0).toLocaleString(),
             publishedAt: new Date(v.snippet?.publishedAt).toLocaleDateString()
           }));
         }
@@ -390,7 +399,7 @@ export default function App() {
     setIsConnectModalOpen(false);
   };
 
-  // 5. Dual AI Engine (DeepSeek + Claude Auto-Fallback) Viral Title, Hook & Hashtags Generator
+  // Dual AI Engine (DeepSeek + Claude)
   const generateViralMetadataWithAI = async (rawName, partLabel) => {
     const fallbackTitle = `${rawName} (${partLabel}) 🔥 #Shorts #Viral`;
     const fallbackTags = '#Shorts #YouTubeShorts #Trending #ViralVideo';
@@ -402,10 +411,7 @@ TAGS: <hashtags>`;
     const callDeepSeek = async (key) => {
       const res = await fetch('https://api.deepseek.com/chat/completions', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'deepseek-chat',
           messages: [{ role: 'user', content: prompt }],
@@ -449,25 +455,16 @@ TAGS: <hashtags>`;
       return null;
     };
 
-    const dsKey = (globalConfig.deepseekApiKey || DEFAULT_DEEPSEEK_KEY).trim();
-    const clKey = (globalConfig.claudeApiKey || DEFAULT_CLAUDE_KEY).trim();
+    const dsKey = (globalConfig.deepseekApiKey || '').trim();
+    const clKey = (globalConfig.claudeApiKey || '').trim();
 
     try {
       let rawText = '';
       if (globalConfig.aiProvider === 'claude' && clKey) {
-        try {
-          rawText = await callClaude(clKey);
-        } catch {
-          if (dsKey) rawText = await callDeepSeek(dsKey);
-        }
+        try { rawText = await callClaude(clKey); } catch { if (dsKey) rawText = await callDeepSeek(dsKey); }
       } else if (dsKey) {
-        try {
-          rawText = await callDeepSeek(dsKey);
-        } catch {
-          if (clKey) rawText = await callClaude(clKey);
-        }
+        try { rawText = await callDeepSeek(dsKey); } catch { if (clKey) rawText = await callClaude(clKey); }
       }
-
       const parsed = parseAIResponse(rawText);
       if (parsed) return parsed;
     } catch {}
@@ -475,7 +472,7 @@ TAGS: <hashtags>`;
     return { title: fallbackTitle, hashtags: fallbackTags };
   };
 
-  // 6. 9:16 Vertical Cropping WITH ORIGINAL SOUND (Web Audio API + MediaRecorder)
+  // 9:16 Vertical Cropping WITH ORIGINAL SOUND + Watermark on Free Tier
   const renderVertical916WithAudio = async (file, clipId, startRatio = 0, maxClipSec = 12) => {
     return new Promise((resolve) => {
       const videoUrl = URL.createObjectURL(file);
@@ -523,7 +520,6 @@ TAGS: <hashtags>`;
           let combinedTracks = [...canvasStream.getVideoTracks()];
           let audioCaptured = false;
 
-          // Original Video Audio Track Extraction
           try {
             const vidStream = video.captureStream
               ? video.captureStream()
@@ -588,6 +584,15 @@ TAGS: <hashtags>`;
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
+              // Free Plan Subtle Watermark (Removed automatically in Pro!)
+              if (tier !== 'pro') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(canvas.width - 175, 24, 155, 28);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                ctx.font = 'bold 13px sans-serif';
+                ctx.fillText('Made with ShortsPilot', canvas.width - 165, 43);
+              }
+
               const elapsed = video.currentTime - startOffset;
               const pct = Math.min(95, Math.round(25 + (elapsed / clipLength) * 70));
               setVideoQueue((prev) =>
@@ -610,8 +615,13 @@ TAGS: <hashtags>`;
     });
   };
 
-  // 7. Direct OR Scheduled YouTube Shorts Upload
+  // Direct OR Scheduled YouTube Shorts Upload
   const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null) => {
+    if (scheduledIsoTime && tier !== 'pro') {
+      openProModalWithReason('Scheduled YouTube Auto-Posting is a Pro feature. Unlock now for just ₹2!');
+      return;
+    }
+
     if (!globalConfig.ytAutoUploadActive) {
       alert('YouTube Upload is currently paused by Admin.');
       return;
@@ -709,10 +719,9 @@ TAGS: <hashtags>`;
     }, 900);
   };
 
-  // 8. Multi-Clip AI Extractor Pipeline (1 Video -> 3 Viral Clips with Audio & AI Titles)
   const processNewFile = async (file) => {
-    if (tier === 'free' && quotaUsed >= Number(globalConfig.freeLimit || 5)) {
-      setIsPricingOpen(true);
+    if (tier === 'free' && quotaUsed >= Number(globalConfig.freeLimit || 3)) {
+      openProModalWithReason(`You've used all ${globalConfig.freeLimit} Free Credits! Unlock Unlimited Shorts for ₹${globalConfig.trialPrice}.`);
       return;
     }
 
@@ -720,13 +729,13 @@ TAGS: <hashtags>`;
     if (tier === 'free') setQuotaUsed((q) => q + 1);
 
     const segments =
-      clipMode === '3clips'
+      clipMode === '3clips' && tier === 'pro'
         ? [
             { label: 'Part 1: Viral Hook', ratio: 0.02, score: '9.7/10' },
             { label: 'Part 2: Peak Climax', ratio: 0.36, score: '9.4/10' },
             { label: 'Part 3: Best Ending', ratio: 0.70, score: '9.2/10' }
           ]
-        : [{ label: 'Full Highlight Cut', ratio: 0.10, score: '9.6/10' }];
+        : [{ label: 'Highlight Cut', ratio: 0.10, score: '9.5/10' }];
 
     for (const seg of segments) {
       const clipId = Date.now() + Math.random();
@@ -781,7 +790,6 @@ TAGS: <hashtags>`;
     e.target.value = '';
   };
 
-  // Cashfree Payment Launch
   const handleCashfreePayClick = () => {
     const link = (globalConfig.cashfreeLink || '').trim();
     if (link) {
@@ -791,7 +799,6 @@ TAGS: <hashtags>`;
     }
   };
 
-  // Manual UTR Fallback Verification
   const handleVerifyPayment = async (e) => {
     e.preventDefault();
     setCheckoutError('');
@@ -831,7 +838,6 @@ TAGS: <hashtags>`;
     }, 1400);
   };
 
-  // Publish Admin Changes Globally via Firebase
   const handlePublishGlobalConfig = async () => {
     setIsSyncingGlobal(true);
     localStorage.setItem('sp_global_config', JSON.stringify(globalConfig));
@@ -852,7 +858,7 @@ TAGS: <hashtags>`;
         body: JSON.stringify(globalConfig)
       });
       if (!res.ok) throw new Error('Firebase permission error');
-      alert('✅ Live Updated! AI Keys, Prices & Settings are now active across the entire website.');
+      alert('✅ Live Updated! All changes are now live across the website.');
     } catch {
       alert('Check Firebase Realtime Database Rules (.read: true, .write: true).');
     } finally {
@@ -870,7 +876,6 @@ TAGS: <hashtags>`;
     }
   };
 
-  // Maintenance Screen
   if (globalConfig.maintenanceMode && !isAdminOpen) {
     return (
       <div className="min-h-screen bg-[#06080d] text-white flex flex-col items-center justify-center p-6 text-center">
@@ -888,10 +893,18 @@ TAGS: <hashtags>`;
 
   return (
     <div className="min-h-screen w-full max-w-[100vw] bg-[#06080d] text-slate-100 font-sans relative overflow-x-hidden">
-      {/* Top Global Announcement Bar */}
+      {/* Top Urgent Offer Bar */}
       {globalConfig.bannerActive && globalConfig.bannerText && (
-        <div className="w-full bg-gradient-to-r from-sky-600 via-blue-600 to-pink-600 text-white text-[11px] sm:text-xs font-semibold py-1.5 px-3 text-center">
-          {globalConfig.bannerText}
+        <div
+          onClick={() => tier !== 'pro' && openProModalWithReason('Limited-time Launch Offer unlocked!')}
+          className="w-full bg-gradient-to-r from-sky-600 via-blue-600 to-pink-600 text-white text-[11px] sm:text-xs font-semibold py-2 px-3 text-center cursor-pointer flex items-center justify-center gap-2"
+        >
+          <span>{globalConfig.bannerText}</span>
+          {tier !== 'pro' && (
+            <span className="px-2 py-0.5 rounded bg-black/30 font-mono text-[10px] shrink-0">
+              Ends in {formatTimer(offerSeconds)}
+            </span>
+          )}
         </div>
       )}
 
@@ -918,7 +931,7 @@ TAGS: <hashtags>`;
           <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
             <button
               onClick={() => setIsConnectModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold border max-w-[140px] sm:max-w-[200px] ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold border max-w-[135px] sm:max-w-[200px] ${
                 gmailUser || ytChannel
                   ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
                   : 'bg-rose-500/15 border-rose-500/40 text-rose-300'
@@ -936,18 +949,16 @@ TAGS: <hashtags>`;
 
             {tier === 'pro' ? (
               <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-pink-500/15 border border-pink-500/40 text-[11px] font-semibold text-pink-200 shrink-0">
-                <Sparkles className="w-3 h-3 text-pink-400" />
-                <span>Pro</span>
+                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                <span>PRO</span>
               </div>
             ) : (
               <button
-                onClick={() => setIsPricingOpen(true)}
-                className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 rounded-full bg-[#0c1220] border border-sky-500/30 text-[11px] sm:text-xs font-medium text-slate-200 shrink-0"
+                onClick={() => openProModalWithReason('Unlock all Pro AI Tools for 7 days!')}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-400/50 text-[11px] sm:text-xs font-bold text-amber-300 shrink-0 animate-pulse"
               >
-                <span className="text-sky-400 font-semibold">
-                  {quotaUsed}/{globalConfig.freeLimit}
-                </span>
-                <span className="text-pink-400 font-semibold">₹{globalConfig.trialPrice} Pro</span>
+                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                <span>Unlock Pro ₹{globalConfig.trialPrice}</span>
               </button>
             )}
 
@@ -962,7 +973,7 @@ TAGS: <hashtags>`;
       </header>
 
       {/* Studio / Live Analytics Switcher Bar */}
-      <div className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5">
+      <div className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex p-1 rounded-2xl bg-[#090d16] border border-slate-800 w-full sm:w-auto">
           <button
             onClick={() => setActiveTab('studio')}
@@ -984,28 +995,51 @@ TAGS: <hashtags>`;
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            Shorts Analytics Dashboard
+            Shorts Analytics
           </button>
+        </div>
+
+        {/* Live Social Proof Pill */}
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-300">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <span>1,420+ Creators upgraded to Pro this week</span>
         </div>
       </div>
 
-      {/* TAB 1: AI CLIP STUDIO */}
+      {/* TAB 1: HIGH-CONVERSION AI CLIP STUDIO */}
       {activeTab === 'studio' && (
         <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 pb-20">
+          {/* Hero Section */}
           <div className="text-center max-w-2xl mx-auto mb-6">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/30 text-pink-300 text-[11px] sm:text-xs font-medium mb-3">
-              <Volume2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>Original Audio Preserved • 3 Viral Clips • Scheduled YT Upload</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] sm:text-xs font-semibold mb-3">
+              <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>#1 AI YouTube Shorts Automation Studio in India</span>
             </div>
-            <h1 className="text-2xl sm:text-5xl font-bold tracking-tight text-white mb-2.5 leading-snug">
-              AI Video to{' '}
+            <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
+              1 Video →{' '}
               <span className="bg-gradient-to-r from-sky-400 via-blue-400 to-pink-500 bg-clip-text text-transparent">
-                Viral YouTube Shorts
-              </span>
+                3 Viral Shorts
+              </span>{' '}
+              in 30 Seconds
             </h1>
-            <p className="text-slate-400 text-xs sm:text-sm">
-              Extracts 3 high-retention 9:16 clips with original sound, writes AI titles & hashtags, and posts on your schedule.
+            <p className="text-slate-400 text-xs sm:text-sm mb-4">
+              Auto-crops 9:16 with Original Sound, writes viral titles & hashtags with AI, and schedules directly to YouTube.
             </p>
+
+            {/* Primary Conversion CTA Banner for Free Users */}
+            {tier !== 'pro' && (
+              <div className="inline-flex flex-col sm:flex-row items-center gap-2.5 p-2 px-4 rounded-2xl bg-gradient-to-r from-sky-500/15 via-pink-500/15 to-amber-500/15 border border-pink-500/35">
+                <span className="text-xs text-slate-200">
+                  Free Plan: <strong className="text-rose-400">Watermark ON</strong> • Only {Math.max(0, globalConfig.freeLimit - quotaUsed)} clips left
+                </span>
+                <button
+                  onClick={() => openProModalWithReason('Remove Watermark + Unlock 3x Viral Clip Extraction & Auto-Scheduling!')}
+                  className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-pink-600 text-white text-xs font-bold flex items-center gap-1 shadow-lg"
+                >
+                  <Crown className="w-3.5 h-3.5" /> Start ₹{globalConfig.trialPrice} Pro Trial
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Account Banner */}
@@ -1017,10 +1051,10 @@ TAGS: <hashtags>`;
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-white">
-                    Step 1: Sign in with Google & Connect YouTube
+                    Step 1: Connect Your YouTube Channel
                   </div>
                   <div className="text-xs text-slate-400">
-                    Required for Scheduled YouTube Uploads & Live Analytics Dashboard.
+                    Sign in with Google for 1-click Shorts publishing & live analytics.
                   </div>
                 </div>
               </div>
@@ -1063,7 +1097,7 @@ TAGS: <hashtags>`;
             </div>
           )}
 
-          {/* Upload Dropzone with 3-Clips vs 1-Clip Selector */}
+          {/* Upload Dropzone with Pro Feature Toggles */}
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
@@ -1072,23 +1106,14 @@ TAGS: <hashtags>`;
               setIsDragging(false);
               Array.from(e.dataTransfer.files || []).forEach((f) => processNewFile(f));
             }}
-            className={`relative rounded-3xl p-6 sm:p-12 text-center transition-all border-2 border-dashed mb-6 ${
+            className={`relative rounded-3xl p-6 sm:p-11 text-center transition-all border-2 border-dashed mb-7 ${
               isDragging ? 'border-pink-500 bg-pink-500/10' : 'border-sky-500/35 bg-[#080c15]/95'
             }`}
           >
             <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileUpload} className="hidden" />
 
-            {/* Extraction Mode Toggle */}
+            {/* Pro-Gated Mode Selector */}
             <div className="inline-flex p-1 rounded-xl bg-[#0c1220] border border-slate-800 mb-5">
-              <button
-                type="button"
-                onClick={() => setClipMode('3clips')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  clipMode === '3clips' ? 'bg-pink-600 text-white' : 'text-slate-400'
-                }`}
-              >
-                ✨ Extract 3 Viral Clips
-              </button>
               <button
                 type="button"
                 onClick={() => setClipMode('1clip')}
@@ -1096,7 +1121,23 @@ TAGS: <hashtags>`;
                   clipMode === '1clip' ? 'bg-sky-600 text-white' : 'text-slate-400'
                 }`}
               >
-                1 Single Highlight
+                1 Single Clip (Free)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (tier !== 'pro') {
+                    openProModalWithReason('Extract 3 Viral Shorts from 1 video automatically with Pro!');
+                    return;
+                  }
+                  setClipMode('3clips');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                  clipMode === '3clips' ? 'bg-gradient-to-r from-amber-500 to-pink-600 text-white' : 'text-amber-300'
+                }`}
+              >
+                {tier !== 'pro' ? <Lock className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
+                3x Viral Clips (PRO)
               </button>
             </div>
 
@@ -1107,20 +1148,143 @@ TAGS: <hashtags>`;
               Select Video from Gallery
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
-              Automatically crops to 9:16 vertical Shorts with original sound & AI viral titles.
+              Crops to 9:16 vertical Short with original sound & AI viral titles.
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full sm:w-auto justify-center px-6 py-3.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 flex items-center gap-2 mx-auto"
+              className="w-full sm:w-auto justify-center px-7 py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 flex items-center gap-2 mx-auto shadow-[0_0_25px_rgba(56,189,248,0.25)]"
             >
               <Upload className="w-4 h-4" />
               Choose Video File
             </button>
           </div>
 
-          {/* Generated Shorts Queue with Schedule Picker */}
+          {/* 4 Pro-Locked AI Power Tools Showcase (Tapping any opens ₹2 Pro Upgrade) */}
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-amber-400" /> Pro AI Growth Suite
+              </h3>
+              {tier !== 'pro' && (
+                <button
+                  onClick={() => openProModalWithReason('Get instant access to all 4 AI Growth Tools!')}
+                  className="text-xs text-amber-400 font-semibold hover:underline"
+                >
+                  Unlock All for ₹{globalConfig.trialPrice} →
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                {
+                  icon: Scissors,
+                  title: '1-to-3 Viral Clipper',
+                  desc: 'Auto-extracts Hook, Climax & Ending Shorts from 1 video.',
+                  badge: '3x Views'
+                },
+                {
+                  icon: Clock,
+                  title: 'Auto-Schedule Posting',
+                  desc: 'Set peak hours & let ShortsPilot post while you sleep.',
+                  badge: 'Hands-Free'
+                },
+                {
+                  icon: Bot,
+                  title: 'AI Viral Title & Tags',
+                  desc: 'DeepSeek & Claude write high-CTR titles that trigger algorithm.',
+                  badge: 'High CTR'
+                },
+                {
+                  icon: Award,
+                  title: 'Zero Watermark Export',
+                  desc: 'Clean, brand-free 9:16 vertical Shorts ready for monetization.',
+                  badge: 'Clean HD'
+                }
+              ].map((tool, idx) => {
+                const IconComp = tool.icon;
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => tier !== 'pro' && openProModalWithReason(`Unlock "${tool.title}" with ShortsPilot Pro!`)}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
+                      tier === 'pro'
+                        ? 'bg-[#090d16] border-emerald-500/30'
+                        : 'bg-[#090d16]/90 border-slate-800 hover:border-amber-500/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-sky-500/15 flex items-center justify-center">
+                        <IconComp className="w-4 h-4 text-sky-400" />
+                      </div>
+                      {tier === 'pro' ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-semibold">
+                          ACTIVE
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5" /> PRO
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-xs sm:text-sm font-bold text-white mb-1">{tool.title}</h4>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">{tool.desc}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Free vs Pro Comparison Box (Direct Conversion Block on First Page) */}
+          {tier !== 'pro' && (
+            <section className="mb-8 p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-[#0c1222] via-[#090d16] to-[#160b18] border border-pink-500/35">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+                <div className="space-y-2 max-w-lg">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-[11px] font-bold">
+                    <TrendingUp className="w-3.5 h-3.5" /> WHY CREATORS UPGRADE TO PRO
+                  </div>
+                  <h3 className="text-lg sm:text-2xl font-bold text-white">
+                    Go Viral Faster — Remove Watermark & Unlock Unlimited AI Shorts
+                  </h3>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-300 pt-1">
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" /> Unlimited 9:16 Video Conversions
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" /> No "ShortsPilot" Watermark
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" /> 1 Video → 3 Viral Shorts Mode
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" /> Scheduled YouTube Auto-Posting
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="w-full md:w-auto p-4 rounded-2xl bg-black/50 border border-amber-400/40 text-center shrink-0">
+                  <div className="text-[11px] text-slate-400 line-through">Regular ₹499/month</div>
+                  <div className="text-3xl font-extrabold text-white my-0.5">
+                    ₹{globalConfig.trialPrice}{' '}
+                    <span className="text-xs font-normal text-amber-300">/ 7-Day Trial</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 mb-3">
+                    Then ₹{globalConfig.yearlyPrice}/year • Cancel anytime
+                  </div>
+                  <button
+                    onClick={() => openProModalWithReason('Claim your ₹2 7-Day Pro Trial now!')}
+                    className="w-full px-6 py-3 rounded-xl font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-500 via-pink-600 to-rose-600 shadow-[0_0_20px_rgba(236,72,153,0.4)]"
+                  >
+                    Upgrade to Pro Now →
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Generated Shorts Queue */}
           {videoQueue.length > 0 && (
-            <section className="mt-8">
+            <section className="mt-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Radio className="w-4 h-4 text-pink-500 animate-pulse" />
@@ -1145,6 +1309,14 @@ TAGS: <hashtags>`;
                           <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                             <Volume2 className="w-3 h-3" /> Audio ON
                           </span>
+                          {tier !== 'pro' && (
+                            <span
+                              onClick={() => openProModalWithReason('Remove watermark by upgrading to Pro for ₹2!')}
+                              className="text-[10px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 cursor-pointer"
+                            >
+                              Remove Watermark
+                            </span>
+                          )}
                         </div>
                         <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
                         <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
@@ -1169,15 +1341,16 @@ TAGS: <hashtags>`;
                       </div>
                     )}
 
-                    {/* Schedule Date & Time Selector */}
+                    {/* Schedule Picker (Pro Feature) */}
                     {clip.status === 'ready' && (
                       <div className="p-2.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between gap-2">
                         <label className="text-[11px] text-slate-400 flex items-center gap-1 shrink-0">
-                          <Calendar className="w-3.5 h-3.5 text-sky-400" /> Schedule:
+                          <Calendar className="w-3.5 h-3.5 text-sky-400" /> Schedule {tier !== 'pro' && '(PRO)'}:
                         </label>
                         <input
                           type="datetime-local"
                           value={scheduleTimes[clip.id] || ''}
+                          onClick={() => tier !== 'pro' && openProModalWithReason('Scheduled YouTube Posting requires Pro!')}
                           onChange={(e) =>
                             setScheduleTimes((prev) => ({ ...prev, [clip.id]: e.target.value }))
                           }
@@ -1249,7 +1422,7 @@ TAGS: <hashtags>`;
         </main>
       )}
 
-      {/* TAB 2: LIVE YOUTUBE SHORTS ANALYTICS DASHBOARD */}
+      {/* TAB 2: LIVE YOUTUBE SHORTS ANALYTICS */}
       {activeTab === 'analytics' && (
         <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 pb-20">
           <div className="flex items-center justify-between mb-5">
@@ -1319,16 +1492,10 @@ TAGS: <hashtags>`;
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         {vid.thumbnail && (
-                          <img
-                            src={vid.thumbnail}
-                            alt={vid.title}
-                            className="w-16 h-10 rounded-lg object-cover shrink-0"
-                          />
+                          <img src={vid.thumbnail} alt={vid.title} className="w-16 h-10 rounded-lg object-cover shrink-0" />
                         )}
                         <div className="min-w-0">
-                          <div className="text-xs sm:text-sm font-semibold text-white truncate">
-                            {vid.title}
-                          </div>
+                          <div className="text-xs sm:text-sm font-semibold text-white truncate">{vid.title}</div>
                           <div className="text-[11px] text-slate-500">{vid.publishedAt}</div>
                         </div>
                       </div>
@@ -1349,7 +1516,7 @@ TAGS: <hashtags>`;
         </main>
       )}
 
-      {/* Full 9:16 Clip Preview Modal (With Original Audio Unmuted!) */}
+      {/* Preview Modal */}
       {previewClip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
           <div className="relative w-full max-w-[300px] rounded-3xl bg-[#080c15] border border-sky-500/30 p-3">
@@ -1359,13 +1526,7 @@ TAGS: <hashtags>`;
             >
               <X className="w-4 h-4" />
             </button>
-            <video
-              src={previewClip.croppedUrl}
-              controls
-              autoPlay
-              playsInline
-              className="w-full rounded-2xl aspect-[9/16]"
-            />
+            <video src={previewClip.croppedUrl} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
           </div>
         </div>
       )}
@@ -1417,19 +1578,25 @@ TAGS: <hashtags>`;
         </div>
       )}
 
-      {/* Cashfree Pro Checkout Modal */}
+      {/* High-Converting Pro Upgrade Modal */}
       {isPricingOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
-          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-sky-500/30 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-amber-400/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
             <button onClick={() => setIsPricingOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400">
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-xl font-bold text-white mb-1">
-              Unlock ShortsPilot Pro for <span className="text-sky-400">₹{globalConfig.trialPrice}</span>
+            {upgradeReason && (
+              <div className="mb-3 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                ⚡ {upgradeReason}
+              </div>
+            )}
+
+            <h3 className="text-xl font-extrabold text-white mb-1">
+              Unlock ShortsPilot PRO for <span className="text-amber-400">₹{globalConfig.trialPrice}</span>
             </h3>
             <p className="text-xs text-slate-400 mb-4">
-              7-Day Trial at ₹{globalConfig.trialPrice} (then ₹{globalConfig.yearlyPrice}/year) • Unlimited 3-Clip AI Extractions & Scheduled YT Uploads.
+              7-Day Full Access Trial at ₹{globalConfig.trialPrice} (then ₹{globalConfig.yearlyPrice}/year). Remove watermarks, extract 3x viral clips & auto-schedule to YouTube.
             </p>
 
             {checkoutSuccess ? (
@@ -1442,7 +1609,7 @@ TAGS: <hashtags>`;
                 <button
                   type="button"
                   onClick={handleCashfreePayClick}
-                  className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]"
+                  className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
                 >
                   <CreditCard className="w-4 h-4" />
                   Pay ₹{globalConfig.trialPrice} Safely via Cashfree
@@ -1466,7 +1633,7 @@ TAGS: <hashtags>`;
                     {checkoutError && <p className="text-xs text-pink-400">{checkoutError}</p>}
                     <button
                       type="submit"
-                      className="w-full py-2.5 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-sky-500 to-pink-600"
+                      className="w-full py-2.5 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-amber-500 to-pink-600"
                     >
                       Verify & Unlock Pro
                     </button>
@@ -1495,11 +1662,11 @@ TAGS: <hashtags>`;
                   onClick={() => setAutoPublishEnabled(!autoPublishEnabled)}
                   className="text-xs px-2.5 py-1 rounded bg-sky-500/20 text-sky-300 font-semibold"
                 >
-                  {autoPublishEnabled ? 'ON' : 'OFF (Manual/Schedule)'}
+                  {autoPublishEnabled ? 'ON' : 'OFF'}
                 </button>
               </div>
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v5.0</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v5.5</div>
           </div>
         </div>
       )}
@@ -1543,11 +1710,11 @@ TAGS: <hashtags>`;
                   </span>
                 </div>
 
-                {/* 1. Dual AI Engine Configuration (DeepSeek + Claude) */}
+                {/* 1. Dual AI Engine Configuration */}
                 <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5">
-                      <Bot className="w-3.5 h-3.5" /> Active AI Engine (Auto-Fallback Enabled)
+                      <Bot className="w-3.5 h-3.5" /> AI Viral Title Engine (DeepSeek / Claude)
                     </span>
                     <select
                       value={globalConfig.aiProvider}
@@ -1565,6 +1732,7 @@ TAGS: <hashtags>`;
                         type="password"
                         value={globalConfig.deepseekApiKey}
                         onChange={(e) => setGlobalConfig({ ...globalConfig, deepseekApiKey: e.target.value })}
+                        placeholder="sk-..."
                         className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-sky-300 outline-none"
                       />
                     </div>
@@ -1574,6 +1742,7 @@ TAGS: <hashtags>`;
                         type="password"
                         value={globalConfig.claudeApiKey}
                         onChange={(e) => setGlobalConfig({ ...globalConfig, claudeApiKey: e.target.value })}
+                        placeholder="sk-ant-..."
                         className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-pink-300 outline-none"
                       />
                     </div>
@@ -1587,7 +1756,7 @@ TAGS: <hashtags>`;
                   </div>
                   <div>
                     <label className="text-[11px] text-slate-400 block mb-1">
-                      Cashfree Payment Link URL (Add later after KYC approval)
+                      Cashfree Payment Link URL (Add after KYC approval)
                     </label>
                     <input
                       type="url"
