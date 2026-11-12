@@ -11,7 +11,7 @@ import {
 const DEFAULT_GOOGLE_CLIENT_ID = '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
 
 // 2. अपना Firebase Realtime Database URL यहाँ डालें (ताकि Admin बदलाव पूरी वेबसाइट पर लाइव दिखें)
-const FIREBASE_DB_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com/';
+const FIREBASE_DB_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 
 // कस्टम Futuristic 'P' प्ले-एरो लोगो
 function ShortsPilotLogo({ className = 'w-5 h-5' }) {
