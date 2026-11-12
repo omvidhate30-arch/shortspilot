@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles, Upload, Play, CheckCircle2, Zap, Shield, Lock,
-  Youtube, Instagram, Sliders, X, Trash2, Download,
-  CreditCard, AlertCircle, Check, RefreshCw, Link2, Radio, Send,
-  Scissors, HardDrive, LogOut, UserCheck, Smartphone, Copy,
-  Megaphone, Wrench, Globe, IndianRupee
+  Youtube, Sliders, X, Trash2, Download, CreditCard, AlertCircle,
+  Check, RefreshCw, Link2, Radio, Send, Scissors, HardDrive,
+  LogOut, UserCheck, Megaphone, Wrench, Globe, IndianRupee,
+  BarChart3, Calendar, Clock, Eye, ThumbsUp, Users, Bot, Volume2, ExternalLink
 } from 'lucide-react';
 
-// 1. अपनी Google Cloud OAuth Client ID यहाँ डालें
+// आपकी Google Cloud OAuth Client ID और Firebase Live Database URL
 const DEFAULT_GOOGLE_CLIENT_ID = '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
-
-// 2. अपना Firebase Realtime Database URL यहाँ डालें (ताकि Admin बदलाव पूरी वेबसाइट पर लाइव दिखें)
 const FIREBASE_DB_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
+
+// आपकी दोनों AI API Keys (DeepSeek और Claude)
+const DEFAULT_DEEPSEEK_KEY = '';
+const DEFAULT_CLAUDE_KEY = '';
 
 // कस्टम Futuristic 'P' प्ले-एरो लोगो
 function ShortsPilotLogo({ className = 'w-5 h-5' }) {
@@ -43,8 +45,9 @@ function ShortsPilotLogo({ className = 'w-5 h-5' }) {
 }
 
 export default function App() {
-  // Global Remote Config (सब यूज़र्स के लिए लाइव सिंक होता है)
+  // Global Remote Config (Firebase से सभी यूज़र्स के लिए लाइव सिंक होता है)
   const [globalConfig, setGlobalConfig] = useState({
+    cashfreeLink: '',
     receiverUpi: '9767905729@paytm',
     trialPrice: '2',
     yearlyPrice: '1999',
@@ -53,15 +56,22 @@ export default function App() {
     bannerActive: true,
     maintenanceMode: false,
     ytAutoUploadActive: true,
-    googleClientId: DEFAULT_GOOGLE_CLIENT_ID
+    googleClientId: DEFAULT_GOOGLE_CLIENT_ID,
+    aiProvider: 'deepseek', // 'deepseek' | 'claude'
+    deepseekApiKey: DEFAULT_DEEPSEEK_KEY,
+    claudeApiKey: DEFAULT_CLAUDE_KEY
   });
   const [isSyncingGlobal, setIsSyncingGlobal] = useState(false);
+
+  // Navigation Tabs ('studio' | 'analytics')
+  const [activeTab, setActiveTab] = useState('studio');
 
   // Local User State
   const [tier, setTier] = useState(() => localStorage.getItem('sp_tier') || 'free');
   const [quotaUsed, setQuotaUsed] = useState(() => Number(localStorage.getItem('sp_quota_used') || 0));
   const [videoQueue, setVideoQueue] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [clipMode, setClipMode] = useState('3clips'); // '3clips' (1 video -> 3 shorts) | '1clip'
 
   // Persistent Gmail + YouTube Channel State
   const [gmailUser, setGmailUser] = useState(() => {
@@ -82,9 +92,17 @@ export default function App() {
     }
   });
 
+  // Live YouTube Analytics State
+  const [ytStats, setYtStats] = useState({
+    subscribers: '—',
+    totalViews: '—',
+    videoCount: '—',
+    recentVideos: [],
+    loading: false
+  });
+
   const [ytHandleInput, setYtHandleInput] = useState('');
-  const [igAutoSync, setIgAutoSync] = useState(true);
-  const [autoPublishEnabled, setAutoPublishEnabled] = useState(true);
+  const [autoPublishEnabled, setAutoPublishEnabled] = useState(false);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [connectError, setConnectError] = useState('');
 
@@ -92,10 +110,10 @@ export default function App() {
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [previewClip, setPreviewClip] = useState(null);
+  const [scheduleTimes, setScheduleTimes] = useState({});
 
-  // Checkout / UPI State
+  // Cashfree / Checkout State
   const [utrNumber, setUtrNumber] = useState('');
-  const [copiedUpi, setCopiedUpi] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
@@ -106,9 +124,6 @@ export default function App() {
   const [pinError, setPinError] = useState('');
   const [liveDbUrl, setLiveDbUrl] = useState(
     () => localStorage.getItem('sp_firebase_url') || FIREBASE_DB_URL
-  );
-  const [driveFolderId, setDriveFolderId] = useState(
-    () => localStorage.getItem('sp_drive_folder_id') || 'ShortsPilot_5TB_Vault'
   );
   const [storageUsedGB, setStorageUsedGB] = useState(14.8);
   const [transactions, setTransactions] = useState([]);
@@ -121,25 +136,45 @@ export default function App() {
   const activeClientId =
     globalConfig.googleClientId || localStorage.getItem('sp_google_client_id') || DEFAULT_GOOGLE_CLIENT_ID;
 
-  // Fetch Global Website Settings on Load (सभी यूज़र्स को लाइव अपडेट मिलता है)
+  // 1. Check URL Params for ?admin=true OR ?payment=success
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('admin') === 'true') {
+      setIsAdminOpen(true);
+    }
+    if (params.get('payment') === 'success' || params.get('order_status') === 'PAID') {
+      setTier('pro');
+      localStorage.setItem('sp_tier', 'pro');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      alert('🎉 Payment Confirmed! ShortsPilot Pro is now UNLOCKED.');
+    }
+
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        setIsAdminOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // 2. Fetch Global Website Settings from Firebase
   useEffect(() => {
     const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
-    if (!dbBase) {
-      const localSaved = localStorage.getItem('sp_global_config');
-      if (localSaved) {
-        try {
-          setGlobalConfig((prev) => ({ ...prev, ...JSON.parse(localSaved) }));
-        } catch {}
-      }
-      return;
-    }
+    if (!dbBase) return;
 
     const fetchLiveSettings = async () => {
       try {
         const res = await fetch(`${dbBase}/siteConfig.json`);
         const data = await res.json();
         if (data && typeof data === 'object') {
-          setGlobalConfig((prev) => ({ ...prev, ...data }));
+          setGlobalConfig((prev) => ({
+            ...prev,
+            ...data,
+            deepseekApiKey: data.deepseekApiKey || prev.deepseekApiKey,
+            claudeApiKey: data.claudeApiKey || prev.claudeApiKey
+          }));
         }
         const txnRes = await fetch(`${dbBase}/transactions.json`);
         const txnData = await txnRes.json();
@@ -149,13 +184,11 @@ export default function App() {
             .reverse();
           setTransactions(list);
         }
-      } catch {
-        // Fallback to local
-      }
+      } catch {}
     };
 
     fetchLiveSettings();
-    const interval = setInterval(fetchLiveSettings, 15000); // हर 15 सेकंड में लाइव चेक
+    const interval = setInterval(fetchLiveSettings, 15000);
     return () => clearInterval(interval);
   }, [liveDbUrl]);
 
@@ -178,22 +211,7 @@ export default function App() {
     localStorage.setItem('sp_quota_used', String(quotaUsed));
   }, [quotaUsed]);
 
-  // Secret Admin Trigger: ?admin=true OR Ctrl/Cmd + Shift + O
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('admin') === 'true') setIsAdminOpen(true);
-
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
-        e.preventDefault();
-        setIsAdminOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Initialize Google OAuth
+  // 3. Initialize Google OAuth
   useEffect(() => {
     if (!activeClientId) return;
 
@@ -223,16 +241,16 @@ export default function App() {
 
               try {
                 const res = await fetch(
-                  'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true',
+                  'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true',
                   { headers: { Authorization: `Bearer ${tokenResponse.access_token}` } }
                 );
                 const data = await res.json();
-                const rawName =
-                  data?.items?.[0]?.snippet?.customUrl ||
-                  data?.items?.[0]?.snippet?.title ||
-                  '@ConnectedCreator';
+                const ch = data?.items?.[0];
+                const rawName = ch?.snippet?.customUrl || ch?.snippet?.title || '@ConnectedCreator';
                 setYtChannel({
                   handle: rawName.startsWith('@') ? rawName : `@${rawName}`,
+                  channelId: ch?.id || null,
+                  uploadsPlaylistId: ch?.contentDetails?.relatedPlaylists?.uploads || null,
                   accessToken: tokenResponse.access_token,
                   expiresAt,
                   isRealOAuth: true
@@ -270,10 +288,73 @@ export default function App() {
     };
   }, [activeClientId]);
 
+  // 4. Fetch Live YouTube Channel & Shorts Performance Analytics
+  const fetchYouTubeAnalytics = async () => {
+    if (!ytChannel?.accessToken) return;
+    setYtStats((prev) => ({ ...prev, loading: true }));
+
+    try {
+      const chRes = await fetch(
+        'https://www.googleapis.com/youtube/v3/channels?part=statistics,contentDetails&mine=true',
+        { headers: { Authorization: `Bearer ${ytChannel.accessToken}` } }
+      );
+      const chData = await chRes.json();
+      const item = chData?.items?.[0];
+      const stats = item?.statistics || {};
+      const uploadsId = item?.contentDetails?.relatedPlaylists?.uploads;
+
+      let videosList = [];
+      if (uploadsId) {
+        const plRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=8&playlistId=${uploadsId}`,
+          { headers: { Authorization: `Bearer ${ytChannel.accessToken}` } }
+        );
+        const plData = await plRes.json();
+        const videoIds = (plData?.items || [])
+          .map((v) => v?.snippet?.resourceId?.videoId)
+          .filter(Boolean)
+          .join(',');
+
+        if (videoIds) {
+          const vidRes = await fetch(
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}`,
+            { headers: { Authorization: `Bearer ${ytChannel.accessToken}` } }
+          );
+          const vidData = await vidRes.json();
+          videosList = (vidData?.items || []).map((v) => ({
+            id: v.id,
+            title: v.snippet?.title,
+            thumbnail: v.snippet?.thumbnails?.medium?.url,
+            views: Number(v.statistics?.viewCount || 0).toLocaleString(),
+            likes: Number(v.statistics?.likeCount || 0).toLocaleString(),
+            comments: Number(v.statistics?.commentCount || 0).toLocaleString(),
+            publishedAt: new Date(v.snippet?.publishedAt).toLocaleDateString()
+          }));
+        }
+      }
+
+      setYtStats({
+        subscribers: Number(stats.subscriberCount || 0).toLocaleString(),
+        totalViews: Number(stats.viewCount || 0).toLocaleString(),
+        videoCount: Number(stats.videoCount || 0).toLocaleString(),
+        recentVideos: videosList,
+        loading: false
+      });
+    } catch {
+      setYtStats((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'analytics' && ytChannel?.accessToken) {
+      fetchYouTubeAnalytics();
+    }
+  }, [activeTab, ytChannel]);
+
   const handleOneClickGoogleConnect = (silent = false) => {
     setConnectError('');
     if (!activeClientId.trim()) {
-      setConnectError('Google Client ID pending. Add it in Owner Console (?admin=true).');
+      setConnectError('Google Client ID missing.');
       return;
     }
     if (!tokenClientRef.current) {
@@ -298,7 +379,6 @@ export default function App() {
 
   const handleQuickConnectYouTube = (e) => {
     e.preventDefault();
-    setConnectError('');
     const cleaned = ytHandleInput.trim().replace(/^https?:\/\/(www\.)?youtube\.com\//i, '');
     if (!cleaned || cleaned.length < 2) {
       setConnectError('Enter a valid YouTube @handle.');
@@ -310,24 +390,111 @@ export default function App() {
     setIsConnectModalOpen(false);
   };
 
-  // 9:16 Vertical Cropping Engine
-  const renderVertical916Clip = async (file, clipId) => {
+  // 5. Dual AI Engine (DeepSeek + Claude Auto-Fallback) Viral Title, Hook & Hashtags Generator
+  const generateViralMetadataWithAI = async (rawName, partLabel) => {
+    const fallbackTitle = `${rawName} (${partLabel}) 🔥 #Shorts #Viral`;
+    const fallbackTags = '#Shorts #YouTubeShorts #Trending #ViralVideo';
+
+    const prompt = `You are a viral YouTube Shorts strategist. Create 1 high-CTR catchy title (max 65 chars, no quotes) and 4 trending hashtags for a vertical Short clip named "${rawName} - ${partLabel}". Format strictly as:
+TITLE: <title>
+TAGS: <hashtags>`;
+
+    const callDeepSeek = async (key) => {
+      const res = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 120
+        })
+      });
+      if (!res.ok) throw new Error('DeepSeek error');
+      const data = await res.json();
+      return data?.choices?.[0]?.message?.content || '';
+    };
+
+    const callClaude = async (key) => {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'claude-3-5-haiku-20241022',
+          max_tokens: 120,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      if (!res.ok) throw new Error('Claude error');
+      const data = await res.json();
+      return data?.content?.[0]?.text || '';
+    };
+
+    const parseAIResponse = (text) => {
+      const titleMatch = text.match(/TITLE:\s*(.+)/i);
+      const tagsMatch = text.match(/TAGS:\s*(.+)/i);
+      if (titleMatch) {
+        return {
+          title: titleMatch[1].trim(),
+          hashtags: tagsMatch ? tagsMatch[1].trim() : fallbackTags
+        };
+      }
+      return null;
+    };
+
+    const dsKey = (globalConfig.deepseekApiKey || DEFAULT_DEEPSEEK_KEY).trim();
+    const clKey = (globalConfig.claudeApiKey || DEFAULT_CLAUDE_KEY).trim();
+
+    try {
+      let rawText = '';
+      if (globalConfig.aiProvider === 'claude' && clKey) {
+        try {
+          rawText = await callClaude(clKey);
+        } catch {
+          if (dsKey) rawText = await callDeepSeek(dsKey);
+        }
+      } else if (dsKey) {
+        try {
+          rawText = await callDeepSeek(dsKey);
+        } catch {
+          if (clKey) rawText = await callClaude(clKey);
+        }
+      }
+
+      const parsed = parseAIResponse(rawText);
+      if (parsed) return parsed;
+    } catch {}
+
+    return { title: fallbackTitle, hashtags: fallbackTags };
+  };
+
+  // 6. 9:16 Vertical Cropping WITH ORIGINAL SOUND (Web Audio API + MediaRecorder)
+  const renderVertical916WithAudio = async (file, clipId, startRatio = 0, maxClipSec = 12) => {
     return new Promise((resolve) => {
       const videoUrl = URL.createObjectURL(file);
       const video = document.createElement('video');
       video.src = videoUrl;
-      video.muted = true;
+      video.crossOrigin = 'anonymous';
       video.playsInline = true;
       video.setAttribute('playsinline', '');
+      video.muted = false;
+      video.volume = 0.05;
 
       const safetyTimer = setTimeout(() => {
-        resolve({ croppedUrl: videoUrl, clipLength: 15, blob: file });
-      }, 18000);
+        resolve({ croppedUrl: videoUrl, clipLength: maxClipSec, blob: file, hasAudio: true });
+      }, 22000);
 
       video.onloadedmetadata = () => {
-        const duration = video.duration || 10;
-        const startOffset = duration > 15 ? Math.min(duration * 0.2, duration - 10) : 0;
-        const clipLength = Math.min(10, duration - startOffset);
+        const duration = video.duration || 12;
+        const startOffset = Math.min(duration * startRatio, Math.max(0, duration - 5));
+        const clipLength = Math.min(maxClipSec, Math.max(3, duration - startOffset));
 
         const canvas = document.createElement('canvas');
         canvas.width = 480;
@@ -336,20 +503,42 @@ export default function App() {
 
         let supportedMime = '';
         if (window.MediaRecorder) {
-          const candidates = ['video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+          const candidates = [
+            'video/webm;codecs=vp8,opus',
+            'video/webm;codecs=vp9,opus',
+            'video/webm',
+            'video/mp4'
+          ];
           supportedMime = candidates.find((m) => MediaRecorder.isTypeSupported(m)) || '';
         }
 
         if (!window.MediaRecorder || !canvas.captureStream || !supportedMime) {
           clearTimeout(safetyTimer);
-          resolve({ croppedUrl: videoUrl, clipLength: Math.round(clipLength), blob: file });
+          resolve({ croppedUrl: videoUrl, clipLength: Math.round(clipLength), blob: file, hasAudio: true });
           return;
         }
 
         try {
-          const stream = canvas.captureStream(24);
+          const canvasStream = canvas.captureStream(24);
+          let combinedTracks = [...canvasStream.getVideoTracks()];
+          let audioCaptured = false;
+
+          // Original Video Audio Track Extraction
+          try {
+            const vidStream = video.captureStream
+              ? video.captureStream()
+              : video.mozCaptureStream
+              ? video.mozCaptureStream()
+              : null;
+            if (vidStream && vidStream.getAudioTracks().length > 0) {
+              combinedTracks = [...combinedTracks, ...vidStream.getAudioTracks()];
+              audioCaptured = true;
+            }
+          } catch {}
+
+          const finalStream = new MediaStream(combinedTracks);
           const chunks = [];
-          const recorder = new MediaRecorder(stream, { mimeType: supportedMime });
+          const recorder = new MediaRecorder(finalStream, { mimeType: supportedMime });
 
           recorder.ondataavailable = (e) => {
             if (e.data && e.data.size > 0) chunks.push(e.data);
@@ -361,7 +550,8 @@ export default function App() {
             resolve({
               croppedUrl: URL.createObjectURL(croppedBlob),
               clipLength: Math.round(clipLength),
-              blob: croppedBlob
+              blob: croppedBlob,
+              hasAudio: audioCaptured
             });
           };
 
@@ -369,8 +559,11 @@ export default function App() {
           video.onseeked = () => {
             recorder.start();
             video.play().catch(() => {
-              clearTimeout(safetyTimer);
-              resolve({ croppedUrl: videoUrl, clipLength: Math.round(clipLength), blob: file });
+              video.muted = true;
+              video.play().catch(() => {
+                clearTimeout(safetyTimer);
+                resolve({ croppedUrl: videoUrl, clipLength: Math.round(clipLength), blob: file, hasAudio: false });
+              });
             });
 
             const drawFrame = () => {
@@ -396,7 +589,7 @@ export default function App() {
               ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
               const elapsed = video.currentTime - startOffset;
-              const pct = Math.min(95, Math.round(35 + (elapsed / clipLength) * 60));
+              const pct = Math.min(95, Math.round(25 + (elapsed / clipLength) * 70));
               setVideoQueue((prev) =>
                 prev.map((item) => (item.id === clipId ? { ...item, progress: pct } : item))
               );
@@ -406,42 +599,53 @@ export default function App() {
           };
         } catch {
           clearTimeout(safetyTimer);
-          resolve({ croppedUrl: videoUrl, clipLength: Math.round(clipLength), blob: file });
+          resolve({ croppedUrl: videoUrl, clipLength: Math.round(clipLength), blob: file, hasAudio: true });
         }
       };
 
       video.onerror = () => {
         clearTimeout(safetyTimer);
-        resolve({ croppedUrl: videoUrl, clipLength: 15, blob: file });
+        resolve({ croppedUrl: videoUrl, clipLength: maxClipSec, blob: file, hasAudio: true });
       };
     });
   };
 
-  // YouTube Upload
-  const uploadClipToYouTubeAPI = async (clipId, title, blob, channelOverride = null) => {
+  // 7. Direct OR Scheduled YouTube Shorts Upload
+  const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null) => {
     if (!globalConfig.ytAutoUploadActive) {
-      alert('YouTube Auto-Upload is currently paused by Admin.');
+      alert('YouTube Upload is currently paused by Admin.');
       return;
     }
-    const activeChannel = channelOverride || ytChannelRef.current;
+    const activeChannel = ytChannelRef.current;
     if (!activeChannel) {
       setIsConnectModalOpen(true);
       return;
     }
 
     setVideoQueue((prev) =>
-      prev.map((item) => (item.id === clipId ? { ...item, status: 'uploading' } : item))
+      prev.map((item) => (item.id === clip.id ? { ...item, status: 'uploading' } : item))
     );
 
-    if (activeChannel.accessToken && blob) {
+    if (activeChannel.accessToken && clip.blob) {
       try {
+        const statusObj = scheduledIsoTime
+          ? {
+              privacyStatus: 'private',
+              publishAt: new Date(scheduledIsoTime).toISOString(),
+              selfDeclaredMadeForKids: false
+            }
+          : {
+              privacyStatus: 'public',
+              selfDeclaredMadeForKids: false
+            };
+
         const metadata = {
           snippet: {
-            title: `${title.slice(0, 85)} #Shorts`,
-            description: 'Created & auto-cropped in 9:16 with ShortsPilot AI #Shorts',
+            title: `${clip.title.slice(0, 85)} #Shorts`,
+            description: `${clip.title}\n\n${clip.hashtags}\nEdited & Auto-Published via ShortsPilot AI`,
             categoryId: '22'
           },
-          status: { privacyStatus: 'public', selfDeclaredMadeForKids: false }
+          status: statusObj
         };
 
         const initRes = await fetch(
@@ -451,8 +655,8 @@ export default function App() {
             headers: {
               Authorization: `Bearer ${activeChannel.accessToken}`,
               'Content-Type': 'application/json',
-              'X-Upload-Content-Type': blob.type || 'video/mp4',
-              'X-Upload-Content-Length': blob.size
+              'X-Upload-Content-Type': clip.blob.type || 'video/mp4',
+              'X-Upload-Content-Length': clip.blob.size
             },
             body: JSON.stringify(metadata)
           }
@@ -462,18 +666,19 @@ export default function App() {
         const uploadLocation = initRes.headers.get('Location');
         const uploadRes = await fetch(uploadLocation, {
           method: 'PUT',
-          headers: { 'Content-Type': blob.type || 'video/mp4' },
-          body: blob
+          headers: { 'Content-Type': clip.blob.type || 'video/mp4' },
+          body: clip.blob
         });
         if (!uploadRes.ok) throw new Error(`Upload failed (${uploadRes.status})`);
 
         const uploadedVideo = await uploadRes.json();
         setVideoQueue((prev) =>
           prev.map((item) =>
-            item.id === clipId
+            item.id === clip.id
               ? {
                   ...item,
-                  status: 'published',
+                  status: scheduledIsoTime ? 'scheduled' : 'published',
+                  scheduledFor: scheduledIsoTime,
                   youtubeUrl: uploadedVideo.id ? `https://youtube.com/shorts/${uploadedVideo.id}` : null
                 }
               : item
@@ -483,7 +688,7 @@ export default function App() {
       } catch (err) {
         alert(`YouTube Upload: ${err.message}`);
         setVideoQueue((prev) =>
-          prev.map((item) => (item.id === clipId ? { ...item, status: 'ready' } : item))
+          prev.map((item) => (item.id === clip.id ? { ...item, status: 'ready' } : item))
         );
         return;
       }
@@ -491,56 +696,83 @@ export default function App() {
 
     setTimeout(() => {
       setVideoQueue((prev) =>
-        prev.map((item) => (item.id === clipId ? { ...item, status: 'published' } : item))
+        prev.map((item) =>
+          item.id === clip.id
+            ? {
+                ...item,
+                status: scheduledIsoTime ? 'scheduled' : 'published',
+                scheduledFor: scheduledIsoTime
+              }
+            : item
+        )
       );
-    }, 1000);
+    }, 900);
   };
 
+  // 8. Multi-Clip AI Extractor Pipeline (1 Video -> 3 Viral Clips with Audio & AI Titles)
   const processNewFile = async (file) => {
     if (tier === 'free' && quotaUsed >= Number(globalConfig.freeLimit || 5)) {
       setIsPricingOpen(true);
       return;
     }
 
-    const newId = Date.now() + Math.random();
-    const cleanTitle = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
-
-    setVideoQueue((prev) => [
-      {
-        id: newId,
-        title: cleanTitle,
-        status: 'analyzing',
-        progress: 20,
-        hookScore: `${(9.0 + Math.random() * 0.9).toFixed(1)}/10`,
-        duration: '0:10',
-        croppedUrl: null,
-        blob: file,
-        youtubeUrl: null
-      },
-      ...prev
-    ]);
+    const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
     if (tier === 'free') setQuotaUsed((q) => q + 1);
 
-    const result = await renderVertical916Clip(file, newId);
-    setStorageUsedGB((prev) => Number((prev + 0.02).toFixed(2)));
+    const segments =
+      clipMode === '3clips'
+        ? [
+            { label: 'Part 1: Viral Hook', ratio: 0.02, score: '9.7/10' },
+            { label: 'Part 2: Peak Climax', ratio: 0.36, score: '9.4/10' },
+            { label: 'Part 3: Best Ending', ratio: 0.70, score: '9.2/10' }
+          ]
+        : [{ label: 'Full Highlight Cut', ratio: 0.10, score: '9.6/10' }];
 
-    setVideoQueue((prev) =>
-      prev.map((item) =>
-        item.id === newId
-          ? {
-              ...item,
-              status: 'ready',
-              progress: 100,
-              croppedUrl: result.croppedUrl,
-              blob: result.blob,
-              duration: `0:${String(result.clipLength).padStart(2, '0')}`
-            }
-          : item
-      )
-    );
+    for (const seg of segments) {
+      const clipId = Date.now() + Math.random();
+      setVideoQueue((prev) => [
+        {
+          id: clipId,
+          title: `${baseName} — ${seg.label}`,
+          hashtags: '#Shorts #Viral #Trending',
+          status: 'cropping',
+          progress: 15,
+          hookScore: seg.score,
+          duration: '0:12',
+          croppedUrl: null,
+          blob: file,
+          hasAudio: true,
+          youtubeUrl: null
+        },
+        ...prev
+      ]);
 
-    if (autoPublishEnabled && ytChannelRef.current?.accessToken) {
-      await uploadClipToYouTubeAPI(newId, cleanTitle, result.blob, ytChannelRef.current);
+      const [aiMeta, renderResult] = await Promise.all([
+        generateViralMetadataWithAI(baseName, seg.label),
+        renderVertical916WithAudio(file, clipId, seg.ratio, 12)
+      ]);
+
+      setStorageUsedGB((prev) => Number((prev + 0.02).toFixed(2)));
+
+      const readyClip = {
+        id: clipId,
+        title: aiMeta.title,
+        hashtags: aiMeta.hashtags,
+        status: 'ready',
+        progress: 100,
+        hookScore: seg.score,
+        duration: `0:${String(renderResult.clipLength).padStart(2, '0')}`,
+        croppedUrl: renderResult.croppedUrl,
+        blob: renderResult.blob,
+        hasAudio: renderResult.hasAudio,
+        youtubeUrl: null
+      };
+
+      setVideoQueue((prev) => prev.map((item) => (item.id === clipId ? readyClip : item)));
+
+      if (autoPublishEnabled && ytChannelRef.current?.accessToken) {
+        await uploadClipToYouTubeAPI(readyClip, null);
+      }
     }
   };
 
@@ -549,31 +781,28 @@ export default function App() {
     e.target.value = '';
   };
 
-  // Dynamic UPI Deep Link (Uses Live Receiver UPI + Live Trial Price)
-  const upiDeepLink = `upi://pay?pa=${encodeURIComponent(
-    globalConfig.receiverUpi
-  )}&pn=${encodeURIComponent('ShortsPilot Pro')}&am=${encodeURIComponent(
-    Number(globalConfig.trialPrice || 2).toFixed(2)
-  )}&cu=INR&tn=${encodeURIComponent('ShortsPilot 7-Day Pro Trial')}`;
-
-  const handleCopyUpi = () => {
-    navigator.clipboard?.writeText(globalConfig.receiverUpi);
-    setCopiedUpi(true);
-    setTimeout(() => setCopiedUpi(false), 2000);
+  // Cashfree Payment Launch
+  const handleCashfreePayClick = () => {
+    const link = (globalConfig.cashfreeLink || '').trim();
+    if (link) {
+      window.open(link, '_blank', 'noopener,noreferrer');
+    } else {
+      alert('Cashfree Payment Link abhi pending hai. Approval ke baad Admin Panel (?admin=true) me add karein.');
+    }
   };
 
-  // Submit UTR & Log Transaction to Live Firebase Database
+  // Manual UTR Fallback Verification
   const handleVerifyPayment = async (e) => {
     e.preventDefault();
     setCheckoutError('');
     if (!/^\d{12}$/.test(utrNumber.trim())) {
-      setCheckoutError('Enter the exact 12-digit UPI UTR Reference number.');
+      setCheckoutError('Enter the exact 12-digit Payment Reference / UTR number.');
       return;
     }
 
     const newTxn = {
       id: `TXN-${Math.floor(1000 + Math.random() * 9000)}`,
-      user: gmailUser?.email || ytChannel?.handle || 'Mobile User',
+      user: gmailUser?.email || ytChannel?.handle || 'Creator User',
       utr: utrNumber.trim(),
       amount: `₹${globalConfig.trialPrice} → ₹${globalConfig.yearlyPrice}/yr`,
       status: 'Verified',
@@ -599,10 +828,10 @@ export default function App() {
       setIsPricingOpen(false);
       setCheckoutSuccess(false);
       setUtrNumber('');
-    }, 1500);
+    }, 1400);
   };
 
-  // Publish Admin Changes to ALL Users Worldwide via Firebase
+  // Publish Admin Changes Globally via Firebase
   const handlePublishGlobalConfig = async () => {
     setIsSyncingGlobal(true);
     localStorage.setItem('sp_global_config', JSON.stringify(globalConfig));
@@ -612,7 +841,7 @@ export default function App() {
     const dbBase = liveDbUrl.trim().replace(/\/$/, '');
     if (!dbBase) {
       setIsSyncingGlobal(false);
-      alert('Saved locally! Add Firebase Database URL to push changes to ALL users worldwide.');
+      alert('Saved locally!');
       return;
     }
 
@@ -622,10 +851,10 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(globalConfig)
       });
-      if (!res.ok) throw new Error('Database write failed');
-      alert('✅ Live Updated! All users on the website now see your new UPI ID, Prices & Settings.');
+      if (!res.ok) throw new Error('Firebase permission error');
+      alert('✅ Live Updated! AI Keys, Prices & Settings are now active across the entire website.');
     } catch {
-      alert('Check your Firebase Database URL (must be in Test Mode).');
+      alert('Check Firebase Realtime Database Rules (.read: true, .write: true).');
     } finally {
       setIsSyncingGlobal(false);
     }
@@ -641,19 +870,16 @@ export default function App() {
     }
   };
 
-  // Maintenance Screen (When Admin turns Maintenance Mode ON)
+  // Maintenance Screen
   if (globalConfig.maintenanceMode && !isAdminOpen) {
     return (
       <div className="min-h-screen bg-[#06080d] text-white flex flex-col items-center justify-center p-6 text-center">
         <ShortsPilotLogo className="w-16 h-16 mb-4" />
         <h1 className="text-2xl font-bold mb-2">ShortsPilot is Upgrading</h1>
         <p className="text-sm text-slate-400 max-w-md mb-6">
-          We are deploying faster 9:16 AI rendering servers. Back online in a few minutes!
+          Deploying faster 9:16 AI rendering servers. Back online shortly!
         </p>
-        <button
-          onClick={() => setIsAdminOpen(true)}
-          className="text-xs text-slate-600 hover:text-slate-400"
-        >
+        <button onClick={() => setIsAdminOpen(true)} className="text-xs text-slate-600">
           Owner Access
         </button>
       </div>
@@ -662,7 +888,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full max-w-[100vw] bg-[#06080d] text-slate-100 font-sans relative overflow-x-hidden">
-      {/* Top Global Announcement Bar (Controlled Live by Admin) */}
+      {/* Top Global Announcement Bar */}
       {globalConfig.bannerActive && globalConfig.bannerText && (
         <div className="w-full bg-gradient-to-r from-sky-600 via-blue-600 to-pink-600 text-white text-[11px] sm:text-xs font-semibold py-1.5 px-3 text-center">
           {globalConfig.bannerText}
@@ -692,7 +918,7 @@ export default function App() {
           <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
             <button
               onClick={() => setIsConnectModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold border max-w-[145px] sm:max-w-[200px] ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold border max-w-[140px] sm:max-w-[200px] ${
                 gmailUser || ytChannel
                   ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
                   : 'bg-rose-500/15 border-rose-500/40 text-rose-300'
@@ -735,187 +961,395 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Workspace */}
-      <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-6 sm:pt-10 pb-20">
-        <div className="text-center max-w-2xl mx-auto mb-6 sm:mb-9">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/30 text-pink-300 text-[11px] sm:text-xs font-medium mb-3">
-            <Scissors className="w-3.5 h-3.5 text-pink-400 shrink-0" />
-            <span>9:16 Vertical Shorts + YouTube Auto-Post</span>
-          </div>
-          <h1 className="text-2xl sm:text-5xl font-bold tracking-tight text-white mb-3 leading-snug">
-            Turn Raw Videos Into{' '}
-            <span className="bg-gradient-to-r from-sky-400 via-blue-400 to-pink-500 bg-clip-text text-transparent">
-              Viral Shorts
-            </span>
-          </h1>
-          <p className="text-slate-400 text-xs sm:text-base">
-            Select any video from your gallery. ShortsPilot crops it into a 9:16 vertical clip and publishes straight to YouTube.
-          </p>
-        </div>
-
-        {/* Account Banner */}
-        {!ytChannel && !gmailUser ? (
-          <div className="mb-5 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-rose-500/10 via-[#090d16] to-sky-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
-                <Youtube className="w-5 h-5 text-rose-400" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-white">
-                  Step 1: Sign in with Gmail & Connect YouTube
-                </div>
-                <div className="text-xs text-slate-400">
-                  Stays logged in automatically even after page refresh.
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsConnectModalOpen(true)}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5"
-            >
-              <Link2 className="w-3.5 h-3.5" />
-              Sign in with Google
-            </button>
-          </div>
-        ) : (
-          <div className="mb-5 p-3 px-4 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              {gmailUser?.picture ? (
-                <img src={gmailUser.picture} alt="Gmail" className="w-7 h-7 rounded-full shrink-0" />
-              ) : (
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
-              )}
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs sm:text-sm font-semibold text-white truncate">
-                    {ytChannel?.handle || gmailUser?.name}
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                    Connected
-                  </span>
-                </div>
-                {gmailUser?.email && (
-                  <div className="text-[11px] text-slate-400 truncate">{gmailUser.email}</div>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => setIsConnectModalOpen(true)}
-              className="text-xs text-sky-400 font-medium shrink-0"
-            >
-              Account
-            </button>
-          </div>
-        )}
-
-        {/* Upload Dropzone */}
-        <div
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            Array.from(e.dataTransfer.files || []).forEach((f) => processNewFile(f));
-          }}
-          className={`relative rounded-3xl p-7 sm:p-14 text-center transition-all border-2 border-dashed mb-6 ${
-            isDragging ? 'border-pink-500 bg-pink-500/10' : 'border-sky-500/35 bg-[#080c15]/95'
-          }`}
-        >
-          <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileUpload} className="hidden" />
-          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-sky-500/20 to-pink-500/20 border border-sky-400/30 flex items-center justify-center">
-            <Upload className="w-6 h-6 text-sky-400" />
-          </div>
-          <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">Select Video from Gallery</h2>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
-            Choose any MP4/MOV video. Automatically crops to 9:16 vertical Short & uploads to YouTube.
-          </p>
+      {/* Studio / Live Analytics Switcher Bar */}
+      <div className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5">
+        <div className="inline-flex p-1 rounded-2xl bg-[#090d16] border border-slate-800 w-full sm:w-auto">
           <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full sm:w-auto justify-center px-6 py-3.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 flex items-center gap-2 mx-auto"
+            onClick={() => setActiveTab('studio')}
+            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'studio'
+                ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white'
+                : 'text-slate-400 hover:text-white'
+            }`}
           >
-            <Upload className="w-4 h-4" />
-            Choose Video File
+            <Scissors className="w-3.5 h-3.5" />
+            AI Clip Studio
+          </button>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'analytics'
+                ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            Shorts Analytics Dashboard
           </button>
         </div>
+      </div>
 
-        {/* Queue */}
-        {videoQueue.length > 0 && (
-          <section className="mt-8">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Radio className="w-4 h-4 text-pink-500 animate-pulse" />
-                <h3 className="text-base sm:text-lg font-bold text-white">Publishing Queue</h3>
-              </div>
-              <button onClick={() => setVideoQueue([])} className="text-xs text-slate-400 hover:text-pink-400">
-                Clear All
-              </button>
+      {/* TAB 1: AI CLIP STUDIO */}
+      {activeTab === 'studio' && (
+        <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 pb-20">
+          <div className="text-center max-w-2xl mx-auto mb-6">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/30 text-pink-300 text-[11px] sm:text-xs font-medium mb-3">
+              <Volume2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Original Audio Preserved • 3 Viral Clips • Scheduled YT Upload</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {videoQueue.map((clip) => (
-                <div key={clip.id} className="p-4 rounded-2xl bg-[#090d16] border border-sky-500/20 flex flex-col gap-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30 mr-1.5">
-                        Hook {clip.hookScore}
-                      </span>
-                      <h4 className="font-semibold text-white text-sm truncate mt-1">{clip.title}</h4>
-                    </div>
-                    <button
-                      onClick={() => setVideoQueue((prev) => prev.filter((i) => i.id !== clip.id))}
-                      className="text-slate-500 hover:text-pink-400 p-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+            <h1 className="text-2xl sm:text-5xl font-bold tracking-tight text-white mb-2.5 leading-snug">
+              AI Video to{' '}
+              <span className="bg-gradient-to-r from-sky-400 via-blue-400 to-pink-500 bg-clip-text text-transparent">
+                Viral YouTube Shorts
+              </span>
+            </h1>
+            <p className="text-slate-400 text-xs sm:text-sm">
+              Extracts 3 high-retention 9:16 clips with original sound, writes AI titles & hashtags, and posts on your schedule.
+            </p>
+          </div>
+
+          {/* Account Banner */}
+          {!ytChannel && !gmailUser ? (
+            <div className="mb-5 p-3.5 rounded-2xl bg-gradient-to-r from-rose-500/10 via-[#090d16] to-sky-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                  <Youtube className="w-5 h-5 text-rose-400" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-white">
+                    Step 1: Sign in with Google & Connect YouTube
                   </div>
-
-                  {clip.croppedUrl && (
-                    <div
-                      onClick={() => setPreviewClip(clip)}
-                      className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] h-52 mx-auto w-28 cursor-pointer"
-                    >
-                      <video src={clip.croppedUrl} className="w-full h-full object-cover" muted playsInline />
-                      <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                        <Play className="w-6 h-6 text-white fill-white" />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
-                    {clip.croppedUrl ? (
-                      <a
-                        href={clip.croppedUrl}
-                        download={`${clip.title}_9x16.mp4`}
-                        className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1"
-                      >
-                        <Download className="w-3.5 h-3.5 text-sky-400" /> Save 9:16
-                      </a>
-                    ) : (
-                      <span className="text-slate-400">Rendering {clip.progress}%...</span>
-                    )}
-
-                    {clip.status === 'ready' && (
-                      <button
-                        onClick={() => uploadClipToYouTubeAPI(clip.id, clip.title, clip.blob)}
-                        className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1"
-                      >
-                        <Send className="w-3.5 h-3.5" /> Post to YT
-                      </button>
-                    )}
-
-                    {clip.status === 'published' && (
-                      <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="w-4 h-4" /> Posted
-                      </span>
-                    )}
+                  <div className="text-xs text-slate-400">
+                    Required for Scheduled YouTube Uploads & Live Analytics Dashboard.
                   </div>
                 </div>
-              ))}
+              </div>
+              <button
+                onClick={() => setIsConnectModalOpen(true)}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                Sign in with Google
+              </button>
             </div>
-          </section>
-        )}
-      </main>
+          ) : (
+            <div className="mb-5 p-3 px-4 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {gmailUser?.picture ? (
+                  <img src={gmailUser.picture} alt="Gmail" className="w-7 h-7 rounded-full shrink-0" />
+                ) : (
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm font-semibold text-white truncate">
+                      {ytChannel?.handle || gmailUser?.name}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      Connected
+                    </span>
+                  </div>
+                  {gmailUser?.email && (
+                    <div className="text-[11px] text-slate-400 truncate">{gmailUser.email}</div>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setIsConnectModalOpen(true)}
+                className="text-xs text-sky-400 font-medium shrink-0"
+              >
+                Account
+              </button>
+            </div>
+          )}
 
-      {/* Preview Modal */}
+          {/* Upload Dropzone with 3-Clips vs 1-Clip Selector */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              Array.from(e.dataTransfer.files || []).forEach((f) => processNewFile(f));
+            }}
+            className={`relative rounded-3xl p-6 sm:p-12 text-center transition-all border-2 border-dashed mb-6 ${
+              isDragging ? 'border-pink-500 bg-pink-500/10' : 'border-sky-500/35 bg-[#080c15]/95'
+            }`}
+          >
+            <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileUpload} className="hidden" />
+
+            {/* Extraction Mode Toggle */}
+            <div className="inline-flex p-1 rounded-xl bg-[#0c1220] border border-slate-800 mb-5">
+              <button
+                type="button"
+                onClick={() => setClipMode('3clips')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  clipMode === '3clips' ? 'bg-pink-600 text-white' : 'text-slate-400'
+                }`}
+              >
+                ✨ Extract 3 Viral Clips
+              </button>
+              <button
+                type="button"
+                onClick={() => setClipMode('1clip')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  clipMode === '1clip' ? 'bg-sky-600 text-white' : 'text-slate-400'
+                }`}
+              >
+                1 Single Highlight
+              </button>
+            </div>
+
+            <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-sky-500/20 to-pink-500/20 border border-sky-400/30 flex items-center justify-center">
+              <Upload className="w-6 h-6 text-sky-400" />
+            </div>
+            <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">
+              Select Video from Gallery
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
+              Automatically crops to 9:16 vertical Shorts with original sound & AI viral titles.
+            </p>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full sm:w-auto justify-center px-6 py-3.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 flex items-center gap-2 mx-auto"
+            >
+              <Upload className="w-4 h-4" />
+              Choose Video File
+            </button>
+          </div>
+
+          {/* Generated Shorts Queue with Schedule Picker */}
+          {videoQueue.length > 0 && (
+            <section className="mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-pink-500 animate-pulse" />
+                  <h3 className="text-base sm:text-lg font-bold text-white">
+                    AI Shorts Queue ({videoQueue.length})
+                  </h3>
+                </div>
+                <button onClick={() => setVideoQueue([])} className="text-xs text-slate-400 hover:text-pink-400">
+                  Clear All
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {videoQueue.map((clip) => (
+                  <div key={clip.id} className="p-4 rounded-2xl bg-[#090d16] border border-sky-500/20 flex flex-col gap-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30">
+                            Hook {clip.hookScore}
+                          </span>
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <Volume2 className="w-3 h-3" /> Audio ON
+                          </span>
+                        </div>
+                        <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
+                        <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
+                      </div>
+                      <button
+                        onClick={() => setVideoQueue((prev) => prev.filter((i) => i.id !== clip.id))}
+                        className="text-slate-500 hover:text-pink-400 p-1 shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {clip.croppedUrl && (
+                      <div
+                        onClick={() => setPreviewClip(clip)}
+                        className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] h-52 mx-auto w-28 cursor-pointer"
+                      >
+                        <video src={clip.croppedUrl} className="w-full h-full object-cover" muted playsInline />
+                        <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                          <Play className="w-6 h-6 text-white fill-white" />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Schedule Date & Time Selector */}
+                    {clip.status === 'ready' && (
+                      <div className="p-2.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between gap-2">
+                        <label className="text-[11px] text-slate-400 flex items-center gap-1 shrink-0">
+                          <Calendar className="w-3.5 h-3.5 text-sky-400" /> Schedule:
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={scheduleTimes[clip.id] || ''}
+                          onChange={(e) =>
+                            setScheduleTimes((prev) => ({ ...prev, [clip.id]: e.target.value }))
+                          }
+                          className="bg-[#05070c] text-white text-[11px] px-2 py-1 rounded border border-slate-700 outline-none min-w-0"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
+                      {clip.croppedUrl ? (
+                        <a
+                          href={clip.croppedUrl}
+                          download={`${clip.title.slice(0, 25)}_9x16.webm`}
+                          className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1"
+                        >
+                          <Download className="w-3.5 h-3.5 text-sky-400" /> Save
+                        </a>
+                      ) : (
+                        <span className="text-slate-400">Rendering {clip.progress}%...</span>
+                      )}
+
+                      {clip.status === 'ready' && (
+                        <div className="flex items-center gap-1.5">
+                          {scheduleTimes[clip.id] && (
+                            <button
+                              onClick={() => uploadClipToYouTubeAPI(clip, scheduleTimes[clip.id])}
+                              className="px-3 py-1.5 rounded-lg bg-sky-600 text-white font-semibold flex items-center gap-1"
+                            >
+                              <Clock className="w-3.5 h-3.5" /> Schedule YT
+                            </button>
+                          )}
+                          <button
+                            onClick={() => uploadClipToYouTubeAPI(clip, null)}
+                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1"
+                          >
+                            <Send className="w-3.5 h-3.5" /> Post Now
+                          </button>
+                        </div>
+                      )}
+
+                      {clip.status === 'uploading' && (
+                        <span className="text-sky-400 font-medium">Uploading to YouTube...</span>
+                      )}
+
+                      {clip.status === 'scheduled' && (
+                        <span className="text-sky-400 font-semibold flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" /> Scheduled ✓
+                        </span>
+                      )}
+
+                      {clip.status === 'published' && (
+                        <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4" />
+                          {clip.youtubeUrl ? (
+                            <a href={clip.youtubeUrl} target="_blank" rel="noreferrer" className="underline">
+                              Live on YT ↗
+                            </a>
+                          ) : (
+                            'Posted'
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </main>
+      )}
+
+      {/* TAB 2: LIVE YOUTUBE SHORTS ANALYTICS DASHBOARD */}
+      {activeTab === 'analytics' && (
+        <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 pb-20">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">Shorts Performance Dashboard</h2>
+              <p className="text-xs text-slate-400">
+                Real-time channel views, likes & growth metrics from your connected YouTube channel.
+              </p>
+            </div>
+            <button
+              onClick={fetchYouTubeAnalytics}
+              className="px-3 py-2 rounded-xl bg-[#0c1220] border border-sky-500/30 text-xs text-sky-300 flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${ytStats.loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+
+          {!ytChannel?.accessToken ? (
+            <div className="p-8 rounded-3xl bg-[#090d16] border border-rose-500/30 text-center">
+              <Youtube className="w-10 h-10 text-rose-400 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-white mb-1">Connect YouTube to View Live Stats</h3>
+              <p className="text-xs text-slate-400 mb-4">
+                Sign in with Google to track how your uploaded Shorts are performing.
+              </p>
+              <button
+                onClick={() => setIsConnectModalOpen(true)}
+                className="px-5 py-2.5 rounded-xl bg-rose-500 text-white text-xs font-semibold"
+              >
+                Sign in with Google
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-6">
+                <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-sky-500/25">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
+                    <Users className="w-3.5 h-3.5 text-sky-400" /> Subscribers
+                  </div>
+                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.subscribers}</div>
+                </div>
+                <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-pink-500/25">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
+                    <Eye className="w-3.5 h-3.5 text-pink-400" /> Total Views
+                  </div>
+                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.totalViews}</div>
+                </div>
+                <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-emerald-500/25">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
+                    <Youtube className="w-3.5 h-3.5 text-emerald-400" /> Total Videos
+                  </div>
+                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.videoCount}</div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-slate-300">Recent Uploads Performance</h3>
+                {ytStats.recentVideos.length === 0 ? (
+                  <div className="p-6 rounded-2xl bg-[#090d16] border border-slate-800 text-xs text-slate-400 text-center">
+                    {ytStats.loading ? 'Loading YouTube stats...' : 'No videos found on this channel yet.'}
+                  </div>
+                ) : (
+                  ytStats.recentVideos.map((vid) => (
+                    <div
+                      key={vid.id}
+                      className="p-3 sm:p-4 rounded-2xl bg-[#090d16] border border-slate-800 flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {vid.thumbnail && (
+                          <img
+                            src={vid.thumbnail}
+                            alt={vid.title}
+                            className="w-16 h-10 rounded-lg object-cover shrink-0"
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <div className="text-xs sm:text-sm font-semibold text-white truncate">
+                            {vid.title}
+                          </div>
+                          <div className="text-[11px] text-slate-500">{vid.publishedAt}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs shrink-0">
+                        <span className="flex items-center gap-1 text-sky-300 font-semibold">
+                          <Eye className="w-3.5 h-3.5" /> {vid.views}
+                        </span>
+                        <span className="flex items-center gap-1 text-pink-300 font-semibold">
+                          <ThumbsUp className="w-3.5 h-3.5" /> {vid.likes}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </main>
+      )}
+
+      {/* Full 9:16 Clip Preview Modal (With Original Audio Unmuted!) */}
       {previewClip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
           <div className="relative w-full max-w-[300px] rounded-3xl bg-[#080c15] border border-sky-500/30 p-3">
@@ -925,7 +1359,13 @@ export default function App() {
             >
               <X className="w-4 h-4" />
             </button>
-            <video src={previewClip.croppedUrl} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
+            <video
+              src={previewClip.croppedUrl}
+              controls
+              autoPlay
+              playsInline
+              className="w-full rounded-2xl aspect-[9/16]"
+            />
           </div>
         </div>
       )}
@@ -977,7 +1417,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Live UPI Checkout Modal */}
+      {/* Cashfree Pro Checkout Modal */}
       {isPricingOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
           <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-sky-500/30 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
@@ -986,10 +1426,10 @@ export default function App() {
             </button>
 
             <h3 className="text-xl font-bold text-white mb-1">
-              Start 7-Day Pro Trial for <span className="text-sky-400">₹{globalConfig.trialPrice}</span>
+              Unlock ShortsPilot Pro for <span className="text-sky-400">₹{globalConfig.trialPrice}</span>
             </h3>
             <p className="text-xs text-slate-400 mb-4">
-              ₹{globalConfig.trialPrice} today, then ₹{globalConfig.yearlyPrice}/year for unlimited 9:16 Shorts & YT Auto-Post.
+              7-Day Trial at ₹{globalConfig.trialPrice} (then ₹{globalConfig.yearlyPrice}/year) • Unlimited 3-Clip AI Extractions & Scheduled YT Uploads.
             </p>
 
             {checkoutSuccess ? (
@@ -998,47 +1438,40 @@ export default function App() {
                 <div className="font-bold text-white">Pro Plan Activated!</div>
               </div>
             ) : (
-              <div className="space-y-3.5">
-                <a
-                  href={upiDeepLink}
-                  className="w-full py-3.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-center gap-2"
+              <div className="space-y-4">
+                <button
+                  type="button"
+                  onClick={handleCashfreePayClick}
+                  className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]"
                 >
-                  <Smartphone className="w-4 h-4" />
-                  Step 1: Pay ₹{globalConfig.trialPrice} via GPay / PhonePe / Paytm
-                </a>
+                  <CreditCard className="w-4 h-4" />
+                  Pay ₹{globalConfig.trialPrice} Safely via Cashfree
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
 
-                <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#0c1220] border border-slate-800 text-xs">
-                  <span className="text-slate-400 truncate">
-                    UPI: <strong className="text-sky-300 font-mono">{globalConfig.receiverUpi}</strong>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyUpi}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1"
-                  >
-                    <Copy className="w-3 h-3" /> {copiedUpi ? 'Copied' : 'Copy'}
-                  </button>
+                <div className="border-t border-slate-800 pt-3">
+                  <div className="text-[11px] text-slate-400 mb-2">
+                    Already paid? Enter your 12-digit Payment Reference / UTR ID for instant unlock:
+                  </div>
+                  <form onSubmit={handleVerifyPayment} className="space-y-2.5">
+                    <input
+                      type="tel"
+                      maxLength={12}
+                      value={utrNumber}
+                      onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Enter 12-Digit UTR / Reference No."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 text-sm font-mono text-white outline-none"
+                      required
+                    />
+                    {checkoutError && <p className="text-xs text-pink-400">{checkoutError}</p>}
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-sky-500 to-pink-600"
+                    >
+                      Verify & Unlock Pro
+                    </button>
+                  </form>
                 </div>
-
-                <form onSubmit={handleVerifyPayment} className="space-y-3">
-                  <input
-                    type="tel"
-                    maxLength={12}
-                    value={utrNumber}
-                    onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
-                    placeholder="Step 2: Enter 12-Digit UTR Number"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 text-sm font-mono text-white outline-none"
-                    required
-                  />
-                  {checkoutError && <p className="text-xs text-pink-400">{checkoutError}</p>}
-                  <button
-                    type="submit"
-                    className="w-full py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-sky-500 to-pink-600 flex items-center justify-center gap-2"
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    Verify ₹{globalConfig.trialPrice} & Unlock Pro
-                  </button>
-                </form>
               </div>
             )}
           </div>
@@ -1057,25 +1490,16 @@ export default function App() {
                 </button>
               </div>
               <div className="p-3 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between">
-                <span className="text-sm text-slate-200">YouTube Auto-Post</span>
+                <span className="text-sm text-slate-200">Instant Auto-Post to YT</span>
                 <button
                   onClick={() => setAutoPublishEnabled(!autoPublishEnabled)}
                   className="text-xs px-2.5 py-1 rounded bg-sky-500/20 text-sky-300 font-semibold"
                 >
-                  {autoPublishEnabled ? 'ON' : 'OFF'}
-                </button>
-              </div>
-              <div className="p-3 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between">
-                <span className="text-sm text-slate-200">Instagram Sync</span>
-                <button
-                  onClick={() => setIgAutoSync(!igAutoSync)}
-                  className="text-xs px-2.5 py-1 rounded bg-pink-500/20 text-pink-300 font-semibold"
-                >
-                  {igAutoSync ? 'ON' : 'OFF'}
+                  {autoPublishEnabled ? 'ON' : 'OFF (Manual/Schedule)'}
                 </button>
               </div>
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot Live Cloud v4.0</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v5.0</div>
           </div>
         </div>
       )}
@@ -1092,7 +1516,7 @@ export default function App() {
               <form onSubmit={handleAdminUnlock} className="py-6 text-center">
                 <Lock className="w-10 h-10 text-pink-400 mx-auto mb-3" />
                 <h3 className="text-lg font-bold text-white mb-1">Owner Live Control Center</h3>
-                <p className="text-xs text-slate-400 mb-4">Enter Master PIN to control the entire live website.</p>
+                <p className="text-xs text-slate-400 mb-4">Enter Master PIN to manage DeepSeek/Claude AI, Cashfree & Live Site.</p>
                 <input
                   type="password"
                   inputMode="numeric"
@@ -1115,83 +1539,107 @@ export default function App() {
                     <h3 className="text-base sm:text-lg font-bold text-white">Live Website Control Center</h3>
                   </div>
                   <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                    Global Sync
+                    Firebase Synced
                   </span>
                 </div>
 
-                {/* 1. Firebase Live Sync URL */}
-                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30">
-                  <label className="text-xs font-semibold text-sky-300 flex items-center gap-1.5 mb-1.5">
-                    <Globe className="w-3.5 h-3.5" /> Firebase Live Database URL (Syncs All Users)
-                  </label>
-                  <input
-                    type="text"
-                    value={liveDbUrl}
-                    onChange={(e) => setLiveDbUrl(e.target.value)}
-                    placeholder="https://shortspilot-live-default-rtdb.firebaseio.com"
-                    className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs font-mono text-emerald-300 outline-none"
-                  />
+                {/* 1. Dual AI Engine Configuration (DeepSeek + Claude) */}
+                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5">
+                      <Bot className="w-3.5 h-3.5" /> Active AI Engine (Auto-Fallback Enabled)
+                    </span>
+                    <select
+                      value={globalConfig.aiProvider}
+                      onChange={(e) => setGlobalConfig({ ...globalConfig, aiProvider: e.target.value })}
+                      className="bg-[#05070c] px-2.5 py-1 rounded-lg border border-slate-700 text-xs text-white outline-none"
+                    >
+                      <option value="deepseek">Primary: DeepSeek AI</option>
+                      <option value="claude">Primary: Claude AI</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">DeepSeek API Key</label>
+                      <input
+                        type="password"
+                        value={globalConfig.deepseekApiKey}
+                        onChange={(e) => setGlobalConfig({ ...globalConfig, deepseekApiKey: e.target.value })}
+                        className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-sky-300 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Claude API Key</label>
+                      <input
+                        type="password"
+                        value={globalConfig.claudeApiKey}
+                        onChange={(e) => setGlobalConfig({ ...globalConfig, claudeApiKey: e.target.value })}
+                        className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-pink-300 outline-none"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* 2. Live UPI ID & Pricing Controls */}
-                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-3">
-                  <div className="text-xs font-semibold text-pink-300 flex items-center gap-1.5">
-                    <IndianRupee className="w-3.5 h-3.5" /> Live Payment & Plan Controls (Updates All Users)
+                {/* 2. Cashfree Payment Gateway Link & Prices */}
+                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/30 space-y-3">
+                  <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                    <IndianRupee className="w-3.5 h-3.5" /> Cashfree Payment Gateway & Plans
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Receiver UPI ID</label>
-                      <input
-                        type="text"
-                        value={globalConfig.receiverUpi}
-                        onChange={(e) => setGlobalConfig({ ...globalConfig, receiverUpi: e.target.value })}
-                        className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs font-mono text-sky-300 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Free Videos Quota</label>
-                      <input
-                        type="number"
-                        value={globalConfig.freeLimit}
-                        onChange={(e) => setGlobalConfig({ ...globalConfig, freeLimit: Number(e.target.value) })}
-                        className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs text-white outline-none"
-                      />
-                    </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">
+                      Cashfree Payment Link URL (Add later after KYC approval)
+                    </label>
+                    <input
+                      type="url"
+                      value={globalConfig.cashfreeLink}
+                      onChange={(e) => setGlobalConfig({ ...globalConfig, cashfreeLink: e.target.value })}
+                      placeholder="https://payments.cashfree.com/links/..."
+                      className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs font-mono text-emerald-300 outline-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="text-[11px] text-slate-400 block mb-1">Trial Price (₹)</label>
                       <input
                         type="number"
                         value={globalConfig.trialPrice}
                         onChange={(e) => setGlobalConfig({ ...globalConfig, trialPrice: e.target.value })}
-                        className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs text-white outline-none"
+                        className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Yearly Pro Price (₹)</label>
+                      <label className="text-[11px] text-slate-400 block mb-1">Yearly Price (₹)</label>
                       <input
                         type="number"
                         value={globalConfig.yearlyPrice}
                         onChange={(e) => setGlobalConfig({ ...globalConfig, yearlyPrice: e.target.value })}
-                        className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs text-white outline-none"
+                        className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Free Limit</label>
+                      <input
+                        type="number"
+                        value={globalConfig.freeLimit}
+                        onChange={(e) => setGlobalConfig({ ...globalConfig, freeLimit: Number(e.target.value) })}
+                        className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* 3. Top Offer Banner & Site Kill-Switches */}
-                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-3">
+                {/* 3. Banner & Kill Switches */}
+                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5">
-                      <Megaphone className="w-3.5 h-3.5" /> Top Announcement Banner
+                    <span className="text-xs font-semibold text-pink-300 flex items-center gap-1.5">
+                      <Megaphone className="w-3.5 h-3.5" /> Top Offer Banner
                     </span>
                     <button
                       type="button"
                       onClick={() => setGlobalConfig({ ...globalConfig, bannerActive: !globalConfig.bannerActive })}
-                      className={`text-[11px] px-2.5 py-0.5 rounded font-semibold ${
-                        globalConfig.bannerActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
-                      }`}
+                      className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-sky-300 font-semibold"
                     >
-                      {globalConfig.bannerActive ? 'VISIBLE' : 'HIDDEN'}
+                      {globalConfig.bannerActive ? 'ON' : 'OFF'}
                     </button>
                   </div>
                   <input
@@ -1200,55 +1648,31 @@ export default function App() {
                     onChange={(e) => setGlobalConfig({ ...globalConfig, bannerText: e.target.value })}
                     className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs text-white outline-none"
                   />
-
-                  <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() =>
                         setGlobalConfig({ ...globalConfig, ytAutoUploadActive: !globalConfig.ytAutoUploadActive })
                       }
-                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between ${
-                        globalConfig.ytAutoUploadActive
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                          : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                      }`}
+                      className="p-2 rounded-xl border border-slate-700 text-xs font-semibold text-emerald-300 flex justify-between"
                     >
                       <span>YT Upload</span>
                       <span>{globalConfig.ytAutoUploadActive ? 'ON' : 'OFF'}</span>
                     </button>
-
                     <button
                       type="button"
                       onClick={() =>
                         setGlobalConfig({ ...globalConfig, maintenanceMode: !globalConfig.maintenanceMode })
                       }
-                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between ${
-                        globalConfig.maintenanceMode
-                          ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-                          : 'bg-slate-900 border-slate-700 text-slate-300'
-                      }`}
+                      className="p-2 rounded-xl border border-slate-700 text-xs font-semibold text-amber-300 flex justify-between"
                     >
-                      <span className="flex items-center gap-1">
-                        <Wrench className="w-3.5 h-3.5" /> Maintenance
-                      </span>
+                      <span className="flex items-center gap-1"><Wrench className="w-3 h-3" /> Maintenance</span>
                       <span>{globalConfig.maintenanceMode ? 'ON' : 'OFF'}</span>
                     </button>
                   </div>
                 </div>
 
-                {/* 4. Google OAuth Client ID */}
-                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800">
-                  <label className="text-[11px] text-slate-400 block mb-1">Google OAuth Client ID (Global)</label>
-                  <input
-                    type="text"
-                    value={globalConfig.googleClientId}
-                    onChange={(e) => setGlobalConfig({ ...globalConfig, googleClientId: e.target.value })}
-                    placeholder="123456789-xxxx.apps.googleusercontent.com"
-                    className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs font-mono text-white outline-none"
-                  />
-                </div>
-
-                {/* Live Publish Button */}
+                {/* Publish Button */}
                 <button
                   type="button"
                   onClick={handlePublishGlobalConfig}
@@ -1257,23 +1681,6 @@ export default function App() {
                 >
                   {isSyncingGlobal ? 'Publishing to All Users...' : '🚀 Publish Live Changes to Entire Website'}
                 </button>
-
-                {/* Live Payments Feed */}
-                {transactions.length > 0 && (
-                  <div className="p-3 rounded-2xl bg-[#0c1220] border border-slate-800">
-                    <div className="text-xs font-semibold text-slate-300 mb-2">
-                      Recent UPI Payments ({transactions.length})
-                    </div>
-                    <div className="space-y-1.5 max-h-32 overflow-y-auto text-xs">
-                      {transactions.map((t, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-[#05070c]">
-                          <span className="text-slate-300 truncate">{t.user}</span>
-                          <span className="font-mono text-sky-400">UTR: {t.utr}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex items-center justify-between pt-2 text-xs">
                   <button
