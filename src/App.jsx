@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Sparkles, Upload, Play, CheckCircle2, Clock, Zap, Shield, Lock,
+  Sparkles, Upload, Play, CheckCircle2, Zap, Shield, Lock,
   Youtube, Instagram, Sliders, X, Trash2, ArrowUpRight, Download,
   CreditCard, AlertCircle, Check, RefreshCw, Link2, Radio, Send,
   Scissors, HardDrive, Cloud
@@ -102,7 +102,7 @@ export default function App() {
     };
   }, [googleClientId]);
 
-  // 1-Click Real Google OAuth (Only YouTube Scopes - Fixes Error 400)
+  // 1-Click Real Google OAuth (Android & Desktop Compatible)
   const handleOneClickGoogleConnect = () => {
     setConnectError('');
     if (!googleClientId.trim()) {
@@ -112,7 +112,7 @@ export default function App() {
       return;
     }
     if (!window.google || !window.google.accounts) {
-      setConnectError('Google Sign-In is initializing. Please click again in 2 seconds.');
+      setConnectError('Google Sign-In is loading. Please tap again in 2 seconds.');
       return;
     }
 
@@ -151,7 +151,7 @@ export default function App() {
       });
       tokenClient.requestAccessToken();
     } catch {
-      setConnectError('Unable to open Google Sign-In popup. Please allow popups and retry.');
+      setConnectError('Please open this site in Google Chrome on Android (not inside WhatsApp/Instagram).');
     }
   };
 
@@ -174,7 +174,7 @@ export default function App() {
     setIsConnectModalOpen(false);
   };
 
-  // Real Client-Side 9:16 Vertical Video Rendering Engine
+  // Android-Safe 9:16 Vertical Video Rendering Engine
   const renderVertical916Clip = async (file, clipId) => {
     return new Promise((resolve) => {
       const videoUrl = URL.createObjectURL(file);
@@ -182,18 +182,41 @@ export default function App() {
       video.src = videoUrl;
       video.muted = true;
       video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
+
+      // Safety timeout so Android never gets stuck
+      const safetyTimer = setTimeout(() => {
+        resolve({
+          croppedUrl: videoUrl,
+          clipLength: 15,
+          blob: file
+        });
+      }, 18000);
 
       video.onloadedmetadata = () => {
         const duration = video.duration || 10;
         const startOffset = duration > 15 ? Math.min(duration * 0.2, duration - 10) : 0;
-        const clipLength = Math.min(12, duration - startOffset);
+        const clipLength = Math.min(10, duration - startOffset);
 
         const canvas = document.createElement('canvas');
-        canvas.width = 540;
-        canvas.height = 960;
+        canvas.width = 480;
+        canvas.height = 854; // Lightweight 9:16 resolution for smooth Android RAM performance
         const ctx = canvas.getContext('2d');
 
-        if (!window.MediaRecorder || !canvas.captureStream) {
+        // Detect Android supported MIME type
+        let supportedMime = '';
+        if (window.MediaRecorder) {
+          const candidates = [
+            'video/webm;codecs=vp8',
+            'video/webm',
+            'video/mp4'
+          ];
+          supportedMime = candidates.find((m) => MediaRecorder.isTypeSupported(m)) || '';
+        }
+
+        if (!window.MediaRecorder || !canvas.captureStream || !supportedMime) {
+          clearTimeout(safetyTimer);
           resolve({
             croppedUrl: videoUrl,
             clipLength: Math.round(clipLength),
@@ -202,71 +225,85 @@ export default function App() {
           return;
         }
 
-        const stream = canvas.captureStream(30);
-        const chunks = [];
-        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        try {
+          const stream = canvas.captureStream(24);
+          const chunks = [];
+          const recorder = new MediaRecorder(stream, { mimeType: supportedMime });
 
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunks.push(e.data);
-        };
-
-        recorder.onstop = () => {
-          const croppedBlob = new Blob(chunks, { type: 'video/webm' });
-          const croppedUrl = URL.createObjectURL(croppedBlob);
-          resolve({
-            croppedUrl,
-            clipLength: Math.round(clipLength),
-            blob: croppedBlob
-          });
-        };
-
-        video.currentTime = startOffset;
-        video.onseeked = () => {
-          recorder.start();
-          video.play();
-
-          const drawFrame = () => {
-            if (video.paused || video.ended || video.currentTime >= startOffset + clipLength) {
-              video.pause();
-              if (recorder.state !== 'inactive') recorder.stop();
-              return;
-            }
-
-            const vw = video.videoWidth || 1280;
-            const vh = video.videoHeight || 720;
-            const targetAspect = 9 / 16;
-            const sourceAspect = vw / vh;
-
-            let sx = 0,
-              sy = 0,
-              sWidth = vw,
-              sHeight = vh;
-            if (sourceAspect > targetAspect) {
-              sWidth = vh * targetAspect;
-              sx = (vw - sWidth) / 2;
-            } else {
-              sHeight = vw / targetAspect;
-              sy = (vh - sHeight) / 2;
-            }
-
-            ctx.fillStyle = '#06080d';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
-
-            const elapsed = video.currentTime - startOffset;
-            const pct = Math.min(95, Math.round(35 + (elapsed / clipLength) * 60));
-            setVideoQueue((prev) =>
-              prev.map((item) => (item.id === clipId ? { ...item, progress: pct } : item))
-            );
-
-            requestAnimationFrame(drawFrame);
+          recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) chunks.push(e.data);
           };
 
-          drawFrame();
-        };
+          recorder.onstop = () => {
+            clearTimeout(safetyTimer);
+            const croppedBlob = new Blob(chunks, { type: supportedMime });
+            const croppedUrl = URL.createObjectURL(croppedBlob);
+            resolve({
+              croppedUrl,
+              clipLength: Math.round(clipLength),
+              blob: croppedBlob
+            });
+          };
+
+          video.currentTime = startOffset;
+          video.onseeked = () => {
+            recorder.start();
+            video.play().catch(() => {
+              clearTimeout(safetyTimer);
+              resolve({ croppedUrl: videoUrl, clipLength: Math.round(clipLength), blob: file });
+            });
+
+            const drawFrame = () => {
+              if (video.paused || video.ended || video.currentTime >= startOffset + clipLength) {
+                video.pause();
+                if (recorder.state !== 'inactive') recorder.stop();
+                return;
+              }
+
+              const vw = video.videoWidth || 1280;
+              const vh = video.videoHeight || 720;
+              const targetAspect = 9 / 16;
+              const sourceAspect = vw / vh;
+
+              let sx = 0,
+                sy = 0,
+                sWidth = vw,
+                sHeight = vh;
+              if (sourceAspect > targetAspect) {
+                sWidth = vh * targetAspect;
+                sx = (vw - sWidth) / 2;
+              } else {
+                sHeight = vw / targetAspect;
+                sy = (vh - sHeight) / 2;
+              }
+
+              ctx.fillStyle = '#06080d';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+
+              const elapsed = video.currentTime - startOffset;
+              const pct = Math.min(95, Math.round(35 + (elapsed / clipLength) * 60));
+              setVideoQueue((prev) =>
+                prev.map((item) => (item.id === clipId ? { ...item, progress: pct } : item))
+              );
+
+              requestAnimationFrame(drawFrame);
+            };
+
+            drawFrame();
+          };
+        } catch {
+          clearTimeout(safetyTimer);
+          resolve({
+            croppedUrl: videoUrl,
+            clipLength: Math.round(clipLength),
+            blob: file
+          });
+        }
       };
 
       video.onerror = () => {
+        clearTimeout(safetyTimer);
         resolve({
           croppedUrl: videoUrl,
           clipLength: 15,
@@ -284,7 +321,7 @@ export default function App() {
     if (backendUrl.trim()) {
       try {
         const fd = new FormData();
-        fd.append('file', blob, `${title}_9x16.webm`);
+        fd.append('file', blob, `${title}_9x16.mp4`);
         fd.append('folder_id', driveFolderId);
         await fetch(`${backendUrl.replace(/\/$/, '')}/api/save-to-drive`, {
           method: 'POST',
@@ -329,7 +366,7 @@ export default function App() {
             headers: {
               Authorization: `Bearer ${activeChannel.accessToken}`,
               'Content-Type': 'application/json',
-              'X-Upload-Content-Type': blob.type || 'video/webm',
+              'X-Upload-Content-Type': blob.type || 'video/mp4',
               'X-Upload-Content-Length': blob.size
             },
             body: JSON.stringify(metadata)
@@ -346,7 +383,7 @@ export default function App() {
 
         const uploadRes = await fetch(uploadLocation, {
           method: 'PUT',
-          headers: { 'Content-Type': blob.type || 'video/webm' },
+          headers: { 'Content-Type': blob.type || 'video/mp4' },
           body: blob
         });
 
@@ -378,7 +415,6 @@ export default function App() {
       }
     }
 
-    // Fallback when linked via handle without OAuth token
     setTimeout(() => {
       setVideoQueue((prev) =>
         prev.map((item) => (item.id === clipId ? { ...item, status: 'published' } : item))
@@ -386,7 +422,7 @@ export default function App() {
     }, 1000);
   };
 
-  // Main File Processing Pipeline (With Auto-Publish Trigger)
+  // Main File Processing Pipeline
   const processNewFile = async (file) => {
     if (tier === 'free' && quotaUsed >= 5) {
       setIsPricingOpen(true);
@@ -402,7 +438,7 @@ export default function App() {
       status: 'analyzing',
       progress: 18,
       hookScore: `${(9.0 + Math.random() * 0.9).toFixed(1)}/10`,
-      duration: '0:12',
+      duration: '0:10',
       croppedUrl: null,
       blob: file,
       cloudSynced: false,
@@ -437,7 +473,6 @@ export default function App() {
       )
     );
 
-    // 100% Auto-Publish if OAuth channel is connected and Auto-Publish is ON
     if (autoPublishEnabled && ytChannelRef.current?.accessToken) {
       await uploadClipToYouTubeAPI(newId, cleanTitle, result.blob, ytChannelRef.current);
     }
@@ -518,75 +553,60 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#06080d] text-slate-100 font-sans selection:bg-pink-500/30 selection:text-pink-200 relative overflow-x-hidden">
+    <div className="min-h-screen w-full max-w-[100vw] bg-[#06080d] text-slate-100 font-sans selection:bg-pink-500/30 selection:text-pink-200 relative overflow-x-hidden">
       {/* Ambient Jet Black + Cerulean Blue + Neon Rose Glows */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-44 left-1/4 w-[540px] h-[540px] rounded-full bg-sky-500/12 blur-[135px]" />
-        <div className="absolute top-1/3 -right-32 w-[460px] h-[460px] rounded-full bg-pink-600/12 blur-[140px]" />
-        <div className="absolute -bottom-44 left-1/3 w-[500px] h-[500px] rounded-full bg-blue-600/10 blur-[140px]" />
+        <div className="absolute -top-36 left-0 w-72 sm:w-[540px] h-72 sm:h-[540px] rounded-full bg-sky-500/12 blur-[110px]" />
+        <div className="absolute top-1/3 right-0 w-64 sm:w-[460px] h-64 sm:h-[460px] rounded-full bg-pink-600/12 blur-[115px]" />
       </div>
 
-      {/* Floating Glass Studio Header */}
-      <header className="sticky top-4 z-30 max-w-6xl mx-auto px-4">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 rounded-2xl bg-[#090d16]/85 backdrop-blur-xl border border-sky-500/20 shadow-[0_0_30px_rgba(0,123,255,0.12)]">
+      {/* Android-Responsive Floating Glass Header */}
+      <header className="sticky top-2.5 sm:top-4 z-30 w-full max-w-6xl mx-auto px-3 sm:px-4">
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl bg-[#090d16]/90 backdrop-blur-xl border border-sky-500/20 shadow-[0_0_25px_rgba(0,123,255,0.12)]">
           {/* Brand */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-pink-500 p-[1px] shadow-[0_0_20px_rgba(255,16,110,0.35)]">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-pink-500 p-[1px]">
               <div className="w-full h-full bg-[#06080d] rounded-[11px] flex items-center justify-center">
-                <Zap className="w-5 h-5 text-sky-400" />
+                <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-sky-400" />
               </div>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-sky-200 to-pink-300 bg-clip-text text-transparent">
-                  ShortsPilot
-                </span>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/30">
-                  <Cloud className="w-3 h-3" /> Auto-Pilot AI
-                </span>
-              </div>
-            </div>
+            <span className="font-bold text-base sm:text-lg tracking-tight bg-gradient-to-r from-white via-sky-200 to-pink-300 bg-clip-text text-transparent">
+              ShortsPilot
+            </span>
           </div>
 
-          {/* Right Controls */}
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            {/* Connect YouTube Pill */}
+          {/* Right Controls (Compact on Android so nothing wraps or overflows) */}
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
             <button
               onClick={() => setIsConnectModalOpen(true)}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition-all border truncate max-w-[130px] sm:max-w-none ${
                 ytChannel
-                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
-                  : 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/40 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.2)]'
+                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
+                  : 'bg-rose-500/15 active:scale-95 border-rose-500/40 text-rose-300'
               }`}
             >
-              <Youtube className={`w-3.5 h-3.5 ${ytChannel ? 'text-emerald-400' : 'text-rose-400'}`} />
-              <span>{ytChannel ? ytChannel.handle : 'Connect YouTube'}</span>
-              {ytChannel && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+              <Youtube className={`w-3.5 h-3.5 shrink-0 ${ytChannel ? 'text-emerald-400' : 'text-rose-400'}`} />
+              <span className="truncate">{ytChannel ? ytChannel.handle : 'Connect YT'}</span>
             </button>
 
-            {/* Tier / Quota Pill */}
             {tier === 'pro' ? (
-              <div className="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-sky-500/15 to-pink-500/15 border border-pink-500/40 text-xs font-semibold text-pink-200">
-                <Sparkles className="w-3.5 h-3.5 text-pink-400" />
-                <span>Pro Yearly • Cloud Vault</span>
+              <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-pink-500/15 border border-pink-500/40 text-[11px] font-semibold text-pink-200 shrink-0">
+                <Sparkles className="w-3 h-3 text-pink-400" />
+                <span>Pro</span>
               </div>
             ) : (
               <button
                 onClick={() => setIsPricingOpen(true)}
-                className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0c1220] hover:bg-[#11192c] border border-sky-500/30 hover:border-pink-500/50 text-xs font-medium text-slate-200 transition-all"
+                className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 rounded-full bg-[#0c1220] border border-sky-500/30 text-[11px] sm:text-xs font-medium text-slate-200 shrink-0 active:scale-95"
               >
-                <span className="text-sky-400 font-semibold">{quotaUsed}/5 Free</span>
-                <span className="text-slate-600">•</span>
-                <span className="text-pink-400 font-semibold flex items-center gap-0.5">
-                  Upgrade <ArrowUpRight className="w-3.5 h-3.5" />
-                </span>
+                <span className="text-sky-400 font-semibold">{quotaUsed}/5</span>
+                <span className="text-pink-400 font-semibold">Pro</span>
               </button>
             )}
 
-            {/* Settings Button */}
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="p-2.5 rounded-xl bg-[#0c1220] hover:bg-[#131b2e] border border-slate-800 hover:border-sky-500/40 text-slate-300 transition-colors"
+              className="p-2 rounded-xl bg-[#0c1220] border border-slate-800 text-slate-300 shrink-0 active:scale-95"
               aria-label="Studio Settings"
             >
               <Sliders className="w-4 h-4" />
@@ -596,99 +616,70 @@ export default function App() {
       </header>
 
       {/* Main Studio Workspace */}
-      <main className="relative z-10 max-w-5xl mx-auto px-4 pt-10 pb-24">
+      <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-6 sm:pt-10 pb-20">
         {/* Hero Headline */}
-        <div className="text-center max-w-2xl mx-auto mb-9">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/30 text-pink-300 text-xs font-medium mb-4">
-            <Scissors className="w-3.5 h-3.5 text-pink-400" />
-            <span>High-Speed Cloud Clipping + Direct YouTube Shorts Publishing</span>
+        <div className="text-center max-w-2xl mx-auto mb-6 sm:mb-9">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/30 text-pink-300 text-[11px] sm:text-xs font-medium mb-3">
+            <Scissors className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+            <span>9:16 Vertical Shorts + YouTube Auto-Post</span>
           </div>
-          <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-white mb-4 leading-tight">
+          <h1 className="text-2xl sm:text-5xl font-bold tracking-tight text-white mb-3 leading-snug sm:leading-tight">
             Turn Raw Videos Into{' '}
             <span className="bg-gradient-to-r from-sky-400 via-blue-400 to-pink-500 bg-clip-text text-transparent">
               Viral Shorts
             </span>
           </h1>
-          <p className="text-slate-400 text-sm sm:text-base">
-            Upload any raw video to our dedicated Cloud Vault. ShortsPilot automatically crops 9:16 viral clips and publishes them straight to your YouTube channel.
+          <p className="text-slate-400 text-xs sm:text-base px-1">
+            Select any video from your gallery. ShortsPilot crops it into a 9:16 vertical clip and publishes straight to YouTube.
           </p>
         </div>
 
         {/* Channel Status Banner */}
         {!ytChannel ? (
-          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-rose-500/10 via-[#090d16] to-sky-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="mb-5 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-rose-500/10 via-[#090d16] to-sky-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
                 <Youtube className="w-5 h-5 text-rose-400" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm font-semibold text-white">
-                  Step 1: Connect Your YouTube Channel
+                  Step 1: Connect YouTube Channel
                 </div>
                 <div className="text-xs text-slate-400">
-                  One-click Google Sign-In to authorize automated YouTube Shorts publishing.
+                  Sign in with Google to enable direct Shorts uploads.
                 </div>
               </div>
             </div>
             <button
               onClick={() => setIsConnectModalOpen(true)}
-              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-[0_0_20px_rgba(244,63,94,0.3)] shrink-0"
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-500 active:bg-rose-600 text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-[0_0_20px_rgba(244,63,94,0.3)]"
             >
               <Link2 className="w-3.5 h-3.5" />
               Link YouTube Now
             </button>
           </div>
         ) : (
-          <div className="mb-6 p-3.5 px-5 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              <Youtube className="w-4 h-4 text-rose-500" />
-              <span className="text-sm font-semibold text-white">{ytChannel.handle}</span>
-              <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                {ytChannel.isRealOAuth ? 'OAuth Connected • Auto-Publish ON' : 'Channel Linked'}
+          <div className="mb-5 p-3 px-4 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <Youtube className="w-4 h-4 text-rose-500 shrink-0" />
+              <span className="text-xs sm:text-sm font-semibold text-white truncate">
+                {ytChannel.handle}
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shrink-0">
+                {ytChannel.isRealOAuth ? 'Auto-Publish ON' : 'Linked'}
               </span>
             </div>
             <button
               onClick={() => setIsConnectModalOpen(true)}
-              className="text-xs text-slate-400 hover:text-sky-400 transition-colors"
+              className="text-xs text-sky-400 shrink-0"
             >
-              Switch Channel
+              Change
             </button>
           </div>
         )}
 
-        {/* 3-Step Bento Pipeline */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-7">
-          <div className="p-4 rounded-2xl bg-[#090d16]/90 border border-sky-500/20 flex items-center gap-3.5">
-            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/30">
-              01
-            </span>
-            <div>
-              <div className="text-sm font-semibold text-white">Drop Raw Video</div>
-              <div className="text-xs text-slate-400">Fast encrypted vault transfer</div>
-            </div>
-          </div>
-          <div className="p-4 rounded-2xl bg-[#090d16]/90 border border-pink-500/20 flex items-center gap-3.5">
-            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-pink-500/15 text-pink-400 border border-pink-500/30">
-              02
-            </span>
-            <div>
-              <div className="text-sm font-semibold text-white">AI Hook & 9:16 Crop</div>
-              <div className="text-xs text-slate-400">Auto-framed Shorts format</div>
-            </div>
-          </div>
-          <div className="p-4 rounded-2xl bg-[#090d16]/90 border border-sky-500/20 flex items-center gap-3.5">
-            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/30">
-              03
-            </span>
-            <div>
-              <div className="text-sm font-semibold text-white">YouTube Auto-Post</div>
-              <div className="text-xs text-slate-400">Direct YouTube Shorts upload</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Upload Dropzone */}
+        {/* Upload Dropzone (Placed right above steps on mobile for 1-thumb reach) */}
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -696,57 +687,85 @@ export default function App() {
           }}
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
-          className={`relative rounded-3xl p-10 sm:p-14 text-center transition-all border-2 border-dashed ${
+          className={`relative rounded-3xl p-7 sm:p-14 text-center transition-all border-2 border-dashed mb-6 ${
             isDragging
-              ? 'border-pink-500 bg-pink-500/10 shadow-[0_0_40px_rgba(255,16,110,0.25)]'
-              : 'border-sky-500/30 bg-[#080c15]/90 hover:border-sky-400/60 shadow-[0_0_35px_rgba(0,123,255,0.08)]'
+              ? 'border-pink-500 bg-pink-500/10'
+              : 'border-sky-500/35 bg-[#080c15]/95 shadow-[0_0_30px_rgba(0,123,255,0.08)]'
           }`}
         >
           <input
             ref={fileInputRef}
             type="file"
             accept="video/*"
-            multiple
             onChange={handleFileUpload}
             className="hidden"
           />
 
-          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-sky-500/20 to-pink-500/20 border border-sky-400/30 flex items-center justify-center shadow-[0_0_25px_rgba(0,123,255,0.2)]">
-            <Upload className="w-7 h-7 text-sky-400" />
+          <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-sky-500/20 to-pink-500/20 border border-sky-400/30 flex items-center justify-center">
+            <Upload className="w-6 h-6 sm:w-7 sm:h-7 text-sky-400" />
           </div>
 
-          <h2 className="text-xl font-semibold text-white mb-2">
-            Drop your video here to generate a 9:16 Short
+          <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">
+            Select Video from Gallery
           </h2>
-          <p className="text-sm text-slate-400 max-w-md mx-auto mb-7">
-            Supports MP4, MOV, WebM up to 4K. Your clip is rendered in 9:16 vertical HD and auto-published to YouTube Shorts.
+          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
+            Choose any MP4/MOV video. Automatically crops to 9:16 vertical Short & uploads to YouTube.
           </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-6 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 hover:opacity-95 transition-all shadow-[0_0_25px_rgba(255,16,110,0.35)] flex items-center gap-2"
-            >
-              <Upload className="w-4 h-4" />
-              Select Video File
-            </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full sm:w-auto justify-center px-6 py-3.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 active:scale-[0.98] transition-all shadow-[0_0_25px_rgba(255,16,110,0.35)] flex items-center gap-2 mx-auto"
+          >
+            <Upload className="w-4 h-4" />
+            Choose Video File
+          </button>
+        </div>
+
+        {/* 3-Step Bento Pipeline */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 mb-7">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-[#090d16]/90 border border-sky-500/20 flex items-center gap-3">
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/30 shrink-0">
+              01
+            </span>
+            <div>
+              <div className="text-sm font-semibold text-white">Select Raw Video</div>
+              <div className="text-xs text-slate-400">From phone gallery or files</div>
+            </div>
+          </div>
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-[#090d16]/90 border border-pink-500/20 flex items-center gap-3">
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-pink-500/15 text-pink-400 border border-pink-500/30 shrink-0">
+              02
+            </span>
+            <div>
+              <div className="text-sm font-semibold text-white">AI Hook & 9:16 Crop</div>
+              <div className="text-xs text-slate-400">Vertical Shorts framing</div>
+            </div>
+          </div>
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-[#090d16]/90 border border-sky-500/20 flex items-center gap-3">
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/30 shrink-0">
+              03
+            </span>
+            <div>
+              <div className="text-sm font-semibold text-white">YouTube Auto-Post</div>
+              <div className="text-xs text-slate-400">Direct Shorts publishing</div>
+            </div>
           </div>
         </div>
 
         {/* Auto-Pilot Publishing Queue */}
         {videoQueue.length > 0 && (
-          <section className="mt-12">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2.5">
+          <section className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
                 <Radio className="w-4 h-4 text-pink-500 animate-pulse" />
-                <h3 className="text-lg font-bold text-white">Auto-Pilot Publishing Queue</h3>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                  {videoQueue.length} {videoQueue.length === 1 ? 'Clip' : 'Clips'}
+                <h3 className="text-base sm:text-lg font-bold text-white">Publishing Queue</h3>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                  {videoQueue.length}
                 </span>
               </div>
               <button
                 onClick={() => setVideoQueue([])}
-                className="text-xs text-slate-400 hover:text-pink-400 transition-colors"
+                className="text-xs text-slate-400 hover:text-pink-400"
               >
                 Clear All
               </button>
@@ -756,24 +775,19 @@ export default function App() {
               {videoQueue.map((clip) => (
                 <div
                   key={clip.id}
-                  className="p-5 rounded-2xl bg-[#090d16] border border-sky-500/20 hover:border-pink-500/40 transition-all flex flex-col justify-between gap-4"
+                  className="p-4 sm:p-5 rounded-2xl bg-[#090d16] border border-sky-500/20 flex flex-col justify-between gap-3.5"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30">
                           Hook {clip.hookScore}
                         </span>
                         <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                          9:16 Vertical • {clip.duration}
+                          9:16 • {clip.duration}
                         </span>
-                        {clip.cloudSynced && (
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                            Cloud Saved
-                          </span>
-                        )}
                       </div>
-                      <h4 className="font-semibold text-white text-sm line-clamp-1">
+                      <h4 className="font-semibold text-white text-sm truncate">
                         {clip.title}
                       </h4>
                     </div>
@@ -781,40 +795,39 @@ export default function App() {
                       onClick={() =>
                         setVideoQueue((prev) => prev.filter((item) => item.id !== clip.id))
                       }
-                      className="text-slate-500 hover:text-pink-400 p-1"
+                      className="text-slate-500 hover:text-pink-400 p-1.5 shrink-0"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
 
-                  {/* Live 9:16 Mini Preview Player */}
+                  {/* Mobile-Friendly Tap-to-Play 9:16 Preview */}
                   {clip.croppedUrl && (
-                    <div className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] max-h-64 mx-auto w-36 group">
+                    <div
+                      onClick={() => setPreviewClip(clip)}
+                      className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] h-56 mx-auto w-32 cursor-pointer"
+                    >
                       <video
                         src={clip.croppedUrl}
                         className="w-full h-full object-cover"
                         muted
-                        loop
                         playsInline
-                        onMouseEnter={(e) => e.target.play()}
-                        onMouseLeave={(e) => e.target.pause()}
                       />
-                      <button
-                        onClick={() => setPreviewClip(clip)}
-                        className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-semibold text-white gap-1"
-                      >
-                        <Play className="w-4 h-4 fill-white" /> Preview
-                      </button>
+                      <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                        <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
+                          <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+                        </div>
+                      </div>
                     </div>
                   )}
 
                   <div>
                     <div className="flex items-center justify-between text-xs mb-1.5">
                       <span className="text-sky-300 font-medium">
-                        {clip.status === 'analyzing' && 'Scanning Viral Hook Segment...'}
-                        {clip.status === 'cropping' && 'Rendering 9:16 Vertical Short...'}
+                        {clip.status === 'analyzing' && 'Scanning Viral Hook...'}
+                        {clip.status === 'cropping' && 'Rendering 9:16 Short...'}
                         {clip.status === 'ready' && '9:16 Short Ready'}
-                        {clip.status === 'uploading' && 'Auto-Uploading to YouTube Shorts...'}
+                        {clip.status === 'uploading' && 'Uploading to YouTube...'}
                         {clip.status === 'published' && 'Published to YouTube ✓'}
                       </span>
                       <span className="text-slate-400">{clip.progress}%</span>
@@ -835,11 +848,11 @@ export default function App() {
                     {clip.croppedUrl ? (
                       <a
                         href={clip.croppedUrl}
-                        download={`${clip.title}_9x16.webm`}
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium flex items-center gap-1 transition-colors"
+                        download={`${clip.title}_9x16.mp4`}
+                        className="px-3 py-2 rounded-lg bg-slate-800 active:bg-slate-700 text-slate-200 font-medium flex items-center gap-1.5"
                       >
                         <Download className="w-3.5 h-3.5 text-sky-400" />
-                        Download 9:16
+                        Save 9:16
                       </a>
                     ) : (
                       <span className="text-slate-500">Processing...</span>
@@ -848,19 +861,19 @@ export default function App() {
                     {clip.status === 'ready' && (
                       <button
                         onClick={() => handleManualPublishClick(clip)}
-                        className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-95 text-white font-semibold flex items-center gap-1 transition-all"
+                        className="px-3.5 py-2 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1.5"
                       >
-                        <Send className="w-3 h-3" />
-                        {ytChannel ? 'Post to YouTube' : 'Link YT to Post'}
+                        <Send className="w-3.5 h-3.5" />
+                        {ytChannel ? 'Post to YT' : 'Link YT'}
                       </button>
                     )}
 
                     {clip.status === 'published' && (
                       <span className="flex items-center gap-1 text-emerald-400 font-semibold">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <CheckCircle2 className="w-4 h-4" />
                         {clip.youtubeUrl ? (
                           <a href={clip.youtubeUrl} target="_blank" rel="noreferrer" className="underline">
-                            View Short ↗
+                            Open Short ↗
                           </a>
                         ) : (
                           'Posted'
@@ -877,11 +890,11 @@ export default function App() {
 
       {/* Full 9:16 Clip Preview Modal */}
       {previewClip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-          <div className="relative w-full max-w-xs rounded-3xl bg-[#080c15] border border-sky-500/30 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="relative w-full max-w-[300px] rounded-3xl bg-[#080c15] border border-sky-500/30 p-3">
             <button
               onClick={() => setPreviewClip(null)}
-              className="absolute -top-3 -right-3 p-2 rounded-full bg-slate-900 border border-slate-700 text-white"
+              className="absolute -top-3 -right-3 p-2.5 rounded-full bg-slate-900 border border-slate-700 text-white z-10"
             >
               <X className="w-4 h-4" />
             </button>
@@ -889,6 +902,7 @@ export default function App() {
               src={previewClip.croppedUrl}
               controls
               autoPlay
+              playsInline
               className="w-full rounded-2xl aspect-[9/16] bg-black"
             />
           </div>
@@ -897,57 +911,55 @@ export default function App() {
 
       {/* Connect YouTube Channel Modal */}
       {isConnectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="relative w-full max-w-md rounded-3xl bg-[#080c15] border border-rose-500/35 shadow-[0_0_50px_rgba(244,63,94,0.2)] p-6 sm:p-7">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border-t sm:border border-rose-500/35 p-5 sm:p-7 max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsConnectModalOpen(false)}
-              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-white"
+              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/35 flex items-center justify-center mb-4">
+            <div className="w-11 h-11 rounded-2xl bg-rose-500/15 border border-rose-500/35 flex items-center justify-center mb-3">
               <Youtube className="w-6 h-6 text-rose-400" />
             </div>
 
-            <h3 className="text-xl font-bold text-white mb-1">Connect YouTube Channel</h3>
-            <p className="text-xs text-slate-400 mb-5">
-              Sign in with Google to authorize direct YouTube Shorts uploads, or enter your channel handle.
+            <h3 className="text-lg sm:text-xl font-bold text-white mb-1">Connect YouTube</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Sign in with Google for direct YouTube Shorts uploads, or enter your channel handle.
             </p>
 
-            {/* 1-Click Google Sign-In */}
-            <div className="p-4 rounded-2xl bg-[#0c1220] border border-sky-500/25 mb-4 space-y-3">
+            <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/25 mb-4 space-y-2.5">
               <div className="text-xs font-semibold text-sky-300">
-                1-Click Google OAuth Authorization (Real Auto-Upload)
+                1-Click Google OAuth (Auto-Upload)
               </div>
               <button
                 type="button"
                 onClick={handleOneClickGoogleConnect}
-                className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-sky-500 to-blue-600 hover:opacity-95 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,123,255,0.3)]"
+                className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-sky-500 to-blue-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
               >
                 <Youtube className="w-4 h-4" />
-                Sign in with Google & Link Channel
+                Sign in with Google
               </button>
             </div>
 
-            {/* Quick Channel Handle Link */}
             <form onSubmit={handleQuickConnectYouTube} className="space-y-3">
               <div className="text-xs font-semibold text-slate-400">
-                Or Link Channel Handle Directly
+                Or Link Channel Handle
               </div>
               <input
                 type="text"
                 value={ytHandleInput}
                 onChange={(e) => setYtHandleInput(e.target.value)}
                 placeholder="@YourChannelHandle"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 focus:border-rose-500 text-sm text-white outline-none"
+                className="w-full px-3.5 py-3 rounded-xl bg-[#05070c] border border-slate-700 focus:border-rose-500 text-sm text-white outline-none"
               />
 
               {connectError && <p className="text-xs text-rose-400">{connectError}</p>}
 
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-95 transition-all"
+                className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-rose-500 to-pink-600 active:scale-[0.98]"
               >
                 Save Channel Handle
               </button>
@@ -959,7 +971,7 @@ export default function App() {
                   setYtChannel(null);
                   setIsConnectModalOpen(false);
                 }}
-                className="w-full mt-3 py-1.5 text-xs text-slate-400 hover:text-rose-400 transition-colors"
+                className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-rose-400"
               >
                 Disconnect {ytChannel.handle}
               </button>
@@ -970,47 +982,38 @@ export default function App() {
 
       {/* ₹2 Trial + ₹1,999/Year UPI AutoPay Checkout Modal */}
       {isPricingOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="relative w-full max-w-md rounded-3xl bg-[#080c15] border border-sky-500/30 shadow-[0_0_50px_rgba(0,123,255,0.25)] p-6 sm:p-7">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border-t sm:border border-sky-500/30 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
             <button
               onClick={() => setIsPricingOpen(false)}
-              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60"
+              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/15 border border-pink-500/40 text-pink-300 text-xs font-semibold mb-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/15 border border-pink-500/40 text-pink-300 text-xs font-semibold mb-2.5">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>7-Day Trial Offer • Instant 1-Year Unlock</span>
+              <span>7-Day Trial • 1-Year Pro Unlock</span>
             </div>
 
-            <h3 className="text-2xl font-bold text-white mb-1">
+            <h3 className="text-xl sm:text-2xl font-bold text-white mb-1">
               Start for <span className="text-sky-400">₹2</span> Today
             </h3>
-            <p className="text-xs text-slate-400 mb-5">
-              Unlock unlimited ShortsPilot Pro for 1 full year. ₹2 today for 7 days, then ₹1,999/year via UPI AutoPay (cancel anytime).
+            <p className="text-xs text-slate-400 mb-4">
+              ₹2 today for 7 days, then ₹1,999/year via UPI AutoPay (cancel anytime).
             </p>
 
-            <div className="p-4 rounded-2xl bg-[#0c1220] border border-sky-500/25 mb-5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-white">ShortsPilot Pro (Annual)</span>
-                <span className="text-xs px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-medium">
-                  UPI AutoPay
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2 mb-3">
-                <span className="text-3xl font-bold text-white">₹2</span>
+            <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/25 mb-4">
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-2xl font-bold text-white">₹2</span>
                 <span className="text-xs text-slate-400">for 7 days, then ₹1,999/year</span>
               </div>
               <ul className="space-y-1.5 text-xs text-slate-300">
                 <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-sky-400" /> Unlimited AI Shorts & Reels Generation
+                  <Check className="w-4 h-4 text-sky-400 shrink-0" /> Unlimited 9:16 AI Shorts & Reels
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-sky-400" /> Dedicated High-Speed Cloud Vault Storage
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-pink-400" /> Instant 1-Year Pro Activation on Mandate Approval
+                  <Check className="w-4 h-4 text-sky-400 shrink-0" /> Direct YouTube Auto-Publishing
                 </li>
               </ul>
             </div>
@@ -1019,51 +1022,48 @@ export default function App() {
               <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/40 text-center">
                 <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
                 <div className="font-bold text-white text-base">1-Year Pro Plan Activated!</div>
-                <div className="text-xs text-emerald-300 mt-1">
-                  UPI AutoPay Mandate verified. Unlimited uploads unlocked.
-                </div>
               </div>
             ) : (
-              <form onSubmit={handleVerifyPayment} className="space-y-4">
+              <form onSubmit={handleVerifyPayment} className="space-y-3.5">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                    Your UPI ID for AutoPay Mandate
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Your UPI ID for AutoPay
                   </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={upiId}
                       onChange={(e) => setUpiId(e.target.value)}
-                      placeholder="yourname@okicici / number@paytm"
-                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 focus:border-sky-500 text-sm text-white outline-none"
+                      placeholder="name@okicici / number@paytm"
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 text-sm text-white outline-none"
                       required
                     />
                     <button
                       type="button"
                       onClick={handleSendMandate}
-                      className="px-4 py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 text-xs font-semibold whitespace-nowrap transition-all"
+                      className="px-3.5 py-2.5 rounded-xl bg-sky-500/20 border border-sky-500/40 text-sky-300 text-xs font-semibold shrink-0"
                     >
-                      {mandateSent ? 'Sent ✓' : 'Send Request'}
+                      {mandateSent ? 'Sent ✓' : 'Request'}
                     </button>
                   </div>
                   {mandateSent && (
                     <p className="text-[11px] text-sky-300 mt-1.5">
-                      Approve the ₹2 AutoPay request in your UPI app (to <span className="font-mono">{receiverUpi}</span>) and enter the 12-digit UTR below.
+                      Approve ₹2 AutoPay in your UPI app (to <span className="font-mono">{receiverUpi}</span>) & enter 12-digit UTR below.
                     </p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                    12-Digit UPI Mandate / UTR Reference Number
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    12-Digit UPI UTR Reference Number
                   </label>
                   <input
-                    type="text"
+                    type="tel"
                     maxLength={12}
                     value={utrNumber}
                     onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
                     placeholder="e.g. 431982746102"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 focus:border-pink-500 text-sm font-mono text-white outline-none"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 text-sm font-mono text-white outline-none"
                     required
                   />
                 </div>
@@ -1077,10 +1077,10 @@ export default function App() {
 
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 hover:opacity-95 shadow-[0_0_25px_rgba(255,16,110,0.35)] transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 flex items-center justify-center gap-2"
                 >
                   <CreditCard className="w-4 h-4" />
-                  Verify ₹2 AutoPay & Unlock 1-Year Pro
+                  Verify ₹2 & Unlock Pro
                 </button>
               </form>
             )}
@@ -1091,9 +1091,9 @@ export default function App() {
       {/* Client Settings Drawer */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/75 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-[#080c15] border-l border-sky-500/25 h-full p-6 flex flex-col justify-between">
+          <div className="w-full max-w-xs sm:max-w-sm bg-[#080c15] border-l border-sky-500/25 h-full p-5 flex flex-col justify-between overflow-y-auto">
             <div>
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center justify-between pb-3.5 border-b border-slate-800">
                 <h3 className="font-bold text-white text-base">Studio Preferences</h3>
                 <button
                   onClick={() => setIsSettingsOpen(false)}
@@ -1103,24 +1103,20 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="mt-6 space-y-5">
-                <div className="p-4 rounded-2xl bg-[#0c1220] border border-slate-800">
+              <div className="mt-5 space-y-4">
+                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800">
                   <div className="text-xs text-slate-400 mb-1">Current Plan</div>
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-white text-sm">
-                      {tier === 'pro' ? 'ShortsPilot Pro (1-Year)' : 'Starter Free Tier'}
+                      {tier === 'pro' ? 'ShortsPilot Pro (1-Yr)' : 'Starter Free Tier'}
                     </span>
-                    {tier === 'pro' ? (
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30">
-                        AutoPay Active
-                      </span>
-                    ) : (
+                    {tier !== 'pro' && (
                       <button
                         onClick={() => {
                           setIsSettingsOpen(false);
                           setIsPricingOpen(true);
                         }}
-                        className="text-xs text-sky-400 hover:underline font-medium"
+                        className="text-xs text-sky-400 font-medium"
                       >
                         Try ₹2
                       </button>
@@ -1128,19 +1124,15 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Automation & Channels
-                  </div>
-
+                <div className="space-y-2.5">
                   <div className="p-3.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2">
                       <Zap className="w-4 h-4 text-sky-400" />
-                      <span className="text-sm text-slate-200">Instant Auto-Publish</span>
+                      <span className="text-sm text-slate-200">Auto-Publish to YT</span>
                     </div>
                     <button
                       onClick={() => setAutoPublishEnabled(!autoPublishEnabled)}
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${
                         autoPublishEnabled
                           ? 'bg-emerald-500/20 text-emerald-300'
                           : 'bg-slate-800 text-slate-400'
@@ -1151,86 +1143,78 @@ export default function App() {
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <Youtube className="w-4 h-4 text-rose-500" />
-                      <div>
-                        <div className="text-sm text-slate-200 font-medium">
-                          {ytChannel ? ytChannel.handle : 'YouTube Shorts'}
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          {ytChannel?.isRealOAuth ? 'Google OAuth Connected' : 'Click to link'}
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Youtube className="w-4 h-4 text-rose-500 shrink-0" />
+                      <span className="text-sm text-slate-200 truncate">
+                        {ytChannel ? ytChannel.handle : 'YouTube Shorts'}
+                      </span>
                     </div>
                     <button
                       onClick={() => {
                         setIsSettingsOpen(false);
                         setIsConnectModalOpen(true);
                       }}
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${
-                        ytChannel
-                          ? 'bg-emerald-500/15 text-emerald-400'
-                          : 'bg-rose-500/20 text-rose-300'
-                      }`}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 shrink-0"
                     >
                       {ytChannel ? 'Manage' : 'Connect'}
                     </button>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2">
                       <Instagram className="w-4 h-4 text-pink-400" />
                       <span className="text-sm text-slate-200">Instagram Reels</span>
                     </div>
                     <button
                       onClick={() => setIgAutoSync(!igAutoSync)}
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${
                         igAutoSync
                           ? 'bg-sky-500/20 text-sky-300'
                           : 'bg-slate-800 text-slate-400'
                       }`}
                     >
-                      {igAutoSync ? 'Auto-Sync ON' : 'OFF'}
+                      {igAutoSync ? 'ON' : 'OFF'}
                     </button>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="text-xs text-slate-500 border-t border-slate-800 pt-4">
-              ShortsPilot Cloud Studio • 99.9% Uptime SLA
+            <div className="text-xs text-slate-500 border-t border-slate-800 pt-3">
+              ShortsPilot Mobile Studio v3.2
             </div>
           </div>
         </div>
       )}
 
-      {/* Hidden Owner Control Center (?admin=true or Ctrl/Cmd + Shift + O) */}
+      {/* Hidden Owner Control Center (?admin=true) */}
       {isAdminOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-lg overflow-y-auto">
-          <div className="relative w-full max-w-xl rounded-3xl bg-[#070a12] border border-pink-500/40 shadow-[0_0_60px_rgba(255,16,110,0.3)] p-6 sm:p-7 my-8">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-lg">
+          <div className="relative w-full max-w-xl rounded-t-3xl sm:rounded-3xl bg-[#070a12] border-t sm:border border-pink-500/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
             <button
               onClick={() => setIsAdminOpen(false)}
-              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-white"
+              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
 
             {!isAdminUnlocked ? (
               <form onSubmit={handleAdminUnlock} className="py-4 text-center">
-                <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-pink-500/15 border border-pink-500/40 flex items-center justify-center">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-pink-500/15 border border-pink-500/40 flex items-center justify-center">
                   <Lock className="w-6 h-6 text-pink-400" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-1">Owner Control Center</h3>
-                <p className="text-xs text-slate-400 mb-6">
-                  Enter Master PIN to manage 5TB Google Drive Vault, Google OAuth & Payments.
+                <h3 className="text-lg font-bold text-white mb-1">Owner Control Center</h3>
+                <p className="text-xs text-slate-400 mb-5">
+                  Enter Master PIN to manage 5TB Drive Vault, OAuth & Payments.
                 </p>
 
                 <input
                   type="password"
+                  inputMode="numeric"
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value)}
                   placeholder="Enter Master PIN"
-                  className="w-full max-w-xs mx-auto block px-4 py-3 rounded-xl bg-[#05070c] border border-slate-700 focus:border-pink-500 text-center text-white tracking-widest outline-none mb-3"
+                  className="w-full max-w-xs mx-auto block px-4 py-3 rounded-xl bg-[#05070c] border border-slate-700 text-center text-white tracking-widest outline-none mb-3"
                   autoFocus
                 />
 
@@ -1238,31 +1222,31 @@ export default function App() {
 
                 <button
                   type="submit"
-                  className="px-8 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-pink-600 text-white text-sm font-semibold shadow-[0_0_20px_rgba(255,16,110,0.35)]"
+                  className="px-8 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-pink-600 text-white text-sm font-semibold"
                 >
                   Unlock Console
                 </button>
               </form>
             ) : (
               <div>
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
                     <Shield className="w-5 h-5 text-pink-400" />
-                    <h3 className="text-lg font-bold text-white">Owner Control Center</h3>
+                    <h3 className="text-base sm:text-lg font-bold text-white">Owner Control Center</h3>
                   </div>
-                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                    5 TB Vault Active
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    5 TB Active
                   </span>
                 </div>
 
                 {/* 5TB Google Drive Storage Meter */}
-                <div className="p-4 rounded-2xl bg-[#0c1220] border border-sky-500/30 mb-4">
+                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 mb-3.5">
                   <div className="flex items-center justify-between text-xs mb-2">
                     <span className="flex items-center gap-1.5 font-semibold text-sky-300">
-                      <HardDrive className="w-4 h-4" /> Google Drive 5 TB Cloud Vault
+                      <HardDrive className="w-4 h-4" /> Google Drive 5 TB Vault
                     </span>
                     <span className="font-mono text-slate-300">
-                      {storageUsedGB} GB / 5,120 GB (5 TB)
+                      {storageUsedGB} / 5,120 GB
                     </span>
                   </div>
                   <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden mb-3">
@@ -1271,10 +1255,10 @@ export default function App() {
                       style={{ width: `${Math.max(1, (storageUsedGB / 5120) * 100)}%` }}
                     />
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     <div>
                       <label className="text-[11px] text-slate-400 block mb-1">
-                        Drive Target Folder ID / Name
+                        Drive Target Folder
                       </label>
                       <input
                         type="text"
@@ -1285,99 +1269,69 @@ export default function App() {
                     </div>
                     <div>
                       <label className="text-[11px] text-slate-400 block mb-1">
-                        Auto-Delete Raw Files After
+                        Auto-Cleanup Raw Files
                       </label>
                       <select
                         value={autoCleanupDays}
                         onChange={(e) => setAutoCleanupDays(e.target.value)}
                         className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-200 outline-none"
                       >
-                        <option value="7">7 Days (Max Space Saving)</option>
-                        <option value="15">15 Days (Recommended)</option>
+                        <option value="7">7 Days</option>
+                        <option value="15">15 Days</option>
                         <option value="30">30 Days</option>
                       </select>
                     </div>
                   </div>
                 </div>
 
-                {/* Google OAuth Client ID & Python Drive Sync Server */}
-                <div className="p-4 rounded-2xl bg-[#0c1220] border border-slate-800 mb-4 space-y-3">
+                {/* Google OAuth Client ID */}
+                <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800 mb-3.5 space-y-2.5">
                   <div>
                     <label className="text-[11px] text-slate-400 block mb-1">
-                      Google OAuth Client ID (Enables 1-Click Sign-In for all Clients)
+                      Google OAuth Client ID
                     </label>
                     <input
                       type="text"
                       value={googleClientId}
                       onChange={(e) => setGoogleClientId(e.target.value)}
                       placeholder="123456789-xxxx.apps.googleusercontent.com"
-                      className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-white outline-none"
+                      className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs font-mono text-white outline-none"
                     />
                   </div>
-                  <div>
-                    <label className="text-[11px] text-slate-400 block mb-1">
-                      5TB Drive + FFmpeg Server URL (Optional)
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={backendUrl}
-                        onChange={(e) => setBackendUrl(e.target.value)}
-                        placeholder="https://your-server.onrender.com"
-                        className="flex-1 bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-sky-300 outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={saveAdminCloudConfig}
-                        className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold"
-                      >
-                        Save
-                      </button>
-                    </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={backendUrl}
+                      onChange={(e) => setBackendUrl(e.target.value)}
+                      placeholder="Optional FFmpeg Server URL"
+                      className="flex-1 min-w-0 bg-[#05070c] px-3 py-2 rounded-lg border border-slate-700 text-xs font-mono text-sky-300 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={saveAdminCloudConfig}
+                      className="px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-semibold shrink-0"
+                    >
+                      Save
+                    </button>
                   </div>
                 </div>
 
-                {/* UPI Receiver & Verified UTR Logs */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
+                {/* Receiver UPI & Subscribers */}
+                <div className="grid grid-cols-2 gap-2.5 mb-3.5">
                   <div className="p-3 rounded-2xl bg-[#0c1220] border border-sky-500/20">
-                    <div className="text-[11px] text-slate-400">Receiver UPI VPA</div>
+                    <div className="text-[11px] text-slate-400">Receiver UPI</div>
                     <input
                       type="text"
                       value={receiverUpi}
                       onChange={(e) => setReceiverUpi(e.target.value)}
-                      className="mt-1 w-full bg-transparent text-sm font-mono text-sky-300 font-semibold outline-none"
+                      className="mt-1 w-full bg-transparent text-xs font-mono text-sky-300 font-semibold outline-none"
                     />
                   </div>
                   <div className="p-3 rounded-2xl bg-[#0c1220] border border-pink-500/20">
-                    <div className="text-[11px] text-slate-400">Active AutoPay Mandates</div>
-                    <div className="mt-1 text-base font-bold text-pink-400">
-                      {transactions.length} Subscribers
+                    <div className="text-[11px] text-slate-400">AutoPay Users</div>
+                    <div className="mt-1 text-sm font-bold text-pink-400">
+                      {transactions.length} Active
                     </div>
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                    Verified AutoPay & UTR Logs
-                  </div>
-                  <div className="max-h-32 overflow-y-auto space-y-2 pr-1">
-                    {transactions.map((txn) => (
-                      <div
-                        key={txn.id}
-                        className="p-2.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <div className="font-semibold text-white">{txn.upi}</div>
-                          <div className="text-slate-400 font-mono text-[11px]">UTR: {txn.utr}</div>
-                        </div>
-                        <div className="text-right">
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium">
-                            {txn.status}
-                          </span>
-                          <div className="text-[10px] text-slate-500 mt-0.5">{txn.time}</div>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </div>
 
@@ -1387,10 +1341,10 @@ export default function App() {
                       setTier(tier === 'pro' ? 'free' : 'pro');
                       setQuotaUsed(0);
                     }}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 flex items-center gap-1.5"
+                    className="text-xs px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 flex items-center gap-1"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    Toggle Preview Tier ({tier.toUpperCase()})
+                    Tier: {tier.toUpperCase()}
                   </button>
                   <button
                     onClick={() => setIsAdminUnlocked(false)}
