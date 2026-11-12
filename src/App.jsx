@@ -3,21 +3,40 @@ import {
   Sparkles, Upload, Play, CheckCircle2, Zap, Shield, Lock,
   Youtube, Instagram, Sliders, X, Trash2, ArrowUpRight, Download,
   CreditCard, AlertCircle, Check, RefreshCw, Link2, Radio, Send,
-  Scissors, HardDrive, Cloud
+  Scissors, HardDrive, LogOut, UserCheck
 } from 'lucide-react';
 
 // अपनी Google Cloud Console से मिली Client ID यहाँ पेस्ट करें ताकि सभी क्लाइंट्स को 1-क्लिक लॉगिन मिले
 const DEFAULT_GOOGLE_CLIENT_ID = '';
 
 export default function App() {
-  // Client & Subscription State
-  const [tier, setTier] = useState('free'); // 'free' | 'pro'
-  const [quotaUsed, setQuotaUsed] = useState(0);
+  // Persistent Client & Subscription State
+  const [tier, setTier] = useState(() => localStorage.getItem('sp_tier') || 'free');
+  const [quotaUsed, setQuotaUsed] = useState(() => Number(localStorage.getItem('sp_quota_used') || 0));
   const [videoQueue, setVideoQueue] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
 
-  // YouTube OAuth & Channel State
-  const [ytChannel, setYtChannel] = useState(null);
+  // Persistent Gmail User + YouTube Channel State (Survives Page Refresh)
+  const [gmailUser, setGmailUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sp_gmail_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [ytChannel, setYtChannel] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sp_yt_channel');
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      return parsed;
+    } catch {
+      return null;
+    }
+  });
+
   const [ytHandleInput, setYtHandleInput] = useState('');
   const [googleClientId, setGoogleClientId] = useState(
     () => localStorage.getItem('sp_google_client_id') || DEFAULT_GOOGLE_CLIENT_ID
@@ -65,12 +84,35 @@ export default function App() {
   ]);
 
   const fileInputRef = useRef(null);
-  const ytChannelRef = useRef(null);
+  const ytChannelRef = useRef(ytChannel);
+  const tokenClientRef = useRef(null);
   const MASTER_PIN = '9767905729';
 
+  // Sync states to localStorage automatically so refresh NEVER logs user out
   useEffect(() => {
     ytChannelRef.current = ytChannel;
+    if (ytChannel) {
+      localStorage.setItem('sp_yt_channel', JSON.stringify(ytChannel));
+    } else {
+      localStorage.removeItem('sp_yt_channel');
+    }
   }, [ytChannel]);
+
+  useEffect(() => {
+    if (gmailUser) {
+      localStorage.setItem('sp_gmail_user', JSON.stringify(gmailUser));
+    } else {
+      localStorage.removeItem('sp_gmail_user');
+    }
+  }, [gmailUser]);
+
+  useEffect(() => {
+    localStorage.setItem('sp_tier', tier);
+  }, [tier]);
+
+  useEffect(() => {
+    localStorage.setItem('sp_quota_used', String(quotaUsed));
+  }, [quotaUsed]);
 
   // Secret Admin Access: ?admin=true OR Ctrl/Cmd + Shift + O
   useEffect(() => {
@@ -89,21 +131,89 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Load Google Identity Services SDK
+  // Load Google Identity Services SDK & Initialize Token Client
   useEffect(() => {
     if (!googleClientId) return;
+
+    const initGoogleAuth = () => {
+      if (window.google && window.google.accounts) {
+        tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+          client_id: googleClientId.trim(),
+          scope:
+            'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+          callback: async (tokenResponse) => {
+            if (tokenResponse && tokenResponse.access_token) {
+              const expiresAt = Date.now() + (Number(tokenResponse.expires_in) || 3500) * 1000;
+
+              // 1. Fetch Gmail Profile (Name, Email, Picture)
+              try {
+                const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+                });
+                const profileData = await profileRes.json();
+                if (profileData?.email) {
+                  setGmailUser({
+                    email: profileData.email,
+                    name: profileData.name || profileData.email.split('@')[0],
+                    picture: profileData.picture || ''
+                  });
+                }
+              } catch {
+                // Keep existing profile if network hiccups
+              }
+
+              // 2. Fetch YouTube Channel Info
+              try {
+                const res = await fetch(
+                  'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true',
+                  { headers: { Authorization: `Bearer ${tokenResponse.access_token}` } }
+                );
+                const data = await res.json();
+                const rawName =
+                  data?.items?.[0]?.snippet?.customUrl ||
+                  data?.items?.[0]?.snippet?.title ||
+                  '@ConnectedCreator';
+                setYtChannel({
+                  handle: rawName.startsWith('@') ? rawName : `@${rawName}`,
+                  accessToken: tokenResponse.access_token,
+                  expiresAt,
+                  isRealOAuth: true
+                });
+                setIsConnectModalOpen(false);
+              } catch {
+                setYtChannel({
+                  handle: '@YouTubeCreator',
+                  accessToken: tokenResponse.access_token,
+                  expiresAt,
+                  isRealOAuth: true
+                });
+                setIsConnectModalOpen(false);
+              }
+            }
+          }
+        });
+      }
+    };
+
+    if (window.google && window.google.accounts) {
+      initGoogleAuth();
+      return;
+    }
+
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.defer = true;
+    script.onload = initGoogleAuth;
     document.body.appendChild(script);
+
     return () => {
       if (document.body.contains(script)) document.body.removeChild(script);
     };
   }, [googleClientId]);
 
-  // 1-Click Real Google OAuth (Android & Desktop Compatible)
-  const handleOneClickGoogleConnect = () => {
+  // 1-Click Gmail + YouTube Sign-In
+  const handleOneClickGoogleConnect = (silent = false) => {
     setConnectError('');
     if (!googleClientId.trim()) {
       setConnectError(
@@ -111,48 +221,28 @@ export default function App() {
       );
       return;
     }
-    if (!window.google || !window.google.accounts) {
+    if (!tokenClientRef.current) {
       setConnectError('Google Sign-In is loading. Please tap again in 2 seconds.');
       return;
     }
 
     try {
-      const tokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id: googleClientId.trim(),
-        scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly',
-        callback: async (tokenResponse) => {
-          if (tokenResponse && tokenResponse.access_token) {
-            try {
-              const res = await fetch(
-                'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true',
-                { headers: { Authorization: `Bearer ${tokenResponse.access_token}` } }
-              );
-              const data = await res.json();
-              const rawName =
-                data?.items?.[0]?.snippet?.customUrl ||
-                data?.items?.[0]?.snippet?.title ||
-                '@ConnectedCreator';
-              setYtChannel({
-                handle: rawName.startsWith('@') ? rawName : `@${rawName}`,
-                accessToken: tokenResponse.access_token,
-                isRealOAuth: true
-              });
-              setIsConnectModalOpen(false);
-            } catch {
-              setYtChannel({
-                handle: '@YouTubeCreator',
-                accessToken: tokenResponse.access_token,
-                isRealOAuth: true
-              });
-              setIsConnectModalOpen(false);
-            }
-          }
-        }
+      tokenClientRef.current.requestAccessToken({
+        prompt: silent ? '' : 'select_account'
       });
-      tokenClient.requestAccessToken();
     } catch {
-      setConnectError('Please open this site in Google Chrome on Android (not inside WhatsApp/Instagram).');
+      setConnectError('Please open this site in Google Chrome (not inside WhatsApp/Instagram).');
     }
+  };
+
+  // Full Logout (Clears Gmail & YouTube Session)
+  const handleDisconnectAll = () => {
+    setYtChannel(null);
+    setGmailUser(null);
+    localStorage.removeItem('sp_yt_channel');
+    localStorage.removeItem('sp_gmail_user');
+    setIsConnectModalOpen(false);
+    setIsSettingsOpen(false);
   };
 
   // Quick Handle Link
@@ -168,6 +258,7 @@ export default function App() {
     setYtChannel({
       handle: formattedHandle,
       accessToken: null,
+      expiresAt: null,
       isRealOAuth: false
     });
     setYtHandleInput('');
@@ -185,7 +276,6 @@ export default function App() {
       video.setAttribute('playsinline', '');
       video.setAttribute('webkit-playsinline', '');
 
-      // Safety timeout so Android never gets stuck
       const safetyTimer = setTimeout(() => {
         resolve({
           croppedUrl: videoUrl,
@@ -201,17 +291,12 @@ export default function App() {
 
         const canvas = document.createElement('canvas');
         canvas.width = 480;
-        canvas.height = 854; // Lightweight 9:16 resolution for smooth Android RAM performance
+        canvas.height = 854;
         const ctx = canvas.getContext('2d');
 
-        // Detect Android supported MIME type
         let supportedMime = '';
         if (window.MediaRecorder) {
-          const candidates = [
-            'video/webm;codecs=vp8',
-            'video/webm',
-            'video/mp4'
-          ];
+          const candidates = ['video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
           supportedMime = candidates.find((m) => MediaRecorder.isTypeSupported(m)) || '';
         }
 
@@ -323,6 +408,7 @@ export default function App() {
         const fd = new FormData();
         fd.append('file', blob, `${title}_9x16.mp4`);
         fd.append('folder_id', driveFolderId);
+        if (gmailUser?.email) fd.append('client_email', gmailUser.email);
         await fetch(`${backendUrl.replace(/\/$/, '')}/api/save-to-drive`, {
           method: 'POST',
           body: fd
@@ -333,11 +419,18 @@ export default function App() {
     }
   };
 
-  // Direct YouTube Shorts Upload Function
+  // Direct YouTube Shorts Upload Function (With Token Expiry Check)
   const uploadClipToYouTubeAPI = async (clipId, title, blob, channelOverride = null) => {
     const activeChannel = channelOverride || ytChannelRef.current;
     if (!activeChannel) {
       setIsConnectModalOpen(true);
+      return;
+    }
+
+    // If token expired after 1 hour, trigger silent refresh instead of failing
+    if (activeChannel.isRealOAuth && activeChannel.expiresAt && Date.now() > activeChannel.expiresAt) {
+      handleOneClickGoogleConnect(true);
+      alert('Refreshing your Google session—please tap Post to YT once more.');
       return;
     }
 
@@ -373,6 +466,11 @@ export default function App() {
           }
         );
 
+        if (initRes.status === 401) {
+          handleOneClickGoogleConnect(true);
+          throw new Error('Session refreshed—tap Post to YT again.');
+        }
+
         if (!initRes.ok) {
           const errData = await initRes.json().catch(() => ({}));
           throw new Error(errData?.error?.message || `HTTP ${initRes.status}`);
@@ -407,7 +505,7 @@ export default function App() {
         );
         return;
       } catch (err) {
-        alert(`YouTube Upload Error: ${err.message}`);
+        alert(`YouTube Upload: ${err.message}`);
         setVideoQueue((prev) =>
           prev.map((item) => (item.id === clipId ? { ...item, status: 'ready' } : item))
         );
@@ -575,18 +673,37 @@ export default function App() {
             </span>
           </div>
 
-          {/* Right Controls (Compact on Android so nothing wraps or overflows) */}
-          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+          {/* Right Controls (Persistent Gmail Avatar + YouTube Pill + Tier) */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+            {/* Gmail Account Pill */}
             <button
               onClick={() => setIsConnectModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition-all border truncate max-w-[130px] sm:max-w-none ${
-                ytChannel
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition-all border max-w-[145px] sm:max-w-[200px] ${
+                gmailUser || ytChannel
                   ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
                   : 'bg-rose-500/15 active:scale-95 border-rose-500/40 text-rose-300'
               }`}
             >
-              <Youtube className={`w-3.5 h-3.5 shrink-0 ${ytChannel ? 'text-emerald-400' : 'text-rose-400'}`} />
-              <span className="truncate">{ytChannel ? ytChannel.handle : 'Connect YT'}</span>
+              {gmailUser?.picture ? (
+                <img
+                  src={gmailUser.picture}
+                  alt="Profile"
+                  className="w-4 h-4 rounded-full shrink-0"
+                />
+              ) : (
+                <Youtube
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    ytChannel ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                />
+              )}
+              <span className="truncate">
+                {ytChannel
+                  ? ytChannel.handle
+                  : gmailUser
+                  ? gmailUser.name
+                  : 'Sign In / YT'}
+              </span>
             </button>
 
             {tier === 'pro' ? (
@@ -634,8 +751,8 @@ export default function App() {
           </p>
         </div>
 
-        {/* Channel Status Banner */}
-        {!ytChannel ? (
+        {/* Persistent Gmail + YouTube Channel Status Banner */}
+        {!ytChannel && !gmailUser ? (
           <div className="mb-5 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-rose-500/10 via-[#090d16] to-sky-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
@@ -643,10 +760,10 @@ export default function App() {
               </div>
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-white">
-                  Step 1: Connect YouTube Channel
+                  Step 1: Sign in with Gmail & Connect YouTube
                 </div>
                 <div className="text-xs text-slate-400">
-                  Sign in with Google to enable direct Shorts uploads.
+                  Stays logged in automatically even after page refresh.
                 </div>
               </div>
             </div>
@@ -655,31 +772,45 @@ export default function App() {
               className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-500 active:bg-rose-600 text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-[0_0_20px_rgba(244,63,94,0.3)]"
             >
               <Link2 className="w-3.5 h-3.5" />
-              Link YouTube Now
+              Sign in with Google
             </button>
           </div>
         ) : (
           <div className="mb-5 p-3 px-4 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <Youtube className="w-4 h-4 text-rose-500 shrink-0" />
-              <span className="text-xs sm:text-sm font-semibold text-white truncate">
-                {ytChannel.handle}
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shrink-0">
-                {ytChannel.isRealOAuth ? 'Auto-Publish ON' : 'Linked'}
-              </span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              {gmailUser?.picture ? (
+                <img
+                  src={gmailUser.picture}
+                  alt="Gmail"
+                  className="w-7 h-7 rounded-full border border-emerald-400/50 shrink-0"
+                />
+              ) : (
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              )}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs sm:text-sm font-semibold text-white truncate">
+                    {ytChannel?.handle || gmailUser?.name}
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shrink-0">
+                    Connected
+                  </span>
+                </div>
+                {gmailUser?.email && (
+                  <div className="text-[11px] text-slate-400 truncate">{gmailUser.email}</div>
+                )}
+              </div>
             </div>
             <button
               onClick={() => setIsConnectModalOpen(true)}
-              className="text-xs text-sky-400 shrink-0"
+              className="text-xs text-sky-400 shrink-0 font-medium"
             >
-              Change
+              Account
             </button>
           </div>
         )}
 
-        {/* Upload Dropzone (Placed right above steps on mobile for 1-thumb reach) */}
+        {/* Upload Dropzone */}
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -801,7 +932,6 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* Mobile-Friendly Tap-to-Play 9:16 Preview */}
                   {clip.croppedUrl && (
                     <div
                       onClick={() => setPreviewClip(clip)}
@@ -909,7 +1039,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Connect YouTube Channel Modal */}
+      {/* Connect Gmail & YouTube Channel Modal */}
       {isConnectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
           <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border-t sm:border border-rose-500/35 p-5 sm:p-7 max-h-[90vh] overflow-y-auto">
@@ -924,28 +1054,62 @@ export default function App() {
               <Youtube className="w-6 h-6 text-rose-400" />
             </div>
 
-            <h3 className="text-lg sm:text-xl font-bold text-white mb-1">Connect YouTube</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-white mb-1">
+              Gmail & YouTube Account
+            </h3>
             <p className="text-xs text-slate-400 mb-4">
-              Sign in with Google for direct YouTube Shorts uploads, or enter your channel handle.
+              Your Gmail login & YouTube channel stay saved even if you refresh or close the app.
             </p>
+
+            {/* Show Active Signed-In Gmail Card */}
+            {(gmailUser || ytChannel) && (
+              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 mb-4 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {gmailUser?.picture ? (
+                    <img
+                      src={gmailUser.picture}
+                      alt="Profile"
+                      className="w-9 h-9 rounded-full shrink-0"
+                    />
+                  ) : (
+                    <UserCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white truncate">
+                      {ytChannel?.handle || gmailUser?.name}
+                    </div>
+                    <div className="text-[11px] text-emerald-300 truncate">
+                      {gmailUser?.email || 'Saved in Browser Storage'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDisconnectAll}
+                  className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 text-xs font-semibold flex items-center gap-1 shrink-0"
+                >
+                  <LogOut className="w-3.5 h-3.5" /> Logout
+                </button>
+              </div>
+            )}
 
             <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/25 mb-4 space-y-2.5">
               <div className="text-xs font-semibold text-sky-300">
-                1-Click Google OAuth (Auto-Upload)
+                1-Click Google OAuth (Gmail + YouTube Auto-Upload)
               </div>
               <button
                 type="button"
-                onClick={handleOneClickGoogleConnect}
+                onClick={() => handleOneClickGoogleConnect(false)}
                 className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-sky-500 to-blue-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
               >
                 <Youtube className="w-4 h-4" />
-                Sign in with Google
+                {gmailUser ? 'Switch Gmail / Re-Authorize' : 'Sign in with Google'}
               </button>
             </div>
 
             <form onSubmit={handleQuickConnectYouTube} className="space-y-3">
               <div className="text-xs font-semibold text-slate-400">
-                Or Link Channel Handle
+                Or Save Channel Handle Manually
               </div>
               <input
                 type="text"
@@ -964,18 +1128,6 @@ export default function App() {
                 Save Channel Handle
               </button>
             </form>
-
-            {ytChannel && (
-              <button
-                onClick={() => {
-                  setYtChannel(null);
-                  setIsConnectModalOpen(false);
-                }}
-                className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-rose-400"
-              >
-                Disconnect {ytChannel.handle}
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -1104,6 +1256,23 @@ export default function App() {
               </div>
 
               <div className="mt-5 space-y-4">
+                {gmailUser && (
+                  <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/30 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-white truncate">
+                        {gmailUser.name}
+                      </div>
+                      <div className="text-[11px] text-slate-400 truncate">{gmailUser.email}</div>
+                    </div>
+                    <button
+                      onClick={handleDisconnectAll}
+                      className="text-xs text-rose-400 font-semibold shrink-0"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                )}
+
                 <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800">
                   <div className="text-xs text-slate-400 mb-1">Current Plan</div>
                   <div className="flex items-center justify-between">
@@ -1181,7 +1350,7 @@ export default function App() {
             </div>
 
             <div className="text-xs text-slate-500 border-t border-slate-800 pt-3">
-              ShortsPilot Mobile Studio v3.2
+              ShortsPilot Persistent Studio v3.3
             </div>
           </div>
         </div>
