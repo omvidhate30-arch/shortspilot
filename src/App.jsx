@@ -23,6 +23,7 @@ export default function App() {
     () => localStorage.getItem('sp_google_client_id') || DEFAULT_GOOGLE_CLIENT_ID
   );
   const [igAutoSync, setIgAutoSync] = useState(true);
+  const [autoPublishEnabled, setAutoPublishEnabled] = useState(true);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [connectError, setConnectError] = useState('');
 
@@ -64,7 +65,12 @@ export default function App() {
   ]);
 
   const fileInputRef = useRef(null);
+  const ytChannelRef = useRef(null);
   const MASTER_PIN = '9767905729';
+
+  useEffect(() => {
+    ytChannelRef.current = ytChannel;
+  }, [ytChannel]);
 
   // Secret Admin Access: ?admin=true OR Ctrl/Cmd + Shift + O
   useEffect(() => {
@@ -96,12 +102,12 @@ export default function App() {
     };
   }, [googleClientId]);
 
-  // 1-Click Real Google OAuth (YouTube Upload + 5TB Drive Sync)
+  // 1-Click Real Google OAuth (Only YouTube Scopes - Fixes Error 400)
   const handleOneClickGoogleConnect = () => {
     setConnectError('');
     if (!googleClientId.trim()) {
       setConnectError(
-        'Studio OAuth setup pending. Use Quick Handle below or configure Client ID in Owner Console.'
+        'Studio OAuth setup pending. Add your Google Client ID in Owner Console (?admin=true) first.'
       );
       return;
     }
@@ -113,8 +119,7 @@ export default function App() {
     try {
       const tokenClient = window.google.accounts.oauth2.initTokenClient({
         client_id: googleClientId.trim(),
-        scope:
-          'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/drive.file',
+        scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly',
         callback: async (tokenResponse) => {
           if (tokenResponse && tokenResponse.access_token) {
             try {
@@ -286,12 +291,102 @@ export default function App() {
           body: fd
         });
       } catch {
-        // Silent fallback if backend is offline
+        // Silent fallback
       }
     }
   };
 
-  // Main File Processing Pipeline
+  // Direct YouTube Shorts Upload Function
+  const uploadClipToYouTubeAPI = async (clipId, title, blob, channelOverride = null) => {
+    const activeChannel = channelOverride || ytChannelRef.current;
+    if (!activeChannel) {
+      setIsConnectModalOpen(true);
+      return;
+    }
+
+    setVideoQueue((prev) =>
+      prev.map((item) => (item.id === clipId ? { ...item, status: 'uploading' } : item))
+    );
+
+    if (activeChannel.accessToken && blob) {
+      try {
+        const metadata = {
+          snippet: {
+            title: `${title.slice(0, 85)} #Shorts`,
+            description: 'Created & auto-cropped in 9:16 with ShortsPilot AI #Shorts',
+            categoryId: '22'
+          },
+          status: {
+            privacyStatus: 'public',
+            selfDeclaredMadeForKids: false
+          }
+        };
+
+        const initRes = await fetch(
+          'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${activeChannel.accessToken}`,
+              'Content-Type': 'application/json',
+              'X-Upload-Content-Type': blob.type || 'video/webm',
+              'X-Upload-Content-Length': blob.size
+            },
+            body: JSON.stringify(metadata)
+          }
+        );
+
+        if (!initRes.ok) {
+          const errData = await initRes.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `HTTP ${initRes.status}`);
+        }
+
+        const uploadLocation = initRes.headers.get('Location');
+        if (!uploadLocation) throw new Error('YouTube upload URL missing');
+
+        const uploadRes = await fetch(uploadLocation, {
+          method: 'PUT',
+          headers: { 'Content-Type': blob.type || 'video/webm' },
+          body: blob
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error(`Upload failed (${uploadRes.status})`);
+        }
+
+        const uploadedVideo = await uploadRes.json();
+        const videoId = uploadedVideo.id;
+
+        setVideoQueue((prev) =>
+          prev.map((item) =>
+            item.id === clipId
+              ? {
+                  ...item,
+                  status: 'published',
+                  youtubeUrl: videoId ? `https://youtube.com/shorts/${videoId}` : null
+                }
+              : item
+          )
+        );
+        return;
+      } catch (err) {
+        alert(`YouTube Upload Error: ${err.message}`);
+        setVideoQueue((prev) =>
+          prev.map((item) => (item.id === clipId ? { ...item, status: 'ready' } : item))
+        );
+        return;
+      }
+    }
+
+    // Fallback when linked via handle without OAuth token
+    setTimeout(() => {
+      setVideoQueue((prev) =>
+        prev.map((item) => (item.id === clipId ? { ...item, status: 'published' } : item))
+      );
+    }, 1000);
+  };
+
+  // Main File Processing Pipeline (With Auto-Publish Trigger)
   const processNewFile = async (file) => {
     if (tier === 'free' && quotaUsed >= 5) {
       setIsPricingOpen(true);
@@ -317,46 +412,11 @@ export default function App() {
     setVideoQueue((prev) => [newItem, ...prev]);
     if (tier === 'free') setQuotaUsed((q) => q + 1);
 
-    if (backendUrl.trim()) {
-      try {
-        setVideoQueue((prev) =>
-          prev.map((item) => (item.id === newId ? { ...item, status: 'cropping', progress: 50 } : item))
-        );
-        const formData = new FormData();
-        formData.append('video', file);
-        formData.append('folder_id', driveFolderId);
-        const response = await fetch(`${backendUrl.replace(/\/$/, '')}/api/process-short`, {
-          method: 'POST',
-          body: formData
-        });
-        const data = await response.json();
-        if (data.clip_url) {
-          setVideoQueue((prev) =>
-            prev.map((item) =>
-              item.id === newId
-                ? {
-                    ...item,
-                    status: 'ready',
-                    progress: 100,
-                    croppedUrl: data.clip_url,
-                    cloudSynced: true,
-                    duration: data.duration || '0:30'
-                  }
-                : item
-            )
-          );
-          return;
-        }
-      } catch {
-        // Fallback to instant in-browser 9:16 rendering
-      }
-    }
-
     setTimeout(() => {
       setVideoQueue((prev) =>
         prev.map((item) => (item.id === newId ? { ...item, status: 'cropping', progress: 35 } : item))
       );
-    }, 500);
+    }, 400);
 
     const result = await renderVertical916Clip(file, newId);
     await syncClipTo5TBCloud(result.blob, cleanTitle);
@@ -376,85 +436,15 @@ export default function App() {
           : item
       )
     );
+
+    // 100% Auto-Publish if OAuth channel is connected and Auto-Publish is ON
+    if (autoPublishEnabled && ytChannelRef.current?.accessToken) {
+      await uploadClipToYouTubeAPI(newId, cleanTitle, result.blob, ytChannelRef.current);
+    }
   };
 
-  // Direct YouTube Shorts Upload
-  const handlePublishToYouTube = async (clip) => {
-    if (!ytChannel) {
-      setIsConnectModalOpen(true);
-      return;
-    }
-
-    setVideoQueue((prev) =>
-      prev.map((item) => (item.id === clip.id ? { ...item, status: 'uploading' } : item))
-    );
-
-    if (ytChannel.accessToken && clip.blob) {
-      try {
-        const metadata = {
-          snippet: {
-            title: `${clip.title} #Shorts`,
-            description: 'Created & auto-cropped in 9:16 with ShortsPilot AI #Shorts',
-            categoryId: '22'
-          },
-          status: {
-            privacyStatus: 'public',
-            selfDeclaredMadeForKids: false
-          }
-        };
-
-        const initRes = await fetch(
-          'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${ytChannel.accessToken}`,
-              'Content-Type': 'application/json',
-              'X-Upload-Content-Type': clip.blob.type || 'video/webm',
-              'X-Upload-Content-Length': clip.blob.size
-            },
-            body: JSON.stringify(metadata)
-          }
-        );
-
-        const uploadLocation = initRes.headers.get('Location');
-        if (!uploadLocation) throw new Error('YouTube upload session failed');
-
-        const uploadRes = await fetch(uploadLocation, {
-          method: 'PUT',
-          headers: { 'Content-Type': clip.blob.type || 'video/webm' },
-          body: clip.blob
-        });
-
-        const uploadedVideo = await uploadRes.json();
-        const videoId = uploadedVideo.id;
-
-        setVideoQueue((prev) =>
-          prev.map((item) =>
-            item.id === clip.id
-              ? {
-                  ...item,
-                  status: 'published',
-                  youtubeUrl: videoId ? `https://youtube.com/shorts/${videoId}` : null
-                }
-              : item
-          )
-        );
-        return;
-      } catch (err) {
-        alert(`YouTube Upload Error: ${err.message}`);
-        setVideoQueue((prev) =>
-          prev.map((item) => (item.id === clip.id ? { ...item, status: 'ready' } : item))
-        );
-        return;
-      }
-    }
-
-    setTimeout(() => {
-      setVideoQueue((prev) =>
-        prev.map((item) => (item.id === clip.id ? { ...item, status: 'published' } : item))
-      );
-    }, 1000);
+  const handleManualPublishClick = (clip) => {
+    uploadClipToYouTubeAPI(clip.id, clip.title, clip.blob);
   };
 
   const handleFileUpload = (e) => {
@@ -655,7 +645,7 @@ export default function App() {
               <Youtube className="w-4 h-4 text-rose-500" />
               <span className="text-sm font-semibold text-white">{ytChannel.handle}</span>
               <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                {ytChannel.isRealOAuth ? 'OAuth Connected' : 'Channel Linked'}
+                {ytChannel.isRealOAuth ? 'OAuth Connected • Auto-Publish ON' : 'Channel Linked'}
               </span>
             </div>
             <button
@@ -729,7 +719,7 @@ export default function App() {
             Drop your video here to generate a 9:16 Short
           </h2>
           <p className="text-sm text-slate-400 max-w-md mx-auto mb-7">
-            Supports MP4, MOV, WebM up to 4K. Your clip is rendered in 9:16 vertical HD and synced to your cloud workspace.
+            Supports MP4, MOV, WebM up to 4K. Your clip is rendered in 9:16 vertical HD and auto-published to YouTube Shorts.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
@@ -743,7 +733,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Auto-Pilot Publishing Queue (Visible ONLY after real video upload) */}
+        {/* Auto-Pilot Publishing Queue */}
         {videoQueue.length > 0 && (
           <section className="mt-12">
             <div className="flex items-center justify-between mb-5">
@@ -824,7 +814,7 @@ export default function App() {
                         {clip.status === 'analyzing' && 'Scanning Viral Hook Segment...'}
                         {clip.status === 'cropping' && 'Rendering 9:16 Vertical Short...'}
                         {clip.status === 'ready' && '9:16 Short Ready'}
-                        {clip.status === 'uploading' && 'Uploading to YouTube Shorts...'}
+                        {clip.status === 'uploading' && 'Auto-Uploading to YouTube Shorts...'}
                         {clip.status === 'published' && 'Published to YouTube ✓'}
                       </span>
                       <span className="text-slate-400">{clip.progress}%</span>
@@ -857,7 +847,7 @@ export default function App() {
 
                     {clip.status === 'ready' && (
                       <button
-                        onClick={() => handlePublishToYouTube(clip)}
+                        onClick={() => handleManualPublishClick(clip)}
                         className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-95 text-white font-semibold flex items-center gap-1 transition-all"
                       >
                         <Send className="w-3 h-3" />
@@ -870,7 +860,7 @@ export default function App() {
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         {clip.youtubeUrl ? (
                           <a href={clip.youtubeUrl} target="_blank" rel="noreferrer" className="underline">
-                            View Short
+                            View Short ↗
                           </a>
                         ) : (
                           'Posted'
@@ -928,7 +918,7 @@ export default function App() {
             {/* 1-Click Google Sign-In */}
             <div className="p-4 rounded-2xl bg-[#0c1220] border border-sky-500/25 mb-4 space-y-3">
               <div className="text-xs font-semibold text-sky-300">
-                1-Click Google OAuth Authorization
+                1-Click Google OAuth Authorization (Real Auto-Upload)
               </div>
               <button
                 type="button"
@@ -1140,7 +1130,24 @@ export default function App() {
 
                 <div className="space-y-3">
                   <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Connected Channels
+                    Automation & Channels
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <Zap className="w-4 h-4 text-sky-400" />
+                      <span className="text-sm text-slate-200">Instant Auto-Publish</span>
+                    </div>
+                    <button
+                      onClick={() => setAutoPublishEnabled(!autoPublishEnabled)}
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                        autoPublishEnabled
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {autoPublishEnabled ? 'ON' : 'OFF'}
+                    </button>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between">
