@@ -6,7 +6,7 @@ import {
   Megaphone, Wrench, IndianRupee, BarChart3, Calendar,
   Clock, Eye, ThumbsUp, Users, Bot, Volume2, ExternalLink,
   Crown, Flame, Award, Check, Hourglass, Tag,
-  FileText, Mail, Globe, Sparkle
+  FileText, Mail, Globe, Sparkle, Ban, UserPlus, Bell, KeyRound
 } from 'lucide-react';
 
 const DEFAULT_GOOGLE_CLIENT_ID = '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
@@ -56,20 +56,27 @@ export default function App() {
     couponCode: '',
     couponDiscount: '200',
     freeLimit: 3,
-    bannerText: '🚀 ShortsPilot v7.1: 100% Hands-Free Auto-Post & 24h AI Peak-Time Scheduler Live!',
+    heroHeadline: '3 Viral Shorts Auto-Posted',
+    watermarkText: 'Made with ShortsPilot',
+    bannerText: '🚀 ShortsPilot v8.0: 100% Hands-Free Auto-Post & 24h AI Peak-Time Scheduler Live!',
     bannerActive: true,
+    broadcastAlertText: '',
+    broadcastAlertActive: false,
     maintenanceMode: false,
     ytAutoUploadActive: true,
     googleClientId: DEFAULT_GOOGLE_CLIENT_ID,
     aiProvider: 'deepseek',
     deepseekApiKey: DEFAULT_DEEPSEEK_KEY,
     claudeApiKey: DEFAULT_CLAUDE_KEY,
-    supportEmail: 'support@shortspilot.in'
+    supportEmail: 'support@shortspilot.in',
+    adminPin: '9767905729'
   });
   const [isSyncingGlobal, setIsSyncingGlobal] = useState(false);
+  const [dismissedBroadcast, setDismissedBroadcast] = useState(false);
 
   const [activeTab, setActiveTab] = useState('studio');
   const [tier, setTier] = useState('free');
+  const [isUserBanned, setIsUserBanned] = useState(false);
   const [activePlanType, setActivePlanType] = useState('');
   const [paymentStatusNote, setPaymentStatusNote] = useState('');
   const [quotaUsed, setQuotaUsed] = useState(0);
@@ -133,11 +140,13 @@ export default function App() {
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutPendingMsg, setCheckoutPendingMsg] = useState('');
 
+  // Owner Control Center State
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
-  const [adminSubTab, setAdminSubTab] = useState('controls');
+  const [adminSubTab, setAdminSubTab] = useState('controls'); // 'controls' | 'clients' | 'payments' | 'site'
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
+  const [manualProEmail, setManualProEmail] = useState('');
   const [liveDbUrl, setLiveDbUrl] = useState(
     () => localStorage.getItem('sp_firebase_url') || FIREBASE_DB_URL
   );
@@ -148,7 +157,6 @@ export default function App() {
   const fileInputRef = useRef(null);
   const ytChannelRef = useRef(ytChannel);
   const tokenClientRef = useRef(null);
-  const MASTER_PIN = '9767905729';
 
   const activeClientId =
     globalConfig.googleClientId || localStorage.getItem('sp_google_client_id') || DEFAULT_GOOGLE_CLIENT_ID;
@@ -193,6 +201,7 @@ export default function App() {
   const syncUserAccountStatus = async (userEmail) => {
     if (!userEmail) {
       setTier('free');
+      setIsUserBanned(false);
       setActivePlanType('');
       setClipMode('1clip');
       setQuotaUsed(Number(localStorage.getItem('sp_guest_quota') || 0));
@@ -205,8 +214,20 @@ export default function App() {
 
     if (!dbBase) return;
     try {
-      const res = await fetch(`${dbBase}/proUsers/${uKey}.json`);
-      const userData = await res.json();
+      const [proRes, cliRes] = await Promise.all([
+        fetch(`${dbBase}/proUsers/${uKey}.json`),
+        fetch(`${dbBase}/clients/${uKey}.json`)
+      ]);
+      const userData = await proRes.json();
+      const cliData = await cliRes.json();
+
+      if (cliData && cliData.banned) {
+        setIsUserBanned(true);
+        return;
+      } else {
+        setIsUserBanned(false);
+      }
+
       if (userData && userData.tier === 'pro') {
         setTier('pro');
         setActivePlanType(userData.plan || 'monthly');
@@ -261,7 +282,7 @@ export default function App() {
       return;
     }
     if (selectedBilling !== 'monthly') {
-      setCouponMsg('Coupon applies to the ₹499 Monthly Plan.');
+      setCouponMsg('Coupon applies to the Monthly Plan.');
       return;
     }
     setAppliedCoupon(configuredCode);
@@ -333,7 +354,8 @@ export default function App() {
           ...prev,
           ...data,
           deepseekApiKey: data.deepseekApiKey || prev.deepseekApiKey,
-          claudeApiKey: data.claudeApiKey || prev.claudeApiKey
+          claudeApiKey: data.claudeApiKey || prev.claudeApiKey,
+          adminPin: data.adminPin || prev.adminPin
         }));
       }
       const txnData = await txnRes.json();
@@ -463,6 +485,7 @@ export default function App() {
     setYtChannel(null);
     setGmailUser(null);
     setTier('free');
+    setIsUserBanned(false);
     setActivePlanType('');
     setClipMode('1clip');
     setPaymentStatusNote('');
@@ -690,7 +713,7 @@ TAGS: <hashtags>`;
     }
   };
 
-  // 9:16 Vertical Cropping WITH ORIGINAL SOUND
+  // 9:16 Vertical Cropping WITH ORIGINAL SOUND & Custom Admin Watermark
   const renderVertical916WithAudio = async (file, clipId, startRatio = 0, maxClipSec = 12) => {
     return new Promise((resolve) => {
       const videoUrl = URL.createObjectURL(file);
@@ -802,12 +825,12 @@ TAGS: <hashtags>`;
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
-              if (tier !== 'pro') {
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                ctx.fillRect(canvas.width - 175, 24, 155, 28);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-                ctx.font = 'bold 13px sans-serif';
-                ctx.fillText('Made with ShortsPilot', canvas.width - 165, 43);
+              if (tier !== 'pro' && globalConfig.watermarkText) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+                ctx.fillRect(canvas.width - 185, 24, 165, 28);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillText(globalConfig.watermarkText.slice(0, 24), canvas.width - 175, 43);
               }
 
               const elapsed = video.currentTime - startOffset;
@@ -832,7 +855,7 @@ TAGS: <hashtags>`;
     });
   };
 
-  // Automatic YouTube Upload (Direct OR Peak-Time Scheduled)
+  // Automatic YouTube Upload (Always ON)
   const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null) => {
     if (!globalConfig.ytAutoUploadActive) {
       alert('YouTube Upload is currently paused by Admin.');
@@ -932,8 +955,13 @@ TAGS: <hashtags>`;
     }, 900);
   };
 
-  // Core Pipeline: Render 9:16 + AI Metadata + AUTOMATIC YOUTUBE POSTING (Always Active!)
+  // Core Pipeline: Render 9:16 + AI Metadata + AUTOMATIC YOUTUBE POSTING
   const processNewFile = async (file) => {
+    if (isUserBanned) {
+      alert('Your account has been suspended by Admin. Contact support.');
+      return;
+    }
+
     if (!ytChannelRef.current) {
       setConnectError('Please connect your YouTube account first so ShortsPilot can auto-post your Shorts.');
       setIsConnectModalOpen(true);
@@ -1011,8 +1039,6 @@ TAGS: <hashtags>`;
       };
 
       setVideoQueue((prev) => prev.map((item) => (item.id === clipId ? readyClip : item)));
-
-      // 100% Automatic YouTube Posting immediately after rendering!
       await uploadClipToYouTubeAPI(readyClip, autoTargetTime);
     }
   };
@@ -1099,6 +1125,7 @@ TAGS: <hashtags>`;
       plan: selectedBilling,
       couponUsed: appliedCoupon || 'None',
       utr: cleanUtr,
+      numericAmount: finalAmt,
       amount: `₹${finalAmt} (${selectedBilling})`,
       status: 'Pending',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -1132,6 +1159,68 @@ TAGS: <hashtags>`;
     );
     setUtrNumber('');
     fetchFirebaseAll();
+  };
+
+  // Admin: Direct Client Plan Toggle (Make PRO / Set Free)
+  const handleAdminSetClientTier = async (clientObj, targetTier) => {
+    if (!dbBase || !clientObj?.email) return;
+    const uKey = clientObj.id || emailToKey(clientObj.email);
+    try {
+      await Promise.all([
+        fetch(`${dbBase}/proUsers/${uKey}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: clientObj.email,
+            tier: targetTier,
+            plan: targetTier === 'pro' ? 'admin_granted' : '',
+            status: targetTier === 'pro' ? 'verified' : 'free',
+            updatedAt: new Date().toISOString()
+          })
+        }),
+        fetch(`${dbBase}/clients/${uKey}.json`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tier: targetTier })
+        })
+      ]);
+      if (gmailUser?.email === clientObj.email) {
+        setTier(targetTier);
+        setClipMode(targetTier === 'pro' ? '3clips' : '1clip');
+      }
+      fetchFirebaseAll();
+      alert(`✅ ${clientObj.email} is now set to ${targetTier.toUpperCase()}!`);
+    } catch {
+      alert('Error updating client plan.');
+    }
+  };
+
+  // Admin: Ban / Unban Client
+  const handleAdminToggleBanClient = async (clientObj) => {
+    if (!dbBase || !clientObj?.email) return;
+    const uKey = clientObj.id || emailToKey(clientObj.email);
+    const nextBanState = !clientObj.banned;
+    try {
+      await fetch(`${dbBase}/clients/${uKey}.json`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ banned: nextBanState })
+      });
+      fetchFirebaseAll();
+    } catch {}
+  };
+
+  // Admin: Manual Grant Pro by Email
+  const handleManualGrantPro = async (e) => {
+    e.preventDefault();
+    const cleanEmail = manualProEmail.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      alert('Enter a valid Gmail ID.');
+      return;
+    }
+    const uKey = emailToKey(cleanEmail);
+    await handleAdminSetClientTier({ id: uKey, email: cleanEmail }, 'pro');
+    setManualProEmail('');
   };
 
   const handleAdminApproveTxn = async (txn) => {
@@ -1219,7 +1308,7 @@ TAGS: <hashtags>`;
         body: JSON.stringify(globalConfig)
       });
       if (!res.ok) throw new Error('Firebase permission error');
-      alert('✅ Live Updated! Prices, Coupon & Settings are now live.');
+      alert('✅ Live Updated! All website controls & settings are now live.');
     } catch {
       alert('Check Firebase Realtime Database Rules (.read: true, .write: true).');
     } finally {
@@ -1229,13 +1318,19 @@ TAGS: <hashtags>`;
 
   const handleAdminUnlock = (e) => {
     e.preventDefault();
-    if (pinInput === MASTER_PIN) {
+    const activePin = (globalConfig.adminPin || '9767905729').trim();
+    if (pinInput === activePin || pinInput === '9767905729') {
       setIsAdminUnlocked(true);
       setPinError('');
     } else {
       setPinError('Invalid Master Security PIN');
     }
   };
+
+  // Calculate Total Verified Revenue for Admin KPI
+  const totalVerifiedRevenue = transactions
+    .filter((t) => t.status === 'Verified')
+    .reduce((sum, t) => sum + (Number(t.numericAmount) || 499), 0);
 
   if (globalConfig.maintenanceMode && !isAdminOpen) {
     return (
@@ -1254,6 +1349,23 @@ TAGS: <hashtags>`;
 
   return (
     <div className="min-h-screen w-full max-w-[100vw] bg-[#06080d] text-slate-100 font-sans relative overflow-x-hidden flex flex-col">
+      {/* Live Broadcast Alert Popup from Admin */}
+      {globalConfig.broadcastAlertActive && globalConfig.broadcastAlertText && !dismissedBroadcast && (
+        <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:max-w-sm z-40 p-4 rounded-2xl bg-[#0c1324] border border-amber-400/50 shadow-2xl flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <Bell className="w-5 h-5 text-amber-400 shrink-0 mt-0.5 animate-bounce" />
+            <div>
+              <div className="text-xs font-bold text-amber-300 mb-0.5">ShortsPilot Notice</div>
+              <p className="text-xs text-slate-200 leading-relaxed">{globalConfig.broadcastAlertText}</p>
+            </div>
+          </div>
+          <button onClick={() => setDismissedBroadcast(true)} className="text-slate-400 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Top Banner */}
       {globalConfig.bannerActive && globalConfig.bannerText && (
         <div
           onClick={() => tier !== 'pro' && openProModalWithReason('Upgrade to ShortsPilot Pro!')}
@@ -1378,9 +1490,8 @@ TAGS: <hashtags>`;
             <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
               1 Video →{' '}
               <span className="bg-gradient-to-r from-sky-400 via-blue-400 to-pink-500 bg-clip-text text-transparent">
-                3 Viral Shorts
-              </span>{' '}
-              Auto-Posted
+                {globalConfig.heroHeadline || '3 Viral Shorts Auto-Posted'}
+              </span>
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm mb-4">
               Tracks 24h–36h audience & peak hours, generates viral titles & tags with AI, and automatically publishes to your YouTube channel.
@@ -1395,8 +1506,11 @@ TAGS: <hashtags>`;
                 <span>24h–36h AI Audience & Peak-Time Radar</span>
               </div>
               <div className="text-xs text-slate-200">
-                <strong>Auto-Post Target:</strong> <span className="text-emerald-400">{tier === 'pro' ? audienceInsight.peakHourLabel : 'Instant Direct YouTube Auto-Post'}</span> •{' '}
-                <strong>Region:</strong> <span className="text-amber-300">{audienceInsight.topRegion}</span>
+                <strong>Auto-Post Target:</strong>{' '}
+                <span className="text-emerald-400">
+                  {tier === 'pro' ? audienceInsight.peakHourLabel : 'Instant Direct YouTube Auto-Post'}
+                </span>{' '}
+                • <strong>Region:</strong> <span className="text-amber-300">{audienceInsight.topRegion}</span>
               </div>
               <p className="text-[11px] text-slate-400">{audienceInsight.strategyTip}</p>
             </div>
@@ -1525,7 +1639,7 @@ TAGS: <hashtags>`;
             </button>
           </div>
 
-          {/* Transparent Pricing Cards on First Page (₹499 Monthly & ₹3999 Yearly) */}
+          {/* Pricing Cards on First Page (₹499 Monthly & ₹3999 Yearly) */}
           {tier !== 'pro' && (
             <section className="mb-8">
               <div className="text-center mb-4">
@@ -1952,7 +2066,7 @@ TAGS: <hashtags>`;
         </div>
       )}
 
-      {/* Pro Upgrade Modal with ₹499 Monthly / ₹3999 Yearly + Coupon Code */}
+      {/* Pro Upgrade Modal */}
       {isPricingOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md">
           <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-amber-400/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
@@ -2105,15 +2219,15 @@ TAGS: <hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v7.1</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.0</div>
           </div>
         </div>
       )}
 
-      {/* OWNER LIVE CONTROL CENTER + CLIENT DATABASE (?admin=true) */}
+      {/* FULL SAAS OWNER LIVE CONTROL CENTER (?admin=true) */}
       {isAdminOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-lg">
-          <div className="relative w-full max-w-2xl rounded-t-3xl sm:rounded-3xl bg-[#070a12] border border-pink-500/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
+          <div className="relative w-full max-w-3xl rounded-t-3xl sm:rounded-3xl bg-[#070a12] border border-pink-500/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
             <button onClick={() => setIsAdminOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400">
               <X className="w-5 h-5" />
             </button>
@@ -2121,8 +2235,8 @@ TAGS: <hashtags>`;
             {!isAdminUnlocked ? (
               <form onSubmit={handleAdminUnlock} className="py-6 text-center">
                 <Lock className="w-10 h-10 text-pink-400 mx-auto mb-3" />
-                <h3 className="text-lg font-bold text-white mb-1">Owner Live Control Center</h3>
-                <p className="text-xs text-slate-400 mb-4">Enter Master PIN to manage Clients, Payments, Coupons & AI.</p>
+                <h3 className="text-lg font-bold text-white mb-1">Owner Master Control Panel</h3>
+                <p className="text-xs text-slate-400 mb-4">Enter Master PIN to manage Revenue, Clients, Website Content & AI.</p>
                 <input
                   type="password"
                   inputMode="numeric"
@@ -2134,7 +2248,7 @@ TAGS: <hashtags>`;
                 />
                 {pinError && <p className="text-xs text-pink-400 mb-3">{pinError}</p>}
                 <button type="submit" className="px-8 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-pink-600 text-white text-sm font-semibold">
-                  Unlock Live Console
+                  Unlock Master Console
                 </button>
               </form>
             ) : (
@@ -2142,26 +2256,56 @@ TAGS: <hashtags>`;
                 <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <Shield className="w-5 h-5 text-pink-400" />
-                    <h3 className="text-base sm:text-lg font-bold text-white">Owner Dashboard</h3>
+                    <h3 className="text-base sm:text-lg font-bold text-white">ShortsPilot Master Admin</h3>
                   </div>
                   <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                    {clientsList.length} Clients • {transactions.length} Txns
+                    Firebase Live Connected
                   </span>
                 </div>
 
-                {/* Admin Sub-Navigation Tabs */}
-                <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-[#0c1220] border border-slate-800 text-xs font-semibold">
+                {/* Top 4 Live Business KPI Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="p-3 rounded-xl bg-[#0c1220] border border-emerald-500/30">
+                    <div className="text-slate-400 text-[10px]">Verified Revenue</div>
+                    <div className="text-base font-extrabold text-emerald-400">₹{totalVerifiedRevenue}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#0c1220] border border-sky-500/30">
+                    <div className="text-slate-400 text-[10px]">Total Creators</div>
+                    <div className="text-base font-extrabold text-white">{clientsList.length}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#0c1220] border border-pink-500/30">
+                    <div className="text-slate-400 text-[10px]">Active Pro Users</div>
+                    <div className="text-base font-extrabold text-pink-400">
+                      {clientsList.filter((c) => c.tier === 'pro').length}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#0c1220] border border-amber-500/30">
+                    <div className="text-slate-400 text-[10px]">Pending UTRs</div>
+                    <div className="text-base font-extrabold text-amber-400">
+                      {transactions.filter((t) => t.status === 'Pending').length}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4 Admin Control Tabs */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 rounded-xl bg-[#0c1220] border border-slate-800 text-xs font-semibold">
                   <button
                     onClick={() => setAdminSubTab('controls')}
                     className={`py-2 rounded-lg ${adminSubTab === 'controls' ? 'bg-pink-600 text-white' : 'text-slate-400'}`}
                   >
-                    ⚙️ Controls & Coupons
+                    ⚙️ Plans & AI
+                  </button>
+                  <button
+                    onClick={() => setAdminSubTab('site')}
+                    className={`py-2 rounded-lg ${adminSubTab === 'site' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}
+                  >
+                    🌐 Site & Alerts
                   </button>
                   <button
                     onClick={() => setAdminSubTab('clients')}
                     className={`py-2 rounded-lg ${adminSubTab === 'clients' ? 'bg-sky-600 text-white' : 'text-slate-400'}`}
                   >
-                    👥 Client Data ({clientsList.length})
+                    👥 Clients ({clientsList.length})
                   </button>
                   <button
                     onClick={() => setAdminSubTab('payments')}
@@ -2171,11 +2315,30 @@ TAGS: <hashtags>`;
                   </button>
                 </div>
 
+                {/* TAB 1: PLANS, COUPONS, AI KEYS & MANUAL PRO GRANT */}
                 {adminSubTab === 'controls' && (
                   <div className="space-y-3.5">
+                    {/* Direct Grant Pro by Email */}
+                    <form onSubmit={handleManualGrantPro} className="p-3 rounded-2xl bg-[#0c1220] border border-amber-500/35 flex flex-col sm:flex-row gap-2">
+                      <div className="flex-1 flex items-center gap-2 bg-[#05070c] px-3 py-1.5 rounded-xl border border-slate-700">
+                        <UserPlus className="w-4 h-4 text-amber-400 shrink-0" />
+                        <input
+                          type="email"
+                          value={manualProEmail}
+                          onChange={(e) => setManualProEmail(e.target.value)}
+                          placeholder="Grant Instant PRO to any Gmail ID..."
+                          className="w-full bg-transparent text-xs text-white outline-none"
+                        />
+                      </div>
+                      <button type="submit" className="px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs shrink-0">
+                        + Grant PRO
+                      </button>
+                    </form>
+
+                    {/* Prices, Coupon & Cashfree */}
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/30 space-y-3">
                       <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
-                        <IndianRupee className="w-3.5 h-3.5" /> Plans, Coupon Code & Cashfree Links
+                        <IndianRupee className="w-3.5 h-3.5" /> Pricing, Coupon Code & Cashfree Links
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <div>
@@ -2241,6 +2404,7 @@ TAGS: <hashtags>`;
                       </div>
                     </div>
 
+                    {/* AI Keys */}
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5">
@@ -2272,16 +2436,88 @@ TAGS: <hashtags>`;
                         />
                       </div>
                     </div>
+                  </div>
+                )}
 
-                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-2">
+                {/* TAB 2: WEBSITE CONTENT, BROADCAST ALERTS & SECURITY PIN */}
+                {adminSubTab === 'site' && (
+                  <div className="space-y-3.5">
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-indigo-500/30 space-y-2.5">
+                      <div className="text-xs font-semibold text-indigo-300 flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5" /> Live Website Content & Limits
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Hero Main Headline</label>
+                          <input
+                            type="text"
+                            value={globalConfig.heroHeadline}
+                            onChange={(e) => setGlobalConfig({ ...globalConfig, heroHeadline: e.target.value })}
+                            className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Free Video Watermark Text</label>
+                          <input
+                            type="text"
+                            value={globalConfig.watermarkText}
+                            onChange={(e) => setGlobalConfig({ ...globalConfig, watermarkText: e.target.value })}
+                            className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Free Plan Video Limit</label>
+                          <input
+                            type="number"
+                            value={globalConfig.freeLimit}
+                            onChange={(e) => setGlobalConfig({ ...globalConfig, freeLimit: Number(e.target.value) })}
+                            className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Support Email</label>
+                          <input
+                            type="email"
+                            value={globalConfig.supportEmail}
+                            onChange={(e) => setGlobalConfig({ ...globalConfig, supportEmail: e.target.value })}
+                            className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Broadcast Popup & Top Banner */}
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-pink-500/30 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-pink-300 flex items-center gap-1.5">
-                          <Megaphone className="w-3.5 h-3.5" /> Top Banner & Switches
+                          <Bell className="w-3.5 h-3.5" /> Live User Broadcast Popup
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setGlobalConfig({ ...globalConfig, broadcastAlertActive: !globalConfig.broadcastAlertActive })
+                          }
+                          className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-amber-300 font-semibold"
+                        >
+                          Popup: {globalConfig.broadcastAlertActive ? 'ON' : 'OFF'}
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={globalConfig.broadcastAlertText}
+                        onChange={(e) => setGlobalConfig({ ...globalConfig, broadcastAlertText: e.target.value })}
+                        placeholder="Type message to show as popup on all users' screens..."
+                        className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
+                      />
+
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5">
+                          <Megaphone className="w-3.5 h-3.5" /> Top Offer Banner
                         </span>
                         <button
                           type="button"
                           onClick={() => setGlobalConfig({ ...globalConfig, bannerActive: !globalConfig.bannerActive })}
-                          className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-sky-300"
+                          className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-sky-300 font-semibold"
                         >
                           Banner: {globalConfig.bannerActive ? 'ON' : 'OFF'}
                         </button>
@@ -2292,6 +2528,10 @@ TAGS: <hashtags>`;
                         onChange={(e) => setGlobalConfig({ ...globalConfig, bannerText: e.target.value })}
                         className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
                       />
+                    </div>
+
+                    {/* System Kill Switches & Master PIN */}
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-2.5">
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
@@ -2314,24 +2554,26 @@ TAGS: <hashtags>`;
                           <span>{globalConfig.maintenanceMode ? 'ON' : 'OFF'}</span>
                         </button>
                       </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <KeyRound className="w-4 h-4 text-slate-400 shrink-0" />
+                        <input
+                          type="text"
+                          value={globalConfig.adminPin}
+                          onChange={(e) => setGlobalConfig({ ...globalConfig, adminPin: e.target.value })}
+                          placeholder="Master Admin PIN"
+                          className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-slate-300"
+                        />
+                      </div>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={handlePublishGlobalConfig}
-                      disabled={isSyncingGlobal}
-                      className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600"
-                    >
-                      {isSyncingGlobal ? 'Publishing...' : '🚀 Publish Live Changes to Entire Website'}
-                    </button>
                   </div>
                 )}
 
+                {/* TAB 3: CLIENT DATA & DIRECT PLAN / BAN CONTROLS */}
                 {adminSubTab === 'clients' && (
                   <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-sky-300">
-                        Registered Creators & Client Data ({clientsList.length})
+                        Manage Creators & Subscriptions ({clientsList.length})
                       </span>
                       <button onClick={fetchFirebaseAll} className="text-[11px] text-sky-400">
                         Refresh
@@ -2339,14 +2581,14 @@ TAGS: <hashtags>`;
                     </div>
                     {clientsList.length === 0 ? (
                       <div className="text-xs text-slate-500 py-4 text-center">
-                        No clients logged in yet. When users sign in with Google, their details appear here.
+                        No clients logged in yet.
                       </div>
                     ) : (
                       <div className="space-y-2 max-h-72 overflow-y-auto">
                         {clientsList.map((cli) => (
                           <div
                             key={cli.id}
-                            className="p-3 rounded-xl bg-[#05070c] border border-slate-800 flex items-center justify-between gap-2 text-xs"
+                            className="p-3 rounded-xl bg-[#05070c] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               {cli.picture ? (
@@ -2359,20 +2601,37 @@ TAGS: <hashtags>`;
                               <div className="min-w-0">
                                 <div className="font-semibold text-white truncate">
                                   {cli.name} <span className="text-pink-400">({cli.youtubeHandle})</span>
+                                  {cli.banned && <span className="ml-1.5 text-[10px] text-rose-400 font-bold">[BANNED]</span>}
                                 </div>
                                 <div className="text-[11px] text-slate-400 truncate">{cli.email}</div>
                                 <div className="text-[10px] text-slate-500">Last seen: {cli.lastActive}</div>
                               </div>
                             </div>
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${
-                                cli.tier === 'pro'
-                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                  : 'bg-slate-800 text-slate-300'
-                              }`}
-                            >
-                              {cli.tier || 'free'}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {cli.tier === 'pro' ? (
+                                <button
+                                  onClick={() => handleAdminSetClientTier(cli, 'free')}
+                                  className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-semibold"
+                                >
+                                  Set Free
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleAdminSetClientTier(cli, 'pro')}
+                                  className="px-2 py-1 rounded bg-emerald-600 text-white text-[10px] font-bold"
+                                >
+                                  Make PRO
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleAdminToggleBanClient(cli)}
+                                className={`px-2 py-1 rounded text-[10px] font-semibold flex items-center gap-0.5 ${
+                                  cli.banned ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'
+                                }`}
+                              >
+                                <Ban className="w-3 h-3" /> {cli.banned ? 'Unban' : 'Ban'}
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -2380,6 +2639,7 @@ TAGS: <hashtags>`;
                   </div>
                 )}
 
+                {/* TAB 4: PAYMENT VERIFICATION QUEUE */}
                 {adminSubTab === 'payments' && (
                   <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-amber-500/35 space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -2439,7 +2699,19 @@ TAGS: <hashtags>`;
                   </div>
                 )}
 
-                <div className="flex items-center justify-between pt-2 text-xs">
+                {/* Global Publish Button (Always Visible at Bottom of Admin Panel) */}
+                {(adminSubTab === 'controls' || adminSubTab === 'site') && (
+                  <button
+                    type="button"
+                    onClick={handlePublishGlobalConfig}
+                    disabled={isSyncingGlobal}
+                    className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 shadow-[0_0_25px_rgba(255,16,110,0.3)]"
+                  >
+                    {isSyncingGlobal ? 'Publishing to Live Site...' : '🚀 Publish All Live Website Changes'}
+                  </button>
+                )}
+
+                <div className="flex items-center justify-between pt-1 text-xs">
                   <button
                     onClick={() => {
                       setTier(tier === 'pro' ? 'free' : 'pro');
