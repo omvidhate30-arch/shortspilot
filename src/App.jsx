@@ -490,6 +490,38 @@ export default function App() {
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile'
     ].join(' ');
+    return freshAccessToken;
+    } catch {
+      return null;
+    }
+  }; // <--- Yahan refreshYouTubeAccessToken khatam hota hai (Line 490)
+
+  // ⬇️ Yahan line 491 par yeh naya code daalein:
+  const fetchWithAuth = async (url, options = {}) => {
+    let token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
+    
+    const getHeaders = (t) => ({
+      ...(options.headers || {}),
+      Authorization: `Bearer ${t}`,
+    });
+
+    let res = await fetch(url, { ...options, headers: getHeaders(token) });
+
+    if (res.status === 401) {
+      const freshToken = await refreshYouTubeAccessToken();
+      if (freshToken) {
+        res = await fetch(url, { ...options, headers: getHeaders(freshToken) });
+      } else {
+        localStorage.removeItem('sp_yt_access_token');
+        localStorage.removeItem('sp_yt_refresh_token');
+        setYtChannel(null);
+      }
+    }
+    return res;
+  };
+
+  const handleConnectYouTubeOAuth = () => { // <--- Yeh line 493 hai
+    setConnectError('');
 
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', clientId);
