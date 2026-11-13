@@ -9,12 +9,105 @@ import {
   FileText, Mail, Globe, Sparkle, Ban, UserPlus, Bell, KeyRound, ShieldCheck
 } from 'lucide-react';
 
-const DEFAULT_GOOGLE_CLIENT_ID = '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
+const DEFAULT_GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
+const YOUTUBE_REDIRECT_URI = 'https://shortspilot-two.vercel.app/api/youtube/callback';
 const FIREBASE_DB_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 
 // GitHub Secret Scanning से बचने के लिए इन्हें खाली रखें (Admin Panel ?admin=true से डालें)
 const DEFAULT_DEEPSEEK_KEY = '';
 const DEFAULT_CLAUDE_KEY = '';
+
+// ============================================================================
+// NATIVE INDEXEDDB HELPER FOR CLIPS & VIDEO BLOB PERSISTENCE (ZERO NPM DEPS)
+// ============================================================================
+const IDB_NAME = 'ShortsPilotClipsDB';
+const IDB_STORE = 'clips';
+
+const openClipsDB = () =>
+  new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      reject(new Error('IndexedDB not supported'));
+      return;
+    }
+    const req = window.indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+
+const idbSaveClip = async (clipObj) => {
+  try {
+    const db = await openClipsDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      const store = tx.objectStore(IDB_STORE);
+      // croppedUrl is session-specific; store the actual Blob + metadata
+      const { croppedUrl, ...persistable } = clipObj;
+      store.put({ ...persistable, savedAt: Date.now() });
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    return false;
+  }
+};
+
+const idbGetAllClips = async () => {
+  try {
+    const db = await openClipsDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const store = tx.objectStore(IDB_STORE);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const items = (req.result || []).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+        const hydrated = items.map((item) => ({
+          ...item,
+          croppedUrl: item.blob ? URL.createObjectURL(item.blob) : null
+        }));
+        resolve(hydrated);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    return [];
+  }
+};
+
+const idbDeleteClip = async (clipId) => {
+  try {
+    const db = await openClipsDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(clipId);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+  } catch {
+    return false;
+  }
+};
+
+const idbClearAllClips = async () => {
+  try {
+    const db = await openClipsDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).clear();
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+  } catch {
+    return false;
+  }
+};
 
 function ShortsPilotLogo({ className = 'w-5 h-5' }) {
   return (
@@ -160,16 +253,39 @@ export default function App() {
 
   const fileInputRef = useRef(null);
   const ytChannelRef = useRef(ytChannel);
-  const tokenClientRef = useRef(null);
 
   const activeClientId =
-    globalConfig.googleClientId || localStorage.getItem('sp_google_client_id') || DEFAULT_GOOGLE_CLIENT_ID;
+    import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+    globalConfig.googleClientId ||
+    localStorage.getItem('sp_google_client_id') ||
+    DEFAULT_GOOGLE_CLIENT_ID;
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
 
   const yearlySavings = Math.max(
     0,
     Number(globalConfig.yearlyOriginalPrice || 5999) - Number(globalConfig.yearlyPrice || 3999)
   );
+
+  // ============================================================================
+  // 1. HYDRATE SAVED CLIPS FROM INDEXEDDB ON MOUNT / PAGE REFRESH
+  // ============================================================================
+  useEffect(() => {
+    let mounted = true;
+    idbGetAllClips().then((savedClips) => {
+      if (mounted && savedClips.length > 0) {
+        setVideoQueue(
+          savedClips.map((c) => ({
+            ...c,
+            // Recover interrupted 'uploading' or 'cropping' states cleanly on reload
+            status: c.status === 'uploading' || c.status === 'cropping' ? 'ready' : c.status
+          }))
+        );
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const getNextPeakIso = (hour24 = 19, minute = 30) => {
     const now = new Date();
@@ -205,6 +321,154 @@ export default function App() {
         })
       });
     } catch {}
+  };
+
+  // ============================================================================
+  // 2. YOUTUBE OAUTH SERVER-SIDE REDIRECT + HASH TOKEN CAPTURE + AUTO-REFRESH
+  // ============================================================================
+  const hydrateGoogleAndYouTubeProfile = async (accessToken, refreshToken = null) => {
+    if (!accessToken) return;
+    let loggedProfile = gmailUser;
+
+    try {
+      const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        if (profileData?.email) {
+          loggedProfile = {
+            email: profileData.email,
+            name: profileData.name || profileData.email.split('@')[0],
+            picture: profileData.picture || ''
+          };
+          setGmailUser(loggedProfile);
+        }
+      }
+    } catch {}
+
+    try {
+      const res = await fetch(
+        'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true',
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const ch = data?.items?.[0];
+        const rawName = ch?.snippet?.customUrl || ch?.snippet?.title || '@ConnectedCreator';
+        const chObj = {
+          handle: rawName.startsWith('@') ? rawName : `@${rawName}`,
+          channelId: ch?.id || null,
+          country: ch?.snippet?.country || 'IN',
+          uploadsPlaylistId: ch?.contentDetails?.relatedPlaylists?.uploads || null,
+          accessToken,
+          refreshToken: refreshToken || localStorage.getItem('sp_yt_refresh_token') || null,
+          isRealOAuth: true
+        };
+        setYtChannel(chObj);
+        if (loggedProfile) registerClientInAdminDb(loggedProfile, chObj, tier);
+        return;
+      }
+    } catch {}
+
+    const fallbackCh = {
+      handle: ytChannelRef.current?.handle || '@YouTubeCreator',
+      accessToken,
+      refreshToken: refreshToken || localStorage.getItem('sp_yt_refresh_token') || null,
+      isRealOAuth: true
+    };
+    setYtChannel(fallbackCh);
+    if (loggedProfile) registerClientInAdminDb(loggedProfile, fallbackCh, tier);
+  };
+
+  // Capture #access_token=...&refresh_token=... after /api/youtube/callback redirect
+  useEffect(() => {
+    const rawHash = window.location.hash;
+    if (rawHash && rawHash.includes('access_token=')) {
+      const hashParams = new URLSearchParams(rawHash.replace(/^#/, ''));
+      const newAccessToken = hashParams.get('access_token');
+      const newRefreshToken = hashParams.get('refresh_token');
+
+      if (newAccessToken) {
+        localStorage.setItem('sp_yt_access_token', newAccessToken);
+        if (newRefreshToken) {
+          localStorage.setItem('sp_yt_refresh_token', newRefreshToken);
+        }
+        // Clean the hash from URL without reloading
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname + window.location.search
+        );
+        hydrateGoogleAndYouTubeProfile(newAccessToken, newRefreshToken);
+      }
+    }
+  }, []);
+
+  // Silent Auto-Refresh helper when HTTP 401 occurs
+  const refreshYouTubeAccessToken = async () => {
+    const storedRefresh =
+      ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
+    if (!storedRefresh) return null;
+
+    try {
+      const res = await fetch('/api/youtube/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: storedRefresh })
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const freshAccessToken = data?.access_token;
+      if (!freshAccessToken) return null;
+
+      localStorage.setItem('sp_yt_access_token', freshAccessToken);
+      if (data?.refresh_token) {
+        localStorage.setItem('sp_yt_refresh_token', data.refresh_token);
+      }
+
+      setYtChannel((prev) => {
+        const updated = {
+          ...(prev || { handle: '@YouTubeCreator', isRealOAuth: true }),
+          accessToken: freshAccessToken,
+          refreshToken: data?.refresh_token || storedRefresh
+        };
+        ytChannelRef.current = updated;
+        return updated;
+      });
+
+      return freshAccessToken;
+    } catch {
+      return null;
+    }
+  };
+
+  // Redirect to Google OAuth Server Flow (/api/youtube/callback)
+  const handleConnectYouTubeOAuth = () => {
+    setConnectError('');
+    const clientId = (activeClientId || '').trim();
+    if (!clientId) {
+      setConnectError('VITE_GOOGLE_CLIENT_ID is missing.');
+      return;
+    }
+
+    const scopes = [
+      'https://www.googleapis.com/auth/youtube.upload',
+      'https://www.googleapis.com/auth/youtube.readonly',
+      'https://www.googleapis.com/auth/youtube.force-ssl',
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/userinfo.profile'
+    ].join(' ');
+
+    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    authUrl.searchParams.set('client_id', clientId);
+    authUrl.searchParams.set('redirect_uri', YOUTUBE_REDIRECT_URI);
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('scope', scopes);
+    authUrl.searchParams.set('access_type', 'offline');
+    authUrl.searchParams.set('prompt', 'consent');
+
+    window.location.href = authUrl.toString();
   };
 
   const syncUserAccountStatus = async (userEmail) => {
@@ -301,7 +565,7 @@ export default function App() {
 
   const openProModalWithReason = (reasonText = '', preferredPlan = null) => {
     if (!gmailUser?.email) {
-      setConnectError('Please sign in with Google first so your Pro plan & Views Guarantee link to your Gmail.');
+      setConnectError('Please connect your Google / YouTube account first so your Pro plan links to your Gmail.');
       setIsConnectModalOpen(true);
       return;
     }
@@ -410,89 +674,6 @@ export default function App() {
     else localStorage.removeItem('sp_gmail_user');
   }, [gmailUser]);
 
-  useEffect(() => {
-    if (!activeClientId) return;
-
-    const initGoogleAuth = () => {
-      if (window.google && window.google.accounts) {
-        tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
-          client_id: activeClientId.trim(),
-          scope:
-            'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
-          callback: async (tokenResponse) => {
-            if (tokenResponse && tokenResponse.access_token) {
-              const expiresAt = Date.now() + (Number(tokenResponse.expires_in) || 3500) * 1000;
-              let loggedProfile = null;
-
-              try {
-                const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-                });
-                const profileData = await profileRes.json();
-                if (profileData?.email) {
-                  loggedProfile = {
-                    email: profileData.email,
-                    name: profileData.name || profileData.email.split('@')[0],
-                    picture: profileData.picture || ''
-                  };
-                  setGmailUser(loggedProfile);
-                }
-              } catch {}
-
-              try {
-                const res = await fetch(
-                  'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true',
-                  { headers: { Authorization: `Bearer ${tokenResponse.access_token}` } }
-                );
-                const data = await res.json();
-                const ch = data?.items?.[0];
-                const rawName = ch?.snippet?.customUrl || ch?.snippet?.title || '@ConnectedCreator';
-                const chObj = {
-                  handle: rawName.startsWith('@') ? rawName : `@${rawName}`,
-                  channelId: ch?.id || null,
-                  country: ch?.snippet?.country || 'IN',
-                  uploadsPlaylistId: ch?.contentDetails?.relatedPlaylists?.uploads || null,
-                  accessToken: tokenResponse.access_token,
-                  expiresAt,
-                  isRealOAuth: true
-                };
-                setYtChannel(chObj);
-                if (loggedProfile) registerClientInAdminDb(loggedProfile, chObj, 'free');
-                setIsConnectModalOpen(false);
-              } catch {
-                const fallbackCh = {
-                  handle: '@YouTubeCreator',
-                  accessToken: tokenResponse.access_token,
-                  expiresAt,
-                  isRealOAuth: true
-                };
-                setYtChannel(fallbackCh);
-                if (loggedProfile) registerClientInAdminDb(loggedProfile, fallbackCh, 'free');
-                setIsConnectModalOpen(false);
-              }
-            }
-          }
-        });
-      }
-    };
-
-    if (window.google && window.google.accounts) {
-      initGoogleAuth();
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = initGoogleAuth;
-    document.body.appendChild(script);
-
-    return () => {
-      if (document.body.contains(script)) document.body.removeChild(script);
-    };
-  }, [activeClientId]);
-
   const handleDisconnectAll = () => {
     setYtChannel(null);
     setGmailUser(null);
@@ -504,21 +685,34 @@ export default function App() {
     setYtStats({ subscribers: '—', totalViews: '—', videoCount: '—', country: 'IN', recentVideos: [], loading: false });
     localStorage.removeItem('sp_yt_channel');
     localStorage.removeItem('sp_gmail_user');
+    localStorage.removeItem('sp_yt_access_token');
+    localStorage.removeItem('sp_yt_refresh_token');
     setIsConnectModalOpen(false);
     setIsSettingsOpen(false);
   };
 
-  // 24h-36h YouTube Analytics & Peak Audience Time Analyzer
-  const fetchYouTubeAnalytics = async () => {
-    if (!ytChannel?.accessToken) return;
+  // 24h-36h YouTube Analytics & Peak Audience Time Analyzer (with 401 Auto-Refresh)
+  const fetchYouTubeAnalytics = async (retryOn401 = true) => {
+    const token =
+      ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
+    if (!token) return;
+
     setYtStats((prev) => ({ ...prev, loading: true }));
     setAudienceInsight((prev) => ({ ...prev, isAnalyzing: true }));
 
     try {
       const chRes = await fetch(
         'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true',
-        { headers: { Authorization: `Bearer ${ytChannel.accessToken}` } }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
+
+      if (chRes.status === 401 && retryOn401) {
+        const refreshed = await refreshYouTubeAccessToken();
+        if (refreshed) {
+          return fetchYouTubeAnalytics(false);
+        }
+      }
+
       const chData = await chRes.json();
       const item = chData?.items?.[0];
       const stats = item?.statistics || {};
@@ -532,7 +726,7 @@ export default function App() {
       if (uploadsId) {
         const plRes = await fetch(
           `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=10&playlistId=${uploadsId}`,
-          { headers: { Authorization: `Bearer ${ytChannel.accessToken}` } }
+          { headers: { Authorization: `Bearer ${token}` } }
         );
         const plData = await plRes.json();
         const videoIds = (plData?.items || [])
@@ -543,7 +737,7 @@ export default function App() {
         if (videoIds) {
           const vidRes = await fetch(
             `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}`,
-            { headers: { Authorization: `Bearer ${ytChannel.accessToken}` } }
+            { headers: { Authorization: `Bearer ${token}` } }
           );
           const vidData = await vidRes.json();
           let maxViews = -1;
@@ -606,7 +800,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if ((activeTab === 'analytics' || activeTab === 'studio') && ytChannel?.accessToken) {
+    if ((activeTab === 'analytics' || activeTab === 'studio') && (ytChannel?.accessToken || localStorage.getItem('sp_yt_access_token'))) {
       fetchYouTubeAnalytics();
     }
   }, [activeTab, ytChannel]);
@@ -692,20 +886,22 @@ TAGS: <hashtags>`;
     return { title: fallbackTitle, hashtags: fallbackTags };
   };
 
-  // 1-Click Live Short Title & Tag Re-Optimizer
-  const handleReOptimizeLiveVideo = async (vid) => {
+  // 1-Click Live Short Title & Tag Re-Optimizer (with 401 Auto-Refresh)
+  const handleReOptimizeLiveVideo = async (vid, retryOn401 = true) => {
     if (tier !== 'pro') {
       openProModalWithReason('1-Click AI Title & Tag Boost for live Shorts requires Pro!');
       return;
     }
-    if (!ytChannel?.accessToken) return;
+    const token =
+      ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
+    if (!token) return;
 
     const aiFresh = await generateViralMetadataWithAI(vid.title, '24h Boost');
     try {
       const res = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', {
         method: 'PUT',
         headers: {
-          Authorization: `Bearer ${ytChannel.accessToken}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -717,7 +913,15 @@ TAGS: <hashtags>`;
           }
         })
       });
-      if (!res.ok) throw new Error('YouTube update permission required (re-login once).');
+
+      if (res.status === 401 && retryOn401) {
+        const refreshed = await refreshYouTubeAccessToken();
+        if (refreshed) {
+          return handleReOptimizeLiveVideo(vid, false);
+        }
+      }
+
+      if (!res.ok) throw new Error('YouTube update permission required.');
       alert(`✅ Live Short Updated on YouTube!\nNew Title: ${aiFresh.title}`);
       fetchYouTubeAnalytics();
     } catch (err) {
@@ -867,14 +1071,19 @@ TAGS: <hashtags>`;
     });
   };
 
-  // Automatic YouTube Upload (Always ON)
-  const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null) => {
+  // ============================================================================
+  // 3. YOUTUBE UPLOAD WITH AUTOMATIC HTTP 401 REFRESH + RETRY & INDEXEDDB SYNC
+  // ============================================================================
+  const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null, allow401Retry = true) => {
     if (!globalConfig.ytAutoUploadActive) {
       alert('YouTube Upload is currently paused by Admin.');
       return;
     }
     const activeChannel = ytChannelRef.current;
-    if (!activeChannel) {
+    let currentToken =
+      activeChannel?.accessToken || localStorage.getItem('sp_yt_access_token');
+
+    if (!activeChannel && !currentToken) {
       setIsConnectModalOpen(true);
       return;
     }
@@ -883,7 +1092,7 @@ TAGS: <hashtags>`;
       prev.map((item) => (item.id === clip.id ? { ...item, status: 'uploading' } : item))
     );
 
-    if (activeChannel.accessToken && clip.blob) {
+    if (currentToken && clip.blob) {
       try {
         const useSchedule = Boolean(scheduledIsoTime && tier === 'pro');
         const statusObj = useSchedule
@@ -911,7 +1120,7 @@ TAGS: <hashtags>`;
           {
             method: 'POST',
             headers: {
-              Authorization: `Bearer ${activeChannel.accessToken}`,
+              Authorization: `Bearer ${currentToken}`,
               'Content-Type': 'application/json',
               'X-Upload-Content-Type': clip.blob.type || 'video/mp4',
               'X-Upload-Content-Length': clip.blob.size
@@ -920,6 +1129,14 @@ TAGS: <hashtags>`;
           }
         );
 
+        // Silent 401 Token Refresh & Retry on resumable init
+        if (initRes.status === 401 && allow401Retry) {
+          const refreshedToken = await refreshYouTubeAccessToken();
+          if (refreshedToken) {
+            return uploadClipToYouTubeAPI(clip, scheduledIsoTime, false);
+          }
+        }
+
         if (!initRes.ok) throw new Error(`HTTP ${initRes.status}`);
         const uploadLocation = initRes.headers.get('Location');
         const uploadRes = await fetch(uploadLocation, {
@@ -927,54 +1144,62 @@ TAGS: <hashtags>`;
           headers: { 'Content-Type': clip.blob.type || 'video/mp4' },
           body: clip.blob
         });
+
+        // Silent 401 Token Refresh & Retry on PUT upload
+        if (uploadRes.status === 401 && allow401Retry) {
+          const refreshedToken = await refreshYouTubeAccessToken();
+          if (refreshedToken) {
+            return uploadClipToYouTubeAPI(clip, scheduledIsoTime, false);
+          }
+        }
+
         if (!uploadRes.ok) throw new Error(`Upload failed (${uploadRes.status})`);
 
         const uploadedVideo = await uploadRes.json();
+        const finalizedClip = {
+          ...clip,
+          status: useSchedule ? 'scheduled' : 'published',
+          scheduledFor: useSchedule ? scheduledIsoTime : null,
+          youtubeUrl: uploadedVideo.id ? `https://youtube.com/shorts/${uploadedVideo.id}` : null
+        };
+
+        await idbSaveClip(finalizedClip);
         setVideoQueue((prev) =>
-          prev.map((item) =>
-            item.id === clip.id
-              ? {
-                  ...item,
-                  status: useSchedule ? 'scheduled' : 'published',
-                  scheduledFor: useSchedule ? scheduledIsoTime : null,
-                  youtubeUrl: uploadedVideo.id ? `https://youtube.com/shorts/${uploadedVideo.id}` : null
-                }
-              : item
-          )
+          prev.map((item) => (item.id === clip.id ? finalizedClip : item))
         );
         return;
       } catch (err) {
-        alert(`YouTube Auto-Post Error: ${err.message}\n(Please re-login with Google if token expired)`);
+        const fallbackReady = { ...clip, status: 'ready' };
+        await idbSaveClip(fallbackReady);
         setVideoQueue((prev) =>
-          prev.map((item) => (item.id === clip.id ? { ...item, status: 'ready' } : item))
+          prev.map((item) => (item.id === clip.id ? fallbackReady : item))
         );
+        alert(`YouTube Auto-Post Error: ${err.message}`);
         return;
       }
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
+      const simDone = {
+        ...clip,
+        status: scheduledIsoTime && tier === 'pro' ? 'scheduled' : 'published',
+        scheduledFor: scheduledIsoTime
+      };
+      await idbSaveClip(simDone);
       setVideoQueue((prev) =>
-        prev.map((item) =>
-          item.id === clip.id
-            ? {
-                ...item,
-                status: scheduledIsoTime && tier === 'pro' ? 'scheduled' : 'published',
-                scheduledFor: scheduledIsoTime
-              }
-            : item
-        )
+        prev.map((item) => (item.id === clip.id ? simDone : item))
       );
     }, 900);
   };
 
-  // Core Pipeline: 1-Clip (Free), 3-Clips (Monthly Pro), 5-Clips (Yearly VIP) + Auto-Post
+  // Core Pipeline: 1-Clip (Free), 3-Clips (Monthly Pro), 5-Clips (Yearly VIP) + IndexedDB Save + Auto-Post
   const processNewFile = async (file) => {
     if (isUserBanned) {
       alert('Your account has been suspended by Admin. Contact support.');
       return;
     }
 
-    if (!ytChannelRef.current) {
+    if (!ytChannelRef.current && !localStorage.getItem('sp_yt_access_token')) {
       setConnectError('Please connect your YouTube account first so ShortsPilot can auto-post your Shorts.');
       setIsConnectModalOpen(true);
       return;
@@ -1058,6 +1283,9 @@ TAGS: <hashtags>`;
         youtubeUrl: null
       };
 
+      // Persist clip Blob & metadata into IndexedDB immediately
+      await idbSaveClip(readyClip);
+
       setVideoQueue((prev) => prev.map((item) => (item.id === clipId ? readyClip : item)));
       await uploadClipToYouTubeAPI(readyClip, autoTargetTime);
     }
@@ -1068,21 +1296,16 @@ TAGS: <hashtags>`;
     e.target.value = '';
   };
 
-  const handleOneClickGoogleConnect = (silent = false) => {
-    setConnectError('');
-    if (!activeClientId.trim()) {
-      setConnectError('Google Client ID missing.');
-      return;
-    }
-    if (!tokenClientRef.current) {
-      setConnectError('Google Sign-In loading. Tap again in 2 seconds.');
-      return;
-    }
-    try {
-      tokenClientRef.current.requestAccessToken({ prompt: silent ? '' : 'select_account' });
-    } catch {
-      setConnectError('Please open in Google Chrome.');
-    }
+  // Delete single clip from State + IndexedDB
+  const handleDeleteClip = async (clipId) => {
+    await idbDeleteClip(clipId);
+    setVideoQueue((prev) => prev.filter((i) => i.id !== clipId));
+  };
+
+  // Clear all clips from State + IndexedDB
+  const handleClearAllClips = async () => {
+    await idbClearAllClips();
+    setVideoQueue([]);
   };
 
   const handleQuickConnectYouTube = (e) => {
@@ -1417,7 +1640,7 @@ TAGS: <hashtags>`;
           <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
             <button
               onClick={() => setIsConnectModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold border max-w-[135px] sm:max-w-[200px] ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold border max-w-[145px] sm:max-w-[210px] ${
                 gmailUser || ytChannel
                   ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
                   : 'bg-rose-500/15 border-rose-500/40 text-rose-300'
@@ -1429,7 +1652,7 @@ TAGS: <hashtags>`;
                 <Youtube className={`w-3.5 h-3.5 shrink-0 ${ytChannel ? 'text-emerald-400' : 'text-rose-400'}`} />
               )}
               <span className="truncate">
-                {ytChannel ? ytChannel.handle : gmailUser ? gmailUser.name : 'Sign In / YT'}
+                {ytChannel ? ytChannel.handle : gmailUser ? gmailUser.name : 'Connect YouTube'}
               </span>
             </button>
 
@@ -1495,7 +1718,7 @@ TAGS: <hashtags>`;
 
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-300 font-semibold">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>100% Hands-Free YouTube Auto-Post ON</span>
+          <span>Auto-Refresh Token & IndexedDB Storage Active</span>
         </div>
       </div>
 
@@ -1518,7 +1741,7 @@ TAGS: <hashtags>`;
             </p>
           </div>
 
-          {/* Dual Growth Guarantee Banner (50K Monthly / 100K Yearly) */}
+          {/* Dual Growth Guarantee Banner */}
           {globalConfig.guaranteeActive && (
             <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-[#090d16] to-amber-500/15 border border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
@@ -1570,7 +1793,7 @@ TAGS: <hashtags>`;
               <p className="text-[11px] text-slate-400">{audienceInsight.strategyTip}</p>
             </div>
             <button
-              onClick={fetchYouTubeAnalytics}
+              onClick={() => fetchYouTubeAnalytics()}
               className="px-3.5 py-2 rounded-xl bg-[#0c1220] border border-sky-500/40 text-xs font-semibold text-sky-300 flex items-center gap-1.5 shrink-0"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${audienceInsight.isAnalyzing ? 'animate-spin' : ''}`} />
@@ -1578,7 +1801,7 @@ TAGS: <hashtags>`;
             </button>
           </div>
 
-          {/* Account Banner */}
+          {/* Account Banner (Redirects to Google OAuth Offline Flow) */}
           {!ytChannel && !gmailUser ? (
             <div className="mb-5 p-3.5 rounded-2xl bg-gradient-to-r from-rose-500/10 via-[#090d16] to-sky-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -1587,19 +1810,19 @@ TAGS: <hashtags>`;
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-white">
-                    Step 1: Connect Google & YouTube Channel
+                    Step 1: Connect YouTube Channel (Auto-Refresh Enabled)
                   </div>
                   <div className="text-xs text-slate-400">
-                    Sign in once — every video you upload will automatically post to YouTube.
+                    Connect once — offline refresh tokens keep your YouTube auto-posting active without expiry errors.
                   </div>
                 </div>
               </div>
               <button
-                onClick={() => setIsConnectModalOpen(true)}
+                onClick={handleConnectYouTubeOAuth}
                 className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5"
               >
-                <Link2 className="w-3.5 h-3.5" />
-                Sign in with Google
+                <Youtube className="w-4 h-4" />
+                Connect YouTube
               </button>
             </div>
           ) : (
@@ -1699,7 +1922,7 @@ TAGS: <hashtags>`;
               Select Video to Auto-Post on YouTube
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
-              Automatically crops to 9:16 with original audio, writes AI title/tags, and posts directly to YouTube.
+              Automatically crops to 9:16 with original audio, saves clips offline in IndexedDB, writes AI title/tags, and posts directly to YouTube.
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -1710,7 +1933,7 @@ TAGS: <hashtags>`;
             </button>
           </div>
 
-          {/* Pricing Cards on First Page (₹499 Monthly vs ₹5999 -> ₹3999 Offer Yearly VIP) */}
+          {/* Pricing Cards on First Page */}
           {tier !== 'pro' && (
             <section className="mb-8">
               <div className="text-center mb-4">
@@ -1723,7 +1946,6 @@ TAGS: <hashtags>`;
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Monthly Plan: 50K Views/Mo Guarantee */}
                 <div className="p-5 rounded-3xl bg-[#090d16] border border-sky-500/35 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -1754,7 +1976,6 @@ TAGS: <hashtags>`;
                   </button>
                 </div>
 
-                {/* Yearly Studio VIP: Original ₹5,999 -> Offer ₹3,999 (Save ₹2,000) */}
                 <div className="p-5 rounded-3xl bg-gradient-to-br from-[#140b24] via-[#090d16] to-[#1f0b18] border-2 border-amber-400/50 flex flex-col justify-between relative shadow-[0_0_30px_rgba(245,158,11,0.14)]">
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -1808,17 +2029,20 @@ TAGS: <hashtags>`;
             </section>
           )}
 
-          {/* Generated & Auto-Posted Shorts Queue */}
+          {/* Generated & Persistent IndexedDB Shorts Queue */}
           {videoQueue.length > 0 && (
             <section className="mt-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Radio className="w-4 h-4 text-pink-500 animate-pulse" />
                   <h3 className="text-base sm:text-lg font-bold text-white">
-                    AI Auto-Post Queue ({videoQueue.length})
+                    Saved AI Shorts Queue ({videoQueue.length})
                   </h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                    Saved Offline
+                  </span>
                 </div>
-                <button onClick={() => setVideoQueue([])} className="text-xs text-slate-400 hover:text-pink-400">
+                <button onClick={handleClearAllClips} className="text-xs text-slate-400 hover:text-pink-400">
                   Clear All
                 </button>
               </div>
@@ -1840,8 +2064,9 @@ TAGS: <hashtags>`;
                         <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
                       </div>
                       <button
-                        onClick={() => setVideoQueue((prev) => prev.filter((i) => i.id !== clip.id))}
+                        onClick={() => handleDeleteClip(clip.id)}
                         className="text-slate-500 hover:text-pink-400 p-1 shrink-0"
+                        title="Delete saved clip"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1877,7 +2102,7 @@ TAGS: <hashtags>`;
                           onClick={() => uploadClipToYouTubeAPI(clip, null)}
                           className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1"
                         >
-                          <Send className="w-3.5 h-3.5" /> Retry Post
+                          <Send className="w-3.5 h-3.5" /> Post Now
                         </button>
                       )}
 
@@ -1923,7 +2148,7 @@ TAGS: <hashtags>`;
               </p>
             </div>
             <button
-              onClick={fetchYouTubeAnalytics}
+              onClick={() => fetchYouTubeAnalytics()}
               className="px-3 py-2 rounded-xl bg-[#0c1220] border border-sky-500/30 text-xs text-sky-300 flex items-center gap-1.5"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${ytStats.loading ? 'animate-spin' : ''}`} />
@@ -1931,18 +2156,18 @@ TAGS: <hashtags>`;
             </button>
           </div>
 
-          {!ytChannel?.accessToken ? (
+          {!ytChannel?.accessToken && !localStorage.getItem('sp_yt_access_token') ? (
             <div className="p-8 rounded-3xl bg-[#090d16] border border-rose-500/30 text-center">
               <Youtube className="w-10 h-10 text-rose-400 mx-auto mb-3" />
               <h3 className="text-base font-bold text-white mb-1">Connect YouTube to View Live Stats</h3>
               <p className="text-xs text-slate-400 mb-4">
-                Sign in with Google to analyze 24h–36h view velocity, peak hours & audience region.
+                Connect your YouTube account to analyze 24h–36h view velocity, peak hours & audience region.
               </p>
               <button
-                onClick={() => setIsConnectModalOpen(true)}
+                onClick={handleConnectYouTubeOAuth}
                 className="px-5 py-2.5 rounded-xl bg-rose-500 text-white text-xs font-semibold"
               >
-                Sign in with Google
+                Connect YouTube
               </button>
             </div>
           ) : (
@@ -2014,7 +2239,7 @@ TAGS: <hashtags>`;
         </main>
       )}
 
-      {/* Website Footer with Mandatory Legal & Guarantee Terms Pages */}
+      {/* Website Footer */}
       <footer className="relative z-10 border-t border-slate-800/80 bg-[#05070c] py-6 px-4 text-center text-xs text-slate-400">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -2064,7 +2289,7 @@ TAGS: <hashtags>`;
               {activeInfoPage === 'privacy' && (
                 <>
                   <p>
-                    We respect creator privacy. When you sign in with Google, ShortsPilot only requests permissions required to view your YouTube channel analytics and auto-publish Shorts on your behalf.
+                    We respect creator privacy. When you connect your YouTube account, ShortsPilot only requests permissions required to view your YouTube channel analytics and auto-publish Shorts on your behalf.
                   </p>
                   <p>
                     We never sell your email, channel tokens, or video files to third parties. Videos are processed directly in your browser.
@@ -2125,15 +2350,17 @@ TAGS: <hashtags>`;
         </div>
       )}
 
-      {/* Connect Gmail & YouTube Modal */}
+      {/* Connect YouTube Modal */}
       {isConnectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
           <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-rose-500/35 p-5 sm:p-7">
             <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400">
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-lg font-bold text-white mb-1">Gmail & YouTube Account</h3>
-            <p className="text-xs text-slate-400 mb-4">Sign in with Google to enable 100% automatic YouTube Shorts publishing.</p>
+            <h3 className="text-lg font-bold text-white mb-1">Connect YouTube Account</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Uses offline OAuth refresh tokens so your YouTube auto-posting stays connected automatically.
+            </p>
 
             {(gmailUser || ytChannel) && (
               <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 mb-4 flex items-center justify-between">
@@ -2152,10 +2379,10 @@ TAGS: <hashtags>`;
 
             <button
               type="button"
-              onClick={() => handleOneClickGoogleConnect(false)}
+              onClick={handleConnectYouTubeOAuth}
               className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-sky-500 to-blue-600 flex items-center justify-center gap-2 mb-4"
             >
-              <Youtube className="w-4 h-4" /> Sign in with Google
+              <Youtube className="w-4 h-4" /> Connect YouTube (OAuth Auto-Refresh)
             </button>
 
             <form onSubmit={handleQuickConnectYouTube} className="space-y-2.5">
@@ -2175,7 +2402,7 @@ TAGS: <hashtags>`;
         </div>
       )}
 
-      {/* Pro Upgrade Modal (Shows ₹5,999 Strikethrough -> ₹3,999 Offer on Yearly) */}
+      {/* Pro Upgrade Modal */}
       {isPricingOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md">
           <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-amber-400/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
@@ -2224,7 +2451,6 @@ TAGS: <hashtags>`;
               </button>
             </div>
 
-            {/* Active Guarantee Highlight inside Checkout */}
             <div className="mb-4 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200 flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <div>
@@ -2350,7 +2576,10 @@ TAGS: <hashtags>`;
                 </button>
               </div>
               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-semibold">
-                ✅ YouTube Auto-Post is Always Active
+                ✅ YouTube Auto-Post & Token Auto-Refresh Active
+              </div>
+              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-300">
+                💾 {videoQueue.length} Clips Saved in IndexedDB
               </div>
               {gmailUser && (
                 <button
@@ -2361,7 +2590,7 @@ TAGS: <hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.3</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.4</div>
           </div>
         </div>
       )}
