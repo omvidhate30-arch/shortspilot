@@ -164,7 +164,7 @@ export default function App() {
     monthlyPrice: '499',
     yearlyOriginalPrice: '5999',
     yearlyPrice: '3999',
-    couponCode: '',
+    couponCode: 'SAVE200',
     couponDiscount: '200',
     freeLimit: 3,
     heroHeadline: 'Auto-Scheduled Daily on YouTube',
@@ -172,7 +172,7 @@ export default function App() {
     guaranteeActive: true,
     monthlyGuaranteeViews: '50K',
     yearlyGuaranteeViews: '100K',
-    bannerText: '🔥 SPECIAL OFFER: Yearly Studio VIP at ₹3,999 (Original ₹5,999) + 100K Views/Mo Guarantee!',
+    bannerText: '🔥 COUPON OFFER: Use code "SAVE200" at checkout & get Flat ₹200 OFF on Monthly Pro! (Pay only ₹299)',
     bannerActive: true,
     broadcastAlertText: '',
     broadcastAlertActive: false,
@@ -243,9 +243,9 @@ export default function App() {
 
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [selectedBilling, setSelectedBilling] = useState('yearly');
-  const [couponInput, setCouponInput] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const [couponMsg, setCouponMsg] = useState('');
+  const [couponInput, setCouponInput] = useState('SAVE200');
+  const [appliedCoupon, setAppliedCoupon] = useState('SAVE200');
+  const [couponMsg, setCouponMsg] = useState('🎉 Default Coupon "SAVE200" applied! ₹200 OFF.');
   const [upgradeReason, setUpgradeReason] = useState('');
 
   const [activeInfoPage, setActiveInfoPage] = useState(null);
@@ -573,16 +573,11 @@ export default function App() {
 
   const handleApplyCoupon = () => {
     setCouponMsg('');
-    const configuredCode = (globalConfig.couponCode || '').trim().toUpperCase();
+    const configuredCode = (globalConfig.couponCode || 'SAVE200').trim().toUpperCase();
     const entered = couponInput.trim().toUpperCase();
 
-    if (!configuredCode) {
-      setCouponMsg('No active coupon code available right now.');
-      setAppliedCoupon(null);
-      return;
-    }
-    if (!entered || entered !== configuredCode) {
-      setCouponMsg('Invalid or expired coupon code.');
+    if (!entered || (entered !== configuredCode && entered !== 'SAVE200')) {
+      setCouponMsg('Invalid coupon code.');
       setAppliedCoupon(null);
       return;
     }
@@ -590,8 +585,8 @@ export default function App() {
       setCouponMsg('Coupon applies to the Monthly Plan.');
       return;
     }
-    setAppliedCoupon(configuredCode);
-    setCouponMsg(`🎉 Coupon "${configuredCode}" applied! ₹${globalConfig.couponDiscount} OFF.`);
+    setAppliedCoupon('SAVE200');
+    setCouponMsg(`🎉 Coupon "SAVE200" applied! ₹200 OFF.`);
   };
 
   const openProModalWithReason = (reasonText = '', preferredPlan = null) => {
@@ -2702,7 +2697,7 @@ TAGS: <5 specific hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v9.8</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v9.9</div>
           </div>
         </div>
       )}
