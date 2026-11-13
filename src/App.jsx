@@ -5,7 +5,7 @@ import {
   RefreshCw, Link2, Radio, Send, Scissors, HardDrive,
   Megaphone, Wrench, IndianRupee, BarChart3, Calendar,
   Clock, Eye, ThumbsUp, Users, Bot, Volume2, ExternalLink,
-  Crown, Flame, TrendingUp, Award, Check, Hourglass, Tag,
+  Crown, Flame, Award, Check, Hourglass, Tag,
   FileText, Mail, Globe, Sparkle
 } from 'lucide-react';
 
@@ -53,10 +53,10 @@ export default function App() {
     receiverUpi: '9767905729@paytm',
     monthlyPrice: '499',
     yearlyPrice: '3999',
-    couponCode: '', // आप बाद में Admin Panel से डाल सकते हैं (जैसे SAVE200)
-    couponDiscount: '200', // ₹ छूट
+    couponCode: '',
+    couponDiscount: '200',
     freeLimit: 3,
-    bannerText: '🚀 ShortsPilot v7.0: 24h AI Peak-Time Auto-Scheduler & 1-to-3 Viral Clipper Live!',
+    bannerText: '🚀 ShortsPilot v7.1: 100% Hands-Free Auto-Post & 24h AI Peak-Time Scheduler Live!',
     bannerActive: true,
     maintenanceMode: false,
     ytAutoUploadActive: true,
@@ -70,7 +70,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('studio');
   const [tier, setTier] = useState('free');
-  const [activePlanType, setActivePlanType] = useState(''); // 'monthly' | 'yearly'
+  const [activePlanType, setActivePlanType] = useState('');
   const [paymentStatusNote, setPaymentStatusNote] = useState('');
   const [quotaUsed, setQuotaUsed] = useState(0);
   const [videoQueue, setVideoQueue] = useState([]);
@@ -114,21 +114,17 @@ export default function App() {
   });
 
   const [ytHandleInput, setYtHandleInput] = useState('');
-  const [autoPublishEnabled, setAutoPublishEnabled] = useState(false);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [connectError, setConnectError] = useState('');
 
-  // Pricing & Coupon Checkout State
   const [isPricingOpen, setIsPricingOpen] = useState(false);
-  const [selectedBilling, setSelectedBilling] = useState('monthly'); // 'monthly' | 'yearly'
+  const [selectedBilling, setSelectedBilling] = useState('monthly');
   const [couponInput, setCouponInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponMsg, setCouponMsg] = useState('');
   const [upgradeReason, setUpgradeReason] = useState('');
 
-  // Legal / Info Pages Modal ('about' | 'privacy' | 'terms' | 'refund' | null)
   const [activeInfoPage, setActiveInfoPage] = useState(null);
-
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [previewClip, setPreviewClip] = useState(null);
   const [scheduleTimes, setScheduleTimes] = useState({});
@@ -137,10 +133,9 @@ export default function App() {
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutPendingMsg, setCheckoutPendingMsg] = useState('');
 
-  // Owner Control Center State + Client Directory
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
-  const [adminSubTab, setAdminSubTab] = useState('controls'); // 'controls' | 'clients' | 'payments'
+  const [adminSubTab, setAdminSubTab] = useState('controls');
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
   const [liveDbUrl, setLiveDbUrl] = useState(
@@ -159,7 +154,6 @@ export default function App() {
     globalConfig.googleClientId || localStorage.getItem('sp_google_client_id') || DEFAULT_GOOGLE_CLIENT_ID;
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
 
-  // Compute Default Next Peak Schedule ISO String
   const getNextPeakIso = (hour24 = 19, minute = 30) => {
     const now = new Date();
     const target = new Date();
@@ -177,7 +171,6 @@ export default function App() {
     setAudienceInsight((prev) => ({ ...prev, suggestedIso: getNextPeakIso(19, 30) }));
   }, []);
 
-  // Save/Update Client Data in Firebase Owner Directory whenever a user logs in
   const registerClientInAdminDb = async (userObj, channelObj, currentTier = 'free') => {
     if (!dbBase || !userObj?.email) return;
     const uKey = emailToKey(userObj.email);
@@ -197,7 +190,6 @@ export default function App() {
     } catch {}
   };
 
-  // Sync Account-Bound Quota & Pro Status
   const syncUserAccountStatus = async (userEmail) => {
     if (!userEmail) {
       setTier('free');
@@ -241,7 +233,6 @@ export default function App() {
     syncUserAccountStatus(gmailUser?.email || null);
   }, [gmailUser, dbBase]);
 
-  // Calculate Final Price with Coupon (499 Monthly / 3999 Yearly)
   const getPayableAmount = () => {
     const base =
       selectedBilling === 'yearly'
@@ -289,7 +280,6 @@ export default function App() {
     setIsPricingOpen(true);
   };
 
-  // URL Params (?admin=true & ?payment=success)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('admin') === 'true') setIsAdminOpen(true);
@@ -329,7 +319,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [dbBase]);
 
-  // Fetch Global Config, Transactions & Client Data from Firebase
   const fetchFirebaseAll = async () => {
     if (!dbBase) return;
     try {
@@ -387,7 +376,6 @@ export default function App() {
     else localStorage.removeItem('sp_gmail_user');
   }, [gmailUser]);
 
-  // Google OAuth Setup
   useEffect(() => {
     if (!activeClientId) return;
 
@@ -534,7 +522,7 @@ export default function App() {
               topTitleSample = v.snippet?.title || '';
             }
             return {
-id: v.id,
+              id: v.id,
               title: v.snippet?.title,
               categoryId: v.snippet?.categoryId || '22',
               thumbnail: v.snippet?.thumbnails?.medium?.url,
@@ -563,7 +551,7 @@ id: v.id,
         suggestedIso: getNextPeakIso(bestHour, 30),
         topRegion: regionName,
         strategyTip: topTitleSample
-          ? `Your top Short "${topTitleSample.slice(0, 32)}..." peaked around ${hr12}:30 ${ampm}. AI will auto-tune titles & tags for ${regionName}.`
+          ? `Your top Short "${topTitleSample.slice(0, 32)}..." peaked around ${hr12}:30 ${ampm}. AI auto-tunes titles & tags for ${regionName}.`
           : `Peak viewership detected around ${hr12}:30 ${ampm} in ${regionName}.`,
         isAnalyzing: false
       });
@@ -588,7 +576,7 @@ id: v.id,
     }
   }, [activeTab, ytChannel]);
 
-  // Dual AI Engine (Audience & Peak-Time Aware)
+  // Dual AI Engine
   const generateViralMetadataWithAI = async (rawName, partLabel) => {
     const isIndia = (ytStats.country || 'IN') === 'IN';
     const fallbackTitle = isIndia
@@ -844,13 +832,8 @@ TAGS: <hashtags>`;
     });
   };
 
-  // YouTube Upload (Direct OR AI Peak-Time Scheduled)
+  // Automatic YouTube Upload (Direct OR Peak-Time Scheduled)
   const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null) => {
-    if (scheduledIsoTime && tier !== 'pro') {
-      openProModalWithReason('24h–36h AI Peak-Time Auto-Scheduling requires ShortsPilot Pro!');
-      return;
-    }
-
     if (!globalConfig.ytAutoUploadActive) {
       alert('YouTube Upload is currently paused by Admin.');
       return;
@@ -867,7 +850,8 @@ TAGS: <hashtags>`;
 
     if (activeChannel.accessToken && clip.blob) {
       try {
-        const statusObj = scheduledIsoTime
+        const useSchedule = Boolean(scheduledIsoTime && tier === 'pro');
+        const statusObj = useSchedule
           ? {
               privacyStatus: 'private',
               publishAt: new Date(scheduledIsoTime).toISOString(),
@@ -881,7 +865,7 @@ TAGS: <hashtags>`;
         const metadata = {
           snippet: {
             title: `${clip.title.slice(0, 85)} #Shorts`,
-            description: `${clip.title}\n\n${clip.hashtags}\nOptimized for ${audienceInsight.topRegion} via ShortsPilot AI`,
+            description: `${clip.title}\n\n${clip.hashtags}\nAuto-Published via ShortsPilot AI`,
             categoryId: '22'
           },
           status: statusObj
@@ -916,8 +900,8 @@ TAGS: <hashtags>`;
             item.id === clip.id
               ? {
                   ...item,
-                  status: scheduledIsoTime ? 'scheduled' : 'published',
-                  scheduledFor: scheduledIsoTime,
+                  status: useSchedule ? 'scheduled' : 'published',
+                  scheduledFor: useSchedule ? scheduledIsoTime : null,
                   youtubeUrl: uploadedVideo.id ? `https://youtube.com/shorts/${uploadedVideo.id}` : null
                 }
               : item
@@ -925,7 +909,7 @@ TAGS: <hashtags>`;
         );
         return;
       } catch (err) {
-        alert(`YouTube Upload: ${err.message}`);
+        alert(`YouTube Auto-Post Error: ${err.message}\n(Please re-login with Google if token expired)`);
         setVideoQueue((prev) =>
           prev.map((item) => (item.id === clip.id ? { ...item, status: 'ready' } : item))
         );
@@ -939,7 +923,7 @@ TAGS: <hashtags>`;
           item.id === clip.id
             ? {
                 ...item,
-                status: scheduledIsoTime ? 'scheduled' : 'published',
+                status: scheduledIsoTime && tier === 'pro' ? 'scheduled' : 'published',
                 scheduledFor: scheduledIsoTime
               }
             : item
@@ -948,9 +932,16 @@ TAGS: <hashtags>`;
     }, 900);
   };
 
+  // Core Pipeline: Render 9:16 + AI Metadata + AUTOMATIC YOUTUBE POSTING (Always Active!)
   const processNewFile = async (file) => {
+    if (!ytChannelRef.current) {
+      setConnectError('Please connect your YouTube account first so ShortsPilot can auto-post your Shorts.');
+      setIsConnectModalOpen(true);
+      return;
+    }
+
     if (tier === 'free' && quotaUsed >= Number(globalConfig.freeLimit || 3)) {
-      openProModalWithReason(`You've used all ${globalConfig.freeLimit} Free Credits! Upgrade to Pro for unlimited Shorts.`);
+      openProModalWithReason(`You've used all ${globalConfig.freeLimit} Free Credits! Upgrade to Pro for unlimited Auto-Posts.`);
       return;
     }
 
@@ -1000,8 +991,9 @@ TAGS: <hashtags>`;
 
       setStorageUsedGB((prev) => Number((prev + 0.02).toFixed(2)));
 
-      if (audienceInsight.suggestedIso) {
-        setScheduleTimes((prev) => ({ ...prev, [clipId]: audienceInsight.suggestedIso }));
+      const autoTargetTime = tier === 'pro' ? audienceInsight.suggestedIso : null;
+      if (autoTargetTime) {
+        setScheduleTimes((prev) => ({ ...prev, [clipId]: autoTargetTime }));
       }
 
       const readyClip = {
@@ -1020,9 +1012,8 @@ TAGS: <hashtags>`;
 
       setVideoQueue((prev) => prev.map((item) => (item.id === clipId ? readyClip : item)));
 
-      if (autoPublishEnabled && ytChannelRef.current?.accessToken) {
-        await uploadClipToYouTubeAPI(readyClip, tier === 'pro' ? audienceInsight.suggestedIso : null);
-      }
+      // 100% Automatic YouTube Posting immediately after rendering!
+      await uploadClipToYouTubeAPI(readyClip, autoTargetTime);
     }
   };
 
@@ -1325,7 +1316,7 @@ TAGS: <hashtags>`;
               </button>
             ) : (
               <button
-                onClick={() => openProModalWithReason('Unlock Pro AI Tools & 24h Peak-Time Scheduler!')}
+                onClick={() => openProModalWithReason('Unlock Pro AI Tools & 24h Peak-Time Auto-Post!')}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-400/50 text-[11px] sm:text-xs font-bold text-amber-300 shrink-0"
               >
                 <Crown className="w-3.5 h-3.5 text-amber-400" />
@@ -1355,7 +1346,7 @@ TAGS: <hashtags>`;
             }`}
           >
             <Scissors className="w-3.5 h-3.5" />
-            AI Clip Studio
+            AI Auto-Post Studio
           </button>
           <button
             onClick={() => setActiveTab('analytics')}
@@ -1370,29 +1361,29 @@ TAGS: <hashtags>`;
           </button>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-300">
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-300 font-semibold">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>24h–36h Smart Peak-Time AI Active</span>
+          <span>100% Hands-Free YouTube Auto-Post ON</span>
         </div>
       </div>
 
-      {/* TAB 1: AI CLIP STUDIO */}
+      {/* TAB 1: AI AUTO-POST STUDIO */}
       {activeTab === 'studio' && (
         <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 pb-16 flex-1">
           <div className="text-center max-w-2xl mx-auto mb-6">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] sm:text-xs font-semibold mb-3">
-              <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>24h–36h View & Location Tracking • Smart Peak-Time Auto-Post</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] sm:text-xs font-semibold mb-3">
+              <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Select Video → AI Crops 9:16 + Writes Title → Auto-Posts to YouTube</span>
             </div>
             <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
               1 Video →{' '}
               <span className="bg-gradient-to-r from-sky-400 via-blue-400 to-pink-500 bg-clip-text text-transparent">
                 3 Viral Shorts
               </span>{' '}
-              at Peak Hours
+              Auto-Posted
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm mb-4">
-              Tracks when & where your viewers watch over 24h–36h, auto-tunes Titles & Hashtags with AI, and posts at maximum reach hours.
+              Tracks 24h–36h audience & peak hours, generates viral titles & tags with AI, and automatically publishes to your YouTube channel.
             </p>
           </div>
 
@@ -1404,7 +1395,7 @@ TAGS: <hashtags>`;
                 <span>24h–36h AI Audience & Peak-Time Radar</span>
               </div>
               <div className="text-xs text-slate-200">
-                <strong>Best Post Time:</strong> <span className="text-emerald-400">{audienceInsight.peakHourLabel}</span> •{' '}
+                <strong>Auto-Post Target:</strong> <span className="text-emerald-400">{tier === 'pro' ? audienceInsight.peakHourLabel : 'Instant Direct YouTube Auto-Post'}</span> •{' '}
                 <strong>Region:</strong> <span className="text-amber-300">{audienceInsight.topRegion}</span>
               </div>
               <p className="text-[11px] text-slate-400">{audienceInsight.strategyTip}</p>
@@ -1430,7 +1421,7 @@ TAGS: <hashtags>`;
                     Step 1: Connect Google & YouTube Channel
                   </div>
                   <div className="text-xs text-slate-400">
-                    Sign in to enable 24h–36h audience tracking & auto-scheduled Shorts uploads.
+                    Sign in once — every video you upload will automatically post to YouTube.
                   </div>
                 </div>
               </div>
@@ -1456,7 +1447,7 @@ TAGS: <hashtags>`;
                       {ytChannel?.handle || gmailUser?.name}
                     </span>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                      {tier === 'pro' ? `PRO (${activePlanType || 'Active'})` : 'Free Account'}
+                      Auto-Post Ready • {tier === 'pro' ? 'PRO' : 'Free'}
                     </span>
                   </div>
                   {gmailUser?.email && (
@@ -1502,7 +1493,7 @@ TAGS: <hashtags>`;
                 type="button"
                 onClick={() => {
                   if (tier !== 'pro') {
-                    openProModalWithReason('Extract 3 Viral Shorts from 1 video automatically with Pro!');
+                    openProModalWithReason('Extract & Auto-Post 3 Viral Shorts from 1 video with Pro!');
                     return;
                   }
                   setClipMode('3clips');
@@ -1520,17 +1511,17 @@ TAGS: <hashtags>`;
               <Upload className="w-6 h-6 text-sky-400" />
             </div>
             <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">
-              Select Video from Gallery
+              Select Video to Auto-Post on YouTube
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
-              Crops to 9:16 vertical Short with original sound, AI region-targeted titles & peak-time scheduling.
+              Automatically crops to 9:16 with original audio, writes AI title/tags, and posts directly to YouTube.
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
               className="w-full sm:w-auto justify-center px-7 py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 flex items-center gap-2 mx-auto shadow-[0_0_25px_rgba(56,189,248,0.25)]"
             >
               <Upload className="w-4 h-4" />
-              Choose Video File
+              Choose Video & Auto-Post
             </button>
           </div>
 
@@ -1542,7 +1533,7 @@ TAGS: <hashtags>`;
                   Upgrade to ShortsPilot PRO
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Unlock 24h–36h Peak-Time Auto-Scheduler, 1-to-3 Viral Clipper & Zero Watermark Exports
+                  Unlock 24h–36h Peak-Time Auto-Posting, 1-to-3 Viral Clipper & Zero Watermark Exports
                 </p>
               </div>
 
@@ -1610,14 +1601,14 @@ TAGS: <hashtags>`;
             </section>
           )}
 
-          {/* Generated Shorts Queue */}
+          {/* Generated & Auto-Posted Shorts Queue */}
           {videoQueue.length > 0 && (
             <section className="mt-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Radio className="w-4 h-4 text-pink-500 animate-pulse" />
                   <h3 className="text-base sm:text-lg font-bold text-white">
-                    AI Shorts Queue ({videoQueue.length})
+                    AI Auto-Post Queue ({videoQueue.length})
                   </h3>
                 </div>
                 <button onClick={() => setVideoQueue([])} className="text-xs text-slate-400 hover:text-pink-400">
@@ -1661,23 +1652,6 @@ TAGS: <hashtags>`;
                       </div>
                     )}
 
-                    {clip.status === 'ready' && (
-                      <div className="p-2.5 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between gap-2">
-                        <label className="text-[11px] text-sky-300 flex items-center gap-1 shrink-0 font-medium">
-                          <Calendar className="w-3.5 h-3.5 text-sky-400" /> AI Peak Time:
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={scheduleTimes[clip.id] || ''}
-                          onClick={() => tier !== 'pro' && openProModalWithReason('AI Peak-Time Scheduling requires ShortsPilot Pro!')}
-                          onChange={(e) =>
-                            setScheduleTimes((prev) => ({ ...prev, [clip.id]: e.target.value }))
-                          }
-                          className="bg-[#05070c] text-white text-[11px] px-2 py-1 rounded border border-slate-700 outline-none min-w-0"
-                        />
-                      </div>
-                    )}
-
                     <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
                       {clip.croppedUrl ? (
                         <a
@@ -1692,31 +1666,21 @@ TAGS: <hashtags>`;
                       )}
 
                       {clip.status === 'ready' && (
-                        <div className="flex items-center gap-1.5">
-                          {scheduleTimes[clip.id] && (
-                            <button
-                              onClick={() => uploadClipToYouTubeAPI(clip, scheduleTimes[clip.id])}
-                              className="px-3 py-1.5 rounded-lg bg-sky-600 text-white font-semibold flex items-center gap-1"
-                            >
-                              <Clock className="w-3.5 h-3.5" /> Schedule Peak
-                            </button>
-                          )}
-                          <button
-                            onClick={() => uploadClipToYouTubeAPI(clip, null)}
-                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1"
-                          >
-                            <Send className="w-3.5 h-3.5" /> Post Now
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => uploadClipToYouTubeAPI(clip, null)}
+                          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1"
+                        >
+                          <Send className="w-3.5 h-3.5" /> Retry Post
+                        </button>
                       )}
 
                       {clip.status === 'uploading' && (
-                        <span className="text-sky-400 font-medium">Uploading to YouTube...</span>
+                        <span className="text-sky-400 font-semibold animate-pulse">Auto-Posting to YouTube...</span>
                       )}
 
                       {clip.status === 'scheduled' && (
                         <span className="text-sky-400 font-semibold flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" /> Scheduled ✓
+                          <Clock className="w-3.5 h-3.5" /> Auto-Scheduled at Peak ✓
                         </span>
                       )}
 
@@ -1725,10 +1689,10 @@ TAGS: <hashtags>`;
                           <CheckCircle2 className="w-4 h-4" />
                           {clip.youtubeUrl ? (
                             <a href={clip.youtubeUrl} target="_blank" rel="noreferrer" className="underline">
-                              Live on YT ↗
+                              Auto-Posted Live ↗
                             </a>
                           ) : (
-                            'Posted'
+                            'Auto-Posted ✓'
                           )}
                         </span>
                       )}
@@ -1883,7 +1847,7 @@ TAGS: <hashtags>`;
               {activeInfoPage === 'about' && (
                 <>
                   <p>
-                    ShortsPilot is an AI-powered SaaS studio designed for YouTube creators to automatically convert long videos into high-retention 9:16 vertical Shorts with original audio, AI-generated viral metadata, and 24h–36h peak-time scheduled publishing.
+                    ShortsPilot is an AI-powered SaaS studio designed for YouTube creators to automatically convert long videos into high-retention 9:16 vertical Shorts with original audio, AI-generated viral metadata, and hands-free YouTube auto-publishing.
                   </p>
                   <p><strong>Contact Support:</strong> {globalConfig.supportEmail}</p>
                 </>
@@ -1891,7 +1855,7 @@ TAGS: <hashtags>`;
               {activeInfoPage === 'privacy' && (
                 <>
                   <p>
-                    We respect creator privacy. When you sign in with Google, ShortsPilot only requests permissions required to view your YouTube channel analytics and upload/schedule Shorts on your behalf.
+                    We respect creator privacy. When you sign in with Google, ShortsPilot only requests permissions required to view your YouTube channel analytics and auto-publish Shorts on your behalf.
                   </p>
                   <p>
                     We never sell your email, channel tokens, or video files to third parties. Videos are processed directly in your browser.
@@ -1946,7 +1910,7 @@ TAGS: <hashtags>`;
               <X className="w-5 h-5" />
             </button>
             <h3 className="text-lg font-bold text-white mb-1">Gmail & YouTube Account</h3>
-            <p className="text-xs text-slate-400 mb-4">Your Pro plan & 24h analytics link directly to your Gmail ID.</p>
+            <p className="text-xs text-slate-400 mb-4">Sign in with Google to enable 100% automatic YouTube Shorts publishing.</p>
 
             {(gmailUser || ytChannel) && (
               <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 mb-4 flex items-center justify-between">
@@ -2118,25 +2082,19 @@ TAGS: <hashtags>`;
         </div>
       )}
 
-      {/* Client Settings Drawer */}
+      {/* Account Info Drawer */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/75">
           <div className="w-full max-w-xs bg-[#080c15] border-l border-sky-500/25 h-full p-5 flex flex-col justify-between">
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <h3 className="font-bold text-white">Studio Settings</h3>
+                <h3 className="font-bold text-white">Account & Status</h3>
                 <button onClick={() => setIsSettingsOpen(false)} className="text-slate-400">
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="p-3 rounded-xl bg-[#0c1220] border border-slate-800 flex items-center justify-between">
-                <span className="text-sm text-slate-200">Auto-Schedule at Peak Time</span>
-                <button
-                  onClick={() => setAutoPublishEnabled(!autoPublishEnabled)}
-                  className="text-xs px-2.5 py-1 rounded bg-sky-500/20 text-sky-300 font-semibold"
-                >
-                  {autoPublishEnabled ? 'ON' : 'OFF'}
-                </button>
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-semibold">
+                ✅ YouTube Auto-Post is Always Active
               </div>
               {gmailUser && (
                 <button
@@ -2147,7 +2105,7 @@ TAGS: <hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v7.0</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v7.1</div>
           </div>
         </div>
       )}
@@ -2213,7 +2171,6 @@ TAGS: <hashtags>`;
                   </button>
                 </div>
 
-                {/* ADMIN SUB-TAB 1: CONTROLS, PRICES & COUPONS */}
                 {adminSubTab === 'controls' && (
                   <div className="space-y-3.5">
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/30 space-y-3">
@@ -2343,7 +2300,7 @@ TAGS: <hashtags>`;
                           }
                           className="p-2 rounded-xl border border-slate-700 text-xs font-semibold text-emerald-300 flex justify-between"
                         >
-                          <span>YT Upload</span>
+                          <span>YT Auto-Post</span>
                           <span>{globalConfig.ytAutoUploadActive ? 'ON' : 'OFF'}</span>
                         </button>
                         <button
@@ -2370,7 +2327,6 @@ TAGS: <hashtags>`;
                   </div>
                 )}
 
-                {/* ADMIN SUB-TAB 2: CLIENT DATA DIRECTORY */}
                 {adminSubTab === 'clients' && (
                   <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -2424,7 +2380,6 @@ TAGS: <hashtags>`;
                   </div>
                 )}
 
-                {/* ADMIN SUB-TAB 3: PAYMENT VERIFICATION QUEUE */}
                 {adminSubTab === 'payments' && (
                   <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-amber-500/35 space-y-2.5">
                     <div className="flex items-center justify-between">
