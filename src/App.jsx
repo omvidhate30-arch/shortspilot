@@ -48,7 +48,6 @@ const idbSaveClip = async (clipObj) => {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readwrite');
       const store = tx.objectStore(IDB_STORE);
-      // croppedUrl is session-specific; store the actual Blob + metadata
       const { croppedUrl, ...persistable } = clipObj;
       store.put({ ...persistable, savedAt: Date.now() });
       tx.oncomplete = () => resolve(true);
@@ -253,6 +252,7 @@ export default function App() {
 
   const fileInputRef = useRef(null);
   const ytChannelRef = useRef(ytChannel);
+  const usedTitlesHistoryRef = useRef(new Set());
 
   const activeClientId =
     import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -273,10 +273,12 @@ export default function App() {
     let mounted = true;
     idbGetAllClips().then((savedClips) => {
       if (mounted && savedClips.length > 0) {
+        savedClips.forEach((c) => {
+          if (c.title) usedTitlesHistoryRef.current.add(c.title.toLowerCase());
+        });
         setVideoQueue(
           savedClips.map((c) => ({
             ...c,
-            // Recover interrupted 'uploading' or 'cropping' states cleanly on reload
             status: c.status === 'uploading' || c.status === 'cropping' ? 'ready' : c.status
           }))
         );
@@ -381,7 +383,6 @@ export default function App() {
     if (loggedProfile) registerClientInAdminDb(loggedProfile, fallbackCh, tier);
   };
 
-  // Capture #access_token=...&refresh_token=... after /api/youtube/callback redirect
   useEffect(() => {
     const rawHash = window.location.hash;
     if (rawHash && rawHash.includes('access_token=')) {
@@ -394,7 +395,6 @@ export default function App() {
         if (newRefreshToken) {
           localStorage.setItem('sp_yt_refresh_token', newRefreshToken);
         }
-        // Clean the hash from URL without reloading
         window.history.replaceState(
           {},
           document.title,
@@ -405,7 +405,6 @@ export default function App() {
     }
   }, []);
 
-  // Silent Auto-Refresh helper when HTTP 401 occurs
   const refreshYouTubeAccessToken = async () => {
     const storedRefresh =
       ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
@@ -443,7 +442,6 @@ export default function App() {
     }
   };
 
-  // Redirect to Google OAuth Server Flow (/api/youtube/callback)
   const handleConnectYouTubeOAuth = () => {
     setConnectError('');
     const clientId = (activeClientId || '').trim();
@@ -805,22 +803,108 @@ export default function App() {
     }
   }, [activeTab, ytChannel]);
 
-  // Dual AI Engine
-  const generateViralMetadataWithAI = async (rawName, partLabel) => {
+  // ============================================================================
+  // 3. UNIQUE VIRAL CAPTION & DYNAMIC HASHTAG ENGINE (ZERO REPEATED CAPTIONS)
+  // ============================================================================
+  const buildUniqueDynamicMetadata = (rawName, partLabel, clipIndex = 0) => {
     const isIndia = (ytStats.country || 'IN') === 'IN';
-    const fallbackTitle = isIndia
-      ? `${rawName} (${partLabel}) 🔥 Ye Dekho! #Shorts #Viral`
-      : `${rawName} (${partLabel}) 🔥 Must Watch! #Shorts #Viral`;
-    const fallbackTags = isIndia
-      ? '#Shorts #YouTubeShorts #TrendingIndia #ViralVideo'
-      : '#Shorts #YouTubeShorts #Trending #ViralVideo';
+    // Clean filename noise (like VID_20261113_1234 or WhatsApp Video)
+    let topic = (rawName || '')
+      .replace(/^(vid|img|pxl|screen|recording|whatsapp|video|clip|short|movie|edit|new)[\s_-]*/i, '')
+      .replace(/\b\d{6,}\b/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-    const prompt = `You are a viral YouTube Shorts algorithm strategist.
-Target Audience Region: ${audienceInsight.topRegion}
-Peak Engagement Window: ${audienceInsight.peakHourLabel}
-Create 1 high-CTR catchy title (max 65 chars, no quotes) and 4 trending hashtags optimized for this exact audience & time for a clip named "${rawName} - ${partLabel}". Format strictly as:
-TITLE: <title>
-TAGS: <hashtags>`;
+    if (!topic || topic.length < 3) {
+      const genericThemes = isIndia
+        ? ['Aaj Ka Sabse Bada Twist', 'Ye Moment Miss Mat Karna', 'Real Life Shocking Scene', 'End Tak Dekho Kya Hua', 'Unbelievable Reaction']
+        : ['The Moment Everything Changed', 'Wait Until The Very End', 'Nobody Saw This Coming', 'Unbelievable Split-Second Moment', 'Pure Goosebumps Scene'];
+      topic = genericThemes[(clipIndex + Math.floor(Math.random() * genericThemes.length)) % genericThemes.length];
+    }
+
+    const hookAngles = isIndia
+      ? [
+          `Wait For The End 😱 ${topic}`,
+          `99% Log Ye Baat Nahi Jante 🔥 ${topic}`,
+          `Aakhir Mein Jo Hua Dekh Kar Shock Ho Jaoge 🤯 ${topic}`,
+          `Kya Aapne Kabhi Aisa Dekha Hai? 👀 ${topic}`,
+          `Is Scene Ne Sabko Hila Diya ⚡ ${topic}`,
+          `Sirf 15 Second Mein Pura Sach 🎯 ${topic}`,
+          `Yakeen Nahi Hoga Par Ye Sach Hai 😳 ${topic}`,
+          `Sabse Khatarnak Moment 🚨 ${topic}`
+        ]
+      : [
+          `Wait Until The Final Second 😱 ${topic}`,
+          `99% Of People Missed This Detail 🔥 ${topic}`,
+          `What Happens Next Will Blow Your Mind 🤯 ${topic}`,
+          `Have You Ever Seen Anything Like This? 👀 ${topic}`,
+          `The Exact Moment Everything Shifted ⚡ ${topic}`,
+          `Watch Closely Before It Ends 🎯 ${topic}`,
+          `Nobody Expected This Outcome 😳 ${topic}`,
+          `Pure Intensity In 15 Seconds 🚨 ${topic}`
+        ];
+
+    const seed = (clipIndex * 3 + Math.floor(Math.random() * hookAngles.length)) % hookAngles.length;
+    let chosenTitle = hookAngles[seed];
+    if (usedTitlesHistoryRef.current.has(chosenTitle.toLowerCase())) {
+      chosenTitle = `${hookAngles[(seed + 1) % hookAngles.length]} (${partLabel.split(':')[0]})`;
+    }
+    usedTitlesHistoryRef.current.add(chosenTitle.toLowerCase());
+
+    // Build topic-specific + rotating diverse hashtag sets (never the exact same 4 tags)
+    const words = topic
+      .replace(/[^a-zA-Z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter((w) => w.length > 3)
+      .slice(0, 2)
+      .map((w) => `#${w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()}`);
+
+    const tagPools = isIndia
+      ? [
+          ['#Shorts', '#HindiShorts', '#ExplorePage', '#MustWatch'],
+          ['#YouTubeShorts', '#DailyDose', '#MindBlown', '#TrendingNow'],
+          ['#YTShorts', '#IndiaTrending', '#WaitForEnd', '#ViralClip'],
+          ['#ShortVideo', '#ShockingFacts', '#NewShort', '#ForYou'],
+          ['#ShortsFeed', '#DesiVibes', '#NextLevel', '#WatchTillEnd']
+        ]
+      : [
+          ['#Shorts', '#ExplorePage', '#MustWatch', '#MindBlown'],
+          ['#YouTubeShorts', '#DailyClips', '#TrendingNow', '#WaitForIt'],
+          ['#YTShorts', '#ViralClips', '#Unbelievable', '#ForYou'],
+          ['#ShortVideo', '#EpicMoments', '#NewShort', '#WatchTillEnd'],
+          ['#ShortsFeed', '#NextLevel', '#DidYouKnow', '#Trending']
+        ];
+
+    const pool = tagPools[(clipIndex + Math.floor(Math.random() * tagPools.length)) % tagPools.length];
+    const combinedTags = Array.from(new Set([...words, ...pool])).slice(0, 5).join(' ');
+
+    return { title: chosenTitle.slice(0, 82), hashtags: combinedTags };
+  };
+
+  const generateViralMetadataWithAI = async (rawName, partLabel, clipIndex = 0) => {
+    const dynamicFallback = buildUniqueDynamicMetadata(rawName, partLabel, clipIndex);
+
+    const angleStyles = [
+      'Curiosity & Suspense Hook (make viewer watch till last second)',
+      'Shocking Fact / Bold Claim Hook',
+      'Emotional / Relatable Story Hook',
+      'Secret Tip / Hidden Detail Hook',
+      'High-Energy Climax / Finale Hook'
+    ];
+    const chosenAngle = angleStyles[clipIndex % angleStyles.length];
+    const recentList = Array.from(usedTitlesHistoryRef.current).slice(-6).join(' | ');
+
+    const prompt = `You are an elite YouTube Shorts copywriter.
+Clip Topic: "${rawName}" (${partLabel})
+Angle to use: ${chosenAngle}
+Target Audience: ${audienceInsight.topRegion}
+DO NOT repeat or reuse any of these previous titles: [${recentList}]
+Rules:
+1. Write 1 completely unique, scroll-stopping YouTube Shorts title (max 62 chars, NO quotes, include 1 fitting emoji).
+2. Write 5 unique, topic-specific trending hashtags (do NOT just write generic #Viral #Trending; include specific niche tags related to "${rawName}").
+Format strictly as:
+TITLE: <unique title>
+TAGS: <5 specific hashtags>`;
 
     const callDeepSeek = async (key) => {
       const res = await fetch('https://api.deepseek.com/chat/completions', {
@@ -829,7 +913,8 @@ TAGS: <hashtags>`;
         body: JSON.stringify({
           model: 'deepseek-chat',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 130
+          temperature: 0.92,
+          max_tokens: 140
         })
       });
       if (!res.ok) throw new Error('DeepSeek error');
@@ -848,7 +933,8 @@ TAGS: <hashtags>`;
         },
         body: JSON.stringify({
           model: 'claude-3-5-haiku-20241022',
-          max_tokens: 130,
+          max_tokens: 140,
+          temperature: 0.9,
           messages: [{ role: 'user', content: prompt }]
         })
       });
@@ -861,9 +947,11 @@ TAGS: <hashtags>`;
       const titleMatch = text.match(/TITLE:\s*(.+)/i);
       const tagsMatch = text.match(/TAGS:\s*(.+)/i);
       if (titleMatch) {
+        const cleanTitle = titleMatch[1].replace(/^["']|["']$/g, '').trim();
+        usedTitlesHistoryRef.current.add(cleanTitle.toLowerCase());
         return {
-          title: titleMatch[1].trim(),
-          hashtags: tagsMatch ? tagsMatch[1].trim() : fallbackTags
+          title: cleanTitle,
+          hashtags: tagsMatch ? tagsMatch[1].trim() : dynamicFallback.hashtags
         };
       }
       return null;
@@ -883,7 +971,7 @@ TAGS: <hashtags>`;
       if (parsed) return parsed;
     } catch {}
 
-    return { title: fallbackTitle, hashtags: fallbackTags };
+    return dynamicFallback;
   };
 
   // 1-Click Live Short Title & Tag Re-Optimizer (with 401 Auto-Refresh)
@@ -896,7 +984,7 @@ TAGS: <hashtags>`;
       ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
     if (!token) return;
 
-    const aiFresh = await generateViralMetadataWithAI(vid.title, '24h Boost');
+    const aiFresh = await generateViralMetadataWithAI(vid.title, '24h Boost', Math.floor(Math.random() * 5));
     try {
       const res = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', {
         method: 'PUT',
@@ -922,7 +1010,7 @@ TAGS: <hashtags>`;
       }
 
       if (!res.ok) throw new Error('YouTube update permission required.');
-      alert(`✅ Live Short Updated on YouTube!\nNew Title: ${aiFresh.title}`);
+      alert(`✅ Live Short Updated on YouTube!\nNew Title: ${aiFresh.title}\nNew Tags: ${aiFresh.hashtags}`);
       fetchYouTubeAnalytics();
     } catch (err) {
       alert(`AI Suggested Title:\n${aiFresh.title}\n${aiFresh.hashtags}\n\n(${err.message})`);
@@ -1072,7 +1160,7 @@ TAGS: <hashtags>`;
   };
 
   // ============================================================================
-  // 3. YOUTUBE UPLOAD WITH AUTOMATIC HTTP 401 REFRESH + RETRY & INDEXEDDB SYNC
+  // 4. YOUTUBE UPLOAD WITH AUTOMATIC HTTP 401 REFRESH + RETRY & INDEXEDDB SYNC
   // ============================================================================
   const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null, allow401Retry = true) => {
     if (!globalConfig.ytAutoUploadActive) {
@@ -1106,10 +1194,16 @@ TAGS: <hashtags>`;
               selfDeclaredMadeForKids: false
             };
 
+        const rawTagsList = (clip.hashtags || '')
+          .split(/\s+/)
+          .map((t) => t.replace(/^#/, '').trim())
+          .filter(Boolean);
+
         const metadata = {
           snippet: {
-            title: `${clip.title.slice(0, 85)} #Shorts`,
-            description: `${clip.title}\n\n${clip.hashtags}\nAuto-Published via ShortsPilot AI`,
+            title: `${clip.title.slice(0, 88)} #Shorts`,
+            description: `${clip.title}\n\n${clip.hashtags}`,
+            tags: rawTagsList.length > 0 ? rawTagsList : ['Shorts', 'YouTubeShorts'],
             categoryId: '22'
           },
           status: statusObj
@@ -1129,7 +1223,6 @@ TAGS: <hashtags>`;
           }
         );
 
-        // Silent 401 Token Refresh & Retry on resumable init
         if (initRes.status === 401 && allow401Retry) {
           const refreshedToken = await refreshYouTubeAccessToken();
           if (refreshedToken) {
@@ -1145,7 +1238,6 @@ TAGS: <hashtags>`;
           body: clip.blob
         });
 
-        // Silent 401 Token Refresh & Retry on PUT upload
         if (uploadRes.status === 401 && allow401Retry) {
           const refreshedToken = await refreshYouTubeAccessToken();
           if (refreshedToken) {
@@ -1192,7 +1284,7 @@ TAGS: <hashtags>`;
     }, 900);
   };
 
-  // Core Pipeline: 1-Clip (Free), 3-Clips (Monthly Pro), 5-Clips (Yearly VIP) + IndexedDB Save + Auto-Post
+  // Core Pipeline: 1-Clip (Free), 3-Clips (Monthly Pro), 5-Clips (Yearly VIP) + Unique Metadata + IndexedDB + Auto-Post
   const processNewFile = async (file) => {
     if (isUserBanned) {
       alert('Your account has been suspended by Admin. Contact support.');
@@ -1238,13 +1330,14 @@ TAGS: <hashtags>`;
       ];
     }
 
-    for (const seg of segments) {
+    for (let idx = 0; idx < segments.length; idx++) {
+      const seg = segments[idx];
       const clipId = Date.now() + Math.random();
       setVideoQueue((prev) => [
         {
           id: clipId,
           title: `${baseName} — ${seg.label}`,
-          hashtags: '#Shorts #Viral #Trending',
+          hashtags: '#Shorts #Explore #MustWatch',
           status: 'cropping',
           progress: 15,
           hookScore: seg.score,
@@ -1258,7 +1351,7 @@ TAGS: <hashtags>`;
       ]);
 
       const [aiMeta, renderResult] = await Promise.all([
-        generateViralMetadataWithAI(baseName, seg.label),
+        generateViralMetadataWithAI(baseName, seg.label, idx),
         renderVertical916WithAudio(file, clipId, seg.ratio, 12)
       ]);
 
@@ -1283,7 +1376,6 @@ TAGS: <hashtags>`;
         youtubeUrl: null
       };
 
-      // Persist clip Blob & metadata into IndexedDB immediately
       await idbSaveClip(readyClip);
 
       setVideoQueue((prev) => prev.map((item) => (item.id === clipId ? readyClip : item)));
@@ -1296,13 +1388,11 @@ TAGS: <hashtags>`;
     e.target.value = '';
   };
 
-  // Delete single clip from State + IndexedDB
   const handleDeleteClip = async (clipId) => {
     await idbDeleteClip(clipId);
     setVideoQueue((prev) => prev.filter((i) => i.id !== clipId));
   };
 
-  // Clear all clips from State + IndexedDB
   const handleClearAllClips = async () => {
     await idbClearAllClips();
     setVideoQueue([]);
@@ -1404,7 +1494,6 @@ TAGS: <hashtags>`;
     fetchFirebaseAll();
   };
 
-  // Admin: Direct Client Plan Toggle
   const handleAdminSetClientTier = async (clientObj, targetTier, planType = 'yearly') => {
     if (!dbBase || !clientObj?.email) return;
     const uKey = clientObj.id || emailToKey(clientObj.email);
@@ -1552,7 +1641,7 @@ TAGS: <hashtags>`;
         body: JSON.stringify(globalConfig)
       });
       if (!res.ok) throw new Error('Firebase permission error');
-      alert('✅ Live Updated! All website controls & offer prices are now live.');
+      alert('✅ Live Updated! All website controls & AI keys are now live.');
     } catch {
       alert('Check Firebase Realtime Database Rules (.read: true, .write: true).');
     } finally {
@@ -1718,7 +1807,7 @@ TAGS: <hashtags>`;
 
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-300 font-semibold">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>Auto-Refresh Token & IndexedDB Storage Active</span>
+          <span>Unique AI Captions & Auto-Refresh Active</span>
         </div>
       </div>
 
@@ -1728,7 +1817,7 @@ TAGS: <hashtags>`;
           <div className="text-center max-w-2xl mx-auto mb-5">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] sm:text-xs font-semibold mb-3">
               <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>Select Video → AI Crops 9:16 + Writes Title → Auto-Posts to YouTube</span>
+              <span>Select Video → Unique AI Title & Tags → Auto-Posts to YouTube</span>
             </div>
             <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
               1 Video →{' '}
@@ -1737,7 +1826,7 @@ TAGS: <hashtags>`;
               </span>
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm mb-3">
-              Tracks 24h–36h audience & peak hours, generates viral titles & tags with AI, and automatically publishes to your YouTube channel.
+              Tracks 24h–36h audience & peak hours, writes fresh unique titles & tags for every clip, and automatically publishes to YouTube.
             </p>
           </div>
 
@@ -1801,7 +1890,7 @@ TAGS: <hashtags>`;
             </button>
           </div>
 
-          {/* Account Banner (Redirects to Google OAuth Offline Flow) */}
+          {/* Account Banner */}
           {!ytChannel && !gmailUser ? (
             <div className="mb-5 p-3.5 rounded-2xl bg-gradient-to-r from-rose-500/10 via-[#090d16] to-sky-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -1856,7 +1945,7 @@ TAGS: <hashtags>`;
             </div>
           )}
 
-          {/* Upload Dropzone with 1-Clip, 3-Clips (Monthly) & 5-Clips (Yearly VIP) Selector */}
+          {/* Upload Dropzone */}
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
@@ -1922,7 +2011,7 @@ TAGS: <hashtags>`;
               Select Video to Auto-Post on YouTube
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
-              Automatically crops to 9:16 with original audio, saves clips offline in IndexedDB, writes AI title/tags, and posts directly to YouTube.
+              Automatically crops to 9:16 with original audio, writes unique viral title & niche hashtags for every Short, and auto-posts to YouTube.
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -2576,7 +2665,7 @@ TAGS: <hashtags>`;
                 </button>
               </div>
               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-semibold">
-                ✅ YouTube Auto-Post & Token Auto-Refresh Active
+                ✅ Unique AI Captions & Auto-Refresh Active
               </div>
               <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-300">
                 💾 {videoQueue.length} Clips Saved in IndexedDB
@@ -2590,7 +2679,7 @@ TAGS: <hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.4</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.5</div>
           </div>
         </div>
       )}
