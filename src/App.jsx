@@ -52,6 +52,7 @@ export default function App() {
     cashfreeLinkYearly: '',
     receiverUpi: '9767905729@paytm',
     monthlyPrice: '499',
+    yearlyOriginalPrice: '5999',
     yearlyPrice: '3999',
     couponCode: '',
     couponDiscount: '200',
@@ -61,7 +62,7 @@ export default function App() {
     guaranteeActive: true,
     monthlyGuaranteeViews: '50K',
     yearlyGuaranteeViews: '100K',
-    bannerText: '🛡️ Growth Guarantee: 50K+ Views/Mo on Monthly & 100K+ Views/Mo on Yearly Pro (T&C Apply)!',
+    bannerText: '🔥 SPECIAL OFFER: Yearly Studio VIP at ₹3,999 (Original ₹5,999) + 100K Views/Mo Guarantee!',
     bannerActive: true,
     broadcastAlertText: '',
     broadcastAlertActive: false,
@@ -164,6 +165,11 @@ export default function App() {
   const activeClientId =
     globalConfig.googleClientId || localStorage.getItem('sp_google_client_id') || DEFAULT_GOOGLE_CLIENT_ID;
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
+
+  const yearlySavings = Math.max(
+    0,
+    Number(globalConfig.yearlyOriginalPrice || 5999) - Number(globalConfig.yearlyPrice || 3999)
+  );
 
   const getNextPeakIso = (hour24 = 19, minute = 30) => {
     const now = new Date();
@@ -961,7 +967,7 @@ TAGS: <hashtags>`;
     }, 900);
   };
 
-  // Core Pipeline: 1-Clip (Free), 3-Clips (Monthly Pro), 5-Clips (Yearly Pro) + Auto-Post
+  // Core Pipeline: 1-Clip (Free), 3-Clips (Monthly Pro), 5-Clips (Yearly VIP) + Auto-Post
   const processNewFile = async (file) => {
     if (isUserBanned) {
       alert('Your account has been suspended by Admin. Contact support.');
@@ -1323,7 +1329,7 @@ TAGS: <hashtags>`;
         body: JSON.stringify(globalConfig)
       });
       if (!res.ok) throw new Error('Firebase permission error');
-      alert('✅ Live Updated! All website controls & guarantees are now live.');
+      alert('✅ Live Updated! All website controls & offer prices are now live.');
     } catch {
       alert('Check Firebase Realtime Database Rules (.read: true, .write: true).');
     } finally {
@@ -1382,7 +1388,7 @@ TAGS: <hashtags>`;
       {/* Top Banner */}
       {globalConfig.bannerActive && globalConfig.bannerText && (
         <div
-          onClick={() => tier !== 'pro' && openProModalWithReason('Unlock Guaranteed Monthly Views with ShortsPilot Pro!')}
+          onClick={() => tier !== 'pro' && openProModalWithReason('Grab Limited-Time Offer: ₹3,999 (Original ₹5,999)!', 'yearly')}
           className="w-full bg-gradient-to-r from-sky-600 via-blue-600 to-pink-600 text-white text-[11px] sm:text-xs font-semibold py-2 px-3 text-center cursor-pointer"
         >
           {globalConfig.bannerText}
@@ -1430,7 +1436,7 @@ TAGS: <hashtags>`;
             {tier === 'pro' ? (
               <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-pink-500/15 border border-pink-500/40 text-[11px] font-semibold text-pink-200 shrink-0">
                 <Crown className="w-3.5 h-3.5 text-amber-400" />
-                <span>{activePlanType === 'yearly' ? 'YEARLY PRO' : 'PRO'}</span>
+                <span>{activePlanType === 'yearly' ? 'YEARLY VIP' : 'PRO'}</span>
               </div>
             ) : paymentStatusNote === 'pending' ? (
               <button
@@ -1538,10 +1544,10 @@ TAGS: <hashtags>`;
               </div>
               {tier !== 'pro' && (
                 <button
-                  onClick={() => openProModalWithReason('Claim 100K Views/Month Guarantee with Yearly Pro!', 'yearly')}
+                  onClick={() => openProModalWithReason(`Claim 100K Views/Mo Guarantee at ₹${globalConfig.yearlyPrice} (Save ₹${yearlySavings})!`, 'yearly')}
                   className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-500 text-black text-xs font-extrabold shrink-0"
                 >
-                  Claim Guarantee →
+                  Claim Offer →
                 </button>
               )}
             </div>
@@ -1704,7 +1710,7 @@ TAGS: <hashtags>`;
             </button>
           </div>
 
-          {/* Pricing Cards on First Page (50K Views Monthly vs 100K Views + Extra Benefits Yearly) */}
+          {/* Pricing Cards on First Page (₹499 Monthly vs ₹5999 -> ₹3999 Offer Yearly VIP) */}
           {tier !== 'pro' && (
             <section className="mb-8">
               <div className="text-center mb-4">
@@ -1748,21 +1754,31 @@ TAGS: <hashtags>`;
                   </button>
                 </div>
 
-                {/* Yearly Studio Pro: 100K Views/Mo Guarantee + Exclusive Benefits */}
-                <div className="p-5 rounded-3xl bg-gradient-to-br from-[#140b24] via-[#090d16] to-[#1f0b18] border-2 border-amber-400/50 flex flex-col justify-between relative shadow-[0_0_30px_rgba(245,158,11,0.12)]">
+                {/* Yearly Studio VIP: Original ₹5,999 -> Offer ₹3,999 (Save ₹2,000) */}
+                <div className="p-5 rounded-3xl bg-gradient-to-br from-[#140b24] via-[#090d16] to-[#1f0b18] border-2 border-amber-400/50 flex flex-col justify-between relative shadow-[0_0_30px_rgba(245,158,11,0.14)]">
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
                         <Crown className="w-3.5 h-3.5" /> Yearly Studio VIP
                       </span>
-                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold">
-                        🛡️ {globalConfig.yearlyGuaranteeViews}+ Views/Mo
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-extrabold">
+                        🔥 SAVE ₹{yearlySavings.toLocaleString()} OFFER
                       </span>
                     </div>
-                    <div className="text-3xl font-extrabold text-white mb-1">
-                      ₹{globalConfig.yearlyPrice} <span className="text-xs font-normal text-slate-400">/ year</span>
+
+                    <div className="flex items-baseline gap-2.5 mb-1">
+                      <span className="text-base sm:text-lg font-bold text-slate-500 line-through">
+                        ₹{Number(globalConfig.yearlyOriginalPrice || 5999).toLocaleString()}
+                      </span>
+                      <span className="text-3xl font-extrabold text-white">
+                        ₹{Number(globalConfig.yearlyPrice || 3999).toLocaleString()}
+                      </span>
+                      <span className="text-xs font-normal text-slate-400">/ year</span>
                     </div>
-                    <p className="text-xs text-amber-200/80 mb-4">Just ₹333/mo • Double Views Guarantee + VIP Extras</p>
+
+                    <p className="text-xs text-amber-200/90 mb-4">
+                      Limited-Time Launch Offer • 100K+ Views/Mo Guarantee + VIP Extras
+                    </p>
                     <ul className="space-y-2 text-xs text-slate-200 mb-5">
                       <li className="flex items-center gap-2 text-amber-300 font-bold">
                         <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" /> Minimum {globalConfig.yearlyGuaranteeViews} Views Every Month Guarantee (T&C)
@@ -1782,10 +1798,10 @@ TAGS: <hashtags>`;
                     </ul>
                   </div>
                   <button
-                    onClick={() => openProModalWithReason(`Yearly Studio VIP (${globalConfig.yearlyGuaranteeViews}+ Views/Mo Guarantee + 5x Clips)`, 'yearly')}
+                    onClick={() => openProModalWithReason(`Special Offer: Yearly Studio VIP at ₹${globalConfig.yearlyPrice} (Original ₹${globalConfig.yearlyOriginalPrice})!`, 'yearly')}
                     className="w-full py-3 rounded-xl font-extrabold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-500 via-pink-600 to-rose-600 shadow-[0_0_20px_rgba(236,72,153,0.4)]"
                   >
-                    Claim Yearly VIP (₹{globalConfig.yearlyPrice}) →
+                    Grab Offer: ₹{Number(globalConfig.yearlyPrice || 3999).toLocaleString()} (Save ₹{yearlySavings.toLocaleString()}) →
                   </button>
                 </div>
               </div>
@@ -2020,7 +2036,7 @@ TAGS: <hashtags>`;
         </div>
       </footer>
 
-      {/* Info & Legal Pages Modal (Includes Clear Guarantee Terms & Conditions) */}
+      {/* Info & Legal Pages Modal */}
       {activeInfoPage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
           <div className="relative w-full max-w-lg rounded-3xl bg-[#080c15] border border-sky-500/30 p-6 max-h-[85vh] overflow-y-auto space-y-3">
@@ -2159,7 +2175,7 @@ TAGS: <hashtags>`;
         </div>
       )}
 
-      {/* Pro Upgrade Modal */}
+      {/* Pro Upgrade Modal (Shows ₹5,999 Strikethrough -> ₹3,999 Offer on Yearly) */}
       {isPricingOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md">
           <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-amber-400/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
@@ -2215,7 +2231,7 @@ TAGS: <hashtags>`;
                 <strong>
                   Included: Minimum{' '}
                   {selectedBilling === 'yearly'
-                    ? `${globalConfig.yearlyGuaranteeViews} Views/Month`
+                    ? `${globalConfig.yearlyGuaranteeViews} Views/Month + 5x Clips`
                     : `${globalConfig.monthlyGuaranteeViews} Views in 30 Days`}{' '}
                   Guarantee
                 </strong>{' '}
@@ -2262,8 +2278,17 @@ TAGS: <hashtags>`;
             )}
 
             <div className="mb-4 flex items-baseline justify-between">
-              <span className="text-xs text-slate-400">Total Payable Amount:</span>
-              <span className="text-2xl font-extrabold text-white">₹{getPayableAmount()}</span>
+              <span className="text-xs text-slate-400">
+                {selectedBilling === 'yearly' ? `Offer Price (Save ₹${yearlySavings.toLocaleString()}):` : 'Total Payable Amount:'}
+              </span>
+              <div className="flex items-baseline gap-2">
+                {selectedBilling === 'yearly' && (
+                  <span className="text-sm text-slate-500 line-through">
+                    ₹{Number(globalConfig.yearlyOriginalPrice || 5999).toLocaleString()}
+                  </span>
+                )}
+                <span className="text-2xl font-extrabold text-white">₹{getPayableAmount().toLocaleString()}</span>
+              </div>
             </div>
 
             {checkoutPendingMsg ? (
@@ -2280,7 +2305,7 @@ TAGS: <hashtags>`;
                   className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
                 >
                   <CreditCard className="w-4 h-4" />
-                  Pay ₹{getPayableAmount()} Safely via Cashfree
+                  Pay ₹{getPayableAmount().toLocaleString()} Safely via Cashfree
                   <ExternalLink className="w-3.5 h-3.5" />
                 </button>
 
@@ -2336,7 +2361,7 @@ TAGS: <hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.2</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.3</div>
           </div>
         </div>
       )}
@@ -2453,9 +2478,9 @@ TAGS: <hashtags>`;
 
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/30 space-y-3">
                       <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
-                        <IndianRupee className="w-3.5 h-3.5" /> Pricing, Coupon Code & Cashfree Links
+                        <IndianRupee className="w-3.5 h-3.5" /> Pricing, Yearly Original/Offer Price & Coupon Code
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                         <div>
                           <label className="text-[10px] text-slate-400 block mb-1">Monthly (₹)</label>
                           <input
@@ -2466,26 +2491,35 @@ TAGS: <hashtags>`;
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Yearly (₹)</label>
+                          <label className="text-[10px] text-slate-400 block mb-1">Yearly Orig (₹)</label>
+                          <input
+                            type="number"
+                            value={globalConfig.yearlyOriginalPrice}
+                            onChange={(e) => setGlobalConfig({ ...globalConfig, yearlyOriginalPrice: e.target.value })}
+                            className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-400 line-through"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-emerald-300 block mb-1">Yearly Offer (₹)</label>
                           <input
                             type="number"
                             value={globalConfig.yearlyPrice}
                             onChange={(e) => setGlobalConfig({ ...globalConfig, yearlyPrice: e.target.value })}
-                            className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
+                            className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-emerald-500/40 text-xs text-white font-bold"
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] text-amber-300 block mb-1">499 Coupon Code</label>
+                          <label className="text-[10px] text-amber-300 block mb-1">499 Coupon</label>
                           <input
                             type="text"
                             value={globalConfig.couponCode}
                             onChange={(e) => setGlobalConfig({ ...globalConfig, couponCode: e.target.value.toUpperCase() })}
-                            placeholder="e.g. SAVE200"
+                            placeholder="SAVE200"
                             className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-amber-500/40 text-xs font-mono text-amber-300 uppercase"
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Discount (₹)</label>
+                          <label className="text-[10px] text-slate-400 block mb-1">Coupon Off (₹)</label>
                           <input
                             type="number"
                             value={globalConfig.couponDiscount}
@@ -2556,7 +2590,6 @@ TAGS: <hashtags>`;
                 {/* TAB 2: VIEWS GUARANTEE CONTROL, WEBSITE CONTENT & ALERTS */}
                 {adminSubTab === 'site' && (
                   <div className="space-y-3.5">
-                    {/* Views Guarantee Live Settings */}
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/35 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
