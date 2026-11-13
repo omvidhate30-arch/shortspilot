@@ -171,7 +171,7 @@ export default function App() {
     couponCode: '',
     couponDiscount: '200',
     freeLimit: 3,
-    heroHeadline: 'Viral Shorts Auto-Posted',
+    heroHeadline: 'Auto-Uploaded to YouTube',
     watermarkText: 'Made with ShortsPilot',
     guaranteeActive: true,
     monthlyGuaranteeViews: '50K',
@@ -201,6 +201,7 @@ export default function App() {
   const [videoQueue, setVideoQueue] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [clipMode, setClipMode] = useState('fullshort'); // 'fullshort' | '1clip' | '3clips' | '5clips'
+  const [autoUploadBannerStatus, setAutoUploadBannerStatus] = useState('idle'); // 'idle' | 'processing' | 'done'
 
   // 24h-36h AI Audience & Peak-Time Insight State
   const [audienceInsight, setAudienceInsight] = useState({
@@ -1048,7 +1049,6 @@ TAGS: <5 specific hashtags>`;
   ) => {
     const videoUrl = URL.createObjectURL(file);
 
-    // For Pro users uploading an already-Short or choosing Full Short, pass untouched original file directly
     if (preserveFullShort && tier === 'pro') {
       return {
         croppedUrl: videoUrl,
@@ -1202,11 +1202,11 @@ TAGS: <5 specific hashtags>`;
   };
 
   // ============================================================================
-  // 4. YOUTUBE UPLOAD WITH AUTOMATIC HTTP 401 REFRESH + RETRY & INDEXEDDB SYNC
+  // 4. AUTOMATIC YOUTUBE UPLOAD ENGINE (HTTP 401 AUTO-REFRESH + RETRY)
   // ============================================================================
   const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null, allow401Retry = true) => {
     if (!globalConfig.ytAutoUploadActive) {
-      alert('YouTube Upload is currently paused by Admin.');
+      alert('YouTube Auto-Upload is currently paused by Admin.');
       return;
     }
     const activeChannel = ytChannelRef.current;
@@ -1326,7 +1326,9 @@ TAGS: <5 specific hashtags>`;
     }, 900);
   };
 
-  // Core Pipeline: NEVER cuts an already-Short (<= 3 min vertical) or when Full Short mode is selected
+  // ============================================================================
+  // 5. MAIN AUTOMATIC UPLOAD PIPELINE (RUNS IMMEDIATELY ON VIDEO SELECTION)
+  // ============================================================================
   const processNewFile = async (file) => {
     if (isUserBanned) {
       alert('Your account has been suspended by Admin. Contact support.');
@@ -1334,15 +1336,17 @@ TAGS: <5 specific hashtags>`;
     }
 
     if (!ytChannelRef.current && !localStorage.getItem('sp_yt_access_token')) {
-      setConnectError('Please connect your YouTube account first so ShortsPilot can auto-post your Shorts.');
+      setConnectError('Please connect your YouTube account first so ShortsPilot can automatically upload your videos.');
       setIsConnectModalOpen(true);
       return;
     }
 
     if (tier === 'free' && quotaUsed >= Number(globalConfig.freeLimit || 3)) {
-      openProModalWithReason(`You've used all ${globalConfig.freeLimit} Free Credits! Upgrade to Pro for unlimited Auto-Posts.`);
+      openProModalWithReason(`You've used all ${globalConfig.freeLimit} Free Credits! Upgrade to Pro for unlimited Automatic Uploads.`);
       return;
     }
+
+    setAutoUploadBannerStatus('processing');
 
     const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
     if (tier === 'free') {
@@ -1358,7 +1362,7 @@ TAGS: <5 specific hashtags>`;
     const vidInfo = await inspectVideoProperties(file);
 
     let segments = [];
-    // If video is ALREADY a vertical/square Short (up to 3 mins / 185s) OR user chose 'fullshort', NEVER cut it!
+    // If video is ALREADY a vertical/square Short (up to 3 mins) OR user chose 'fullshort', NEVER cut it!
     if (vidInfo.isAlreadyShort || clipMode === 'fullshort') {
       segments = [
         {
@@ -1450,8 +1454,11 @@ TAGS: <5 specific hashtags>`;
       await idbSaveClip(readyClip);
 
       setVideoQueue((prev) => prev.map((item) => (item.id === clipId ? readyClip : item)));
+      // Automatically upload to YouTube right away
       await uploadClipToYouTubeAPI(readyClip, autoTargetTime);
     }
+
+    setAutoUploadBannerStatus('done');
   };
 
   const handleFileUpload = (e) => {
@@ -1861,7 +1868,7 @@ TAGS: <5 specific hashtags>`;
             }`}
           >
             <Scissors className="w-3.5 h-3.5" />
-            AI Auto-Post Studio
+            Auto-Upload Studio
           </button>
           <button
             onClick={() => setActiveTab('analytics')}
@@ -1876,147 +1883,32 @@ TAGS: <5 specific hashtags>`;
           </button>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-300 font-semibold">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-[11px] text-emerald-300 font-bold">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>Ready Shorts Post Uncut (Up to 3 Mins)</span>
+          <span>AUTO-UPLOAD TO YOUTUBE: 100% ACTIVE</span>
         </div>
       </div>
 
-      {/* TAB 1: AI AUTO-POST STUDIO */}
+      {/* TAB 1: MAIN AUTOMATIC UPLOAD STUDIO */}
       {activeTab === 'studio' && (
         <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 pb-16 flex-1">
           <div className="text-center max-w-2xl mx-auto mb-5">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] sm:text-xs font-semibold mb-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] sm:text-xs font-bold mb-3">
               <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>Ready Shorts Never Cut • Long Videos Auto-Split into Clips</span>
+              <span>1-Step Hands-Free Auto-Pilot: Pick Videos → Auto-Uploads to YouTube</span>
             </div>
             <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
-              1 Video →{' '}
+              Select Videos →{' '}
               <span className="bg-gradient-to-r from-sky-400 via-blue-400 to-pink-500 bg-clip-text text-transparent">
-                {globalConfig.heroHeadline || 'Viral Shorts Auto-Posted'}
+                {globalConfig.heroHeadline || 'Auto-Uploaded to YouTube'}
               </span>
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm mb-3">
-              Upload an existing Short (posted full & uncut!) or a long video (auto-cropped into 9:16 viral clips) with unique AI titles & hashtags.
+              Zero manual posting needed. Ready Shorts post uncut, long videos auto-split into viral clips, and everything uploads automatically to your YouTube channel.
             </p>
           </div>
 
-          {/* Dual Growth Guarantee Banner */}
-          {globalConfig.guaranteeActive && (
-            <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-[#090d16] to-amber-500/15 border border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 mt-0.5">
-                  <ShieldCheck className="w-6 h-6 text-emerald-400" />
-                </div>
-                <div>
-                  <div className="text-xs sm:text-sm font-extrabold text-white flex flex-wrap items-center gap-2">
-                    <span>
-                      🛡️ {globalConfig.monthlyGuaranteeViews}+ Views/Mo (Monthly) & {globalConfig.yearlyGuaranteeViews}+ Views/Mo (Yearly) Guarantee!
-                    </span>
-                    <button
-                      onClick={() => setActiveInfoPage('terms')}
-                      className="text-[10px] underline text-amber-300 font-semibold"
-                    >
-                      Read T&C
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-slate-300 mt-0.5">
-                    Post daily AI-scheduled Shorts for 30 days — if you don't hit your plan's guaranteed views, get your next 30 days of Pro 100% FREE!
-                  </p>
-                </div>
-              </div>
-              {tier !== 'pro' && (
-                <button
-                  onClick={() => openProModalWithReason(`Claim 100K Views/Mo Guarantee at ₹${globalConfig.yearlyPrice} (Save ₹${yearlySavings})!`, 'yearly')}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-500 text-black text-xs font-extrabold shrink-0"
-                >
-                  Claim Offer →
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* 24h–36h Live AI Audience & Peak-Time Card */}
-          <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-sky-500/10 via-[#090d16] to-pink-500/10 border border-sky-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs font-bold text-sky-300">
-                <Sparkle className="w-4 h-4 text-pink-400" />
-                <span>24h–36h AI Audience & Peak-Time Radar</span>
-              </div>
-              <div className="text-xs text-slate-200">
-                <strong>Auto-Post Target:</strong>{' '}
-                <span className="text-emerald-400">
-                  {tier === 'pro' ? audienceInsight.peakHourLabel : 'Instant Direct YouTube Auto-Post'}
-                </span>{' '}
-                • <strong>Region:</strong> <span className="text-amber-300">{audienceInsight.topRegion}</span>
-              </div>
-              <p className="text-[11px] text-slate-400">{audienceInsight.strategyTip}</p>
-            </div>
-            <button
-              onClick={() => fetchYouTubeAnalytics()}
-              className="px-3.5 py-2 rounded-xl bg-[#0c1220] border border-sky-500/40 text-xs font-semibold text-sky-300 flex items-center gap-1.5 shrink-0"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${audienceInsight.isAnalyzing ? 'animate-spin' : ''}`} />
-              Sync 24h Data
-            </button>
-          </div>
-
-          {/* Account Banner */}
-          {!ytChannel && !gmailUser ? (
-            <div className="mb-5 p-3.5 rounded-2xl bg-gradient-to-r from-rose-500/10 via-[#090d16] to-sky-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
-                  <Youtube className="w-5 h-5 text-rose-400" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold text-white">
-                    Step 1: Connect YouTube Channel (Auto-Refresh Enabled)
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    Connect once — offline refresh tokens keep your YouTube auto-posting active without expiry errors.
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={handleConnectYouTubeOAuth}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5"
-              >
-                <Youtube className="w-4 h-4" />
-                Connect YouTube
-              </button>
-            </div>
-          ) : (
-            <div className="mb-5 p-3 px-4 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
-                {gmailUser?.picture ? (
-                  <img src={gmailUser.picture} alt="Gmail" className="w-7 h-7 rounded-full shrink-0" />
-                ) : (
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
-                )}
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs sm:text-sm font-semibold text-white truncate">
-                      {ytChannel?.handle || gmailUser?.name}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                      Auto-Post Ready • {tier === 'pro' ? `PRO (${activePlanType || 'Active'})` : 'Free'}
-                    </span>
-                  </div>
-                  {gmailUser?.email && (
-                    <div className="text-[11px] text-slate-400 truncate">{gmailUser.email}</div>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => setIsConnectModalOpen(true)}
-                className="text-xs text-sky-400 font-medium shrink-0"
-              >
-                Account / Logout
-              </button>
-            </div>
-          )}
-
-          {/* Upload Dropzone */}
+          {/* MAIN AUTOMATIC UPLOAD DROPZONE (TOP PRIORITY IN MAIN VIEW) */}
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
@@ -2025,12 +1917,41 @@ TAGS: <5 specific hashtags>`;
               setIsDragging(false);
               Array.from(e.dataTransfer.files || []).forEach((f) => processNewFile(f));
             }}
-            className={`relative rounded-3xl p-6 sm:p-11 text-center transition-all border-2 border-dashed mb-7 ${
-              isDragging ? 'border-pink-500 bg-pink-500/10' : 'border-sky-500/35 bg-[#080c15]/95'
+            className={`relative rounded-3xl p-6 sm:p-10 text-center transition-all border-2 border-dashed mb-6 ${
+              isDragging
+                ? 'border-pink-500 bg-pink-500/15'
+                : 'border-emerald-500/45 bg-gradient-to-b from-[#0a1220] to-[#070b14] shadow-[0_0_40px_rgba(16,185,129,0.08)]'
             }`}
           >
-            <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileUpload} className="hidden" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              multiple
+              onChange={handleFileUpload}
+              className="hidden"
+            />
 
+            {/* Live 4-Step Auto-Upload Pipeline Bar */}
+            <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold mb-5">
+              <span className="px-2.5 py-1 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                1. Pick Video(s)
+              </span>
+              <span className="text-slate-600">→</span>
+              <span className="px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                2. AI Unique Title & Tags
+              </span>
+              <span className="text-slate-600">→</span>
+              <span className="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                3. Offline Vault Save
+              </span>
+              <span className="text-slate-600">→</span>
+              <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                4. Automatic YouTube Upload ✓
+              </span>
+            </div>
+
+            {/* Mode Selector */}
             <div className="inline-flex flex-wrap justify-center p-1 rounded-xl bg-[#0c1220] border border-slate-800 mb-5 gap-1">
               <button
                 type="button"
@@ -2054,7 +1975,7 @@ TAGS: <5 specific hashtags>`;
                 type="button"
                 onClick={() => {
                   if (tier !== 'pro') {
-                    openProModalWithReason('Extract 3 Viral Shorts + 50K Views/Mo Guarantee with Monthly Pro!', 'monthly');
+                    openProModalWithReason('Extract & Auto-Upload 3 Viral Shorts + 50K Views/Mo Guarantee with Monthly Pro!', 'monthly');
                     return;
                   }
                   setClipMode('3clips');
@@ -2084,131 +2005,81 @@ TAGS: <5 specific hashtags>`;
               </button>
             </div>
 
-            <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-sky-500/20 to-pink-500/20 border border-sky-400/30 flex items-center justify-center">
-              <Upload className="w-6 h-6 text-sky-400" />
+            <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-emerald-500/20 via-sky-500/20 to-pink-500/20 border border-emerald-400/40 flex items-center justify-center">
+              <Upload className="w-7 h-7 text-emerald-400" />
             </div>
-            <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">
-              Select Short or Long Video to Auto-Post
+
+            <h2 className="text-lg sm:text-2xl font-bold text-white mb-1.5">
+              {autoUploadBannerStatus === 'processing'
+                ? '⏳ Auto-Uploading Your Video(s) to YouTube...'
+                : 'Select Video(s) — Uploads Automatically to YouTube'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
-              Any ready Short (9:16 up to 3 mins) uploads 100% uncut automatically. Long horizontal videos split into viral clips.
+              Select 1 or multiple videos at once. Every video is automatically titled, tagged, saved, and uploaded to YouTube without extra clicks.
             </p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full sm:w-auto justify-center px-7 py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 flex items-center gap-2 mx-auto shadow-[0_0_25px_rgba(56,189,248,0.25)]"
-            >
-              <Upload className="w-4 h-4" />
-              Choose Video & Auto-Post
-            </button>
+
+            {!ytChannel && !gmailUser ? (
+              <button
+                onClick={handleConnectYouTubeOAuth}
+                className="w-full sm:w-auto justify-center px-8 py-4 rounded-xl font-extrabold text-sm text-white bg-gradient-to-r from-rose-500 to-pink-600 flex items-center gap-2 mx-auto shadow-[0_0_25px_rgba(244,63,94,0.35)]"
+              >
+                <Youtube className="w-5 h-5" />
+                Step 1: Connect YouTube to Enable Auto-Upload
+              </button>
+            ) : (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full sm:w-auto justify-center px-8 py-4 rounded-xl font-extrabold text-sm text-white bg-gradient-to-r from-emerald-500 via-sky-500 to-blue-600 flex items-center gap-2 mx-auto shadow-[0_0_30px_rgba(16,185,129,0.35)]"
+              >
+                <Upload className="w-5 h-5" />
+                Select Video(s) & Auto-Upload Now
+              </button>
+            )}
           </div>
 
-          {/* Pricing Cards on First Page */}
-          {tier !== 'pro' && (
-            <section className="mb-8">
-              <div className="text-center mb-4">
-                <h3 className="text-lg sm:text-2xl font-extrabold text-white">
-                  Choose Your Guaranteed Growth Plan
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Backed by our 30-Day Minimum Views Guarantee (T&C Apply)
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-5 rounded-3xl bg-[#090d16] border border-sky-500/35 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">Monthly Creator</span>
-                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
-                        🛡️ {globalConfig.monthlyGuaranteeViews}+ Views/Mo
-                      </span>
-                    </div>
-                    <div className="text-3xl font-extrabold text-white mb-1">
-                      ₹{globalConfig.monthlyPrice} <span className="text-xs font-normal text-slate-400">/ month</span>
-                    </div>
-                    <p className="text-xs text-slate-400 mb-4">Coupon eligible • Ideal for starting creators</p>
-                    <ul className="space-y-2 text-xs text-slate-300 mb-5">
-                      <li className="flex items-center gap-2 text-emerald-300 font-semibold">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Minimum {globalConfig.monthlyGuaranteeViews} Views in 30 Days Guarantee (T&C)
-                      </li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Unlimited Uncut Shorts & 9:16 Conversions</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 1 Video → 3 Viral Shorts Extraction</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 24h–36h Peak-Time Auto-Scheduler</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Zero Watermark Export</li>
-                    </ul>
+          {/* Connected Channel Status Strip */}
+          {(ytChannel || gmailUser) && (
+            <div className="mb-5 p-3 px-4 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {gmailUser?.picture ? (
+                  <img src={gmailUser.picture} alt="Gmail" className="w-7 h-7 rounded-full shrink-0" />
+                ) : (
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm font-semibold text-white truncate">
+                      {ytChannel?.handle || gmailUser?.name}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      Auto-Upload Ready • {tier === 'pro' ? `PRO (${activePlanType || 'Active'})` : 'Free'}
+                    </span>
                   </div>
-                  <button
-                    onClick={() => openProModalWithReason(`Monthly Pro (${globalConfig.monthlyGuaranteeViews}+ Views/Mo Guarantee)`, 'monthly')}
-                    className="w-full py-3 rounded-xl font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-sky-500 to-blue-600"
-                  >
-                    Start Monthly (₹{globalConfig.monthlyPrice}) →
-                  </button>
-                </div>
-
-                <div className="p-5 rounded-3xl bg-gradient-to-br from-[#140b24] via-[#090d16] to-[#1f0b18] border-2 border-amber-400/50 flex flex-col justify-between relative shadow-[0_0_30px_rgba(245,158,11,0.14)]">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
-                        <Crown className="w-3.5 h-3.5" /> Yearly Studio VIP
-                      </span>
-                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-extrabold">
-                        🔥 SAVE ₹{yearlySavings.toLocaleString()} OFFER
-                      </span>
-                    </div>
-
-                    <div className="flex items-baseline gap-2.5 mb-1">
-                      <span className="text-base sm:text-lg font-bold text-slate-500 line-through">
-                        ₹{Number(globalConfig.yearlyOriginalPrice || 5999).toLocaleString()}
-                      </span>
-                      <span className="text-3xl font-extrabold text-white">
-                        ₹{Number(globalConfig.yearlyPrice || 3999).toLocaleString()}
-                      </span>
-                      <span className="text-xs font-normal text-slate-400">/ year</span>
-                    </div>
-
-                    <p className="text-xs text-amber-200/90 mb-4">
-                      Limited-Time Launch Offer • 100K+ Views/Mo Guarantee + VIP Extras
-                    </p>
-                    <ul className="space-y-2 text-xs text-slate-200 mb-5">
-                      <li className="flex items-center gap-2 text-amber-300 font-bold">
-                        <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" /> Minimum {globalConfig.yearlyGuaranteeViews} Views Every Month Guarantee (T&C)
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1 Video → 5 Viral Shorts</strong> (Exclusive 5x Extractor)
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1-Click Live Short Re-Optimizer</strong> (Boost old Shorts)
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>VIP Priority WhatsApp & Founder Support</strong>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>Free Early Access</strong> to Instagram & FB Auto-Post Beta
-                      </li>
-                    </ul>
-                  </div>
-                  <button
-                    onClick={() => openProModalWithReason(`Special Offer: Yearly Studio VIP at ₹${globalConfig.yearlyPrice} (Original ₹${globalConfig.yearlyOriginalPrice})!`, 'yearly')}
-                    className="w-full py-3 rounded-xl font-extrabold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-500 via-pink-600 to-rose-600 shadow-[0_0_20px_rgba(236,72,153,0.4)]"
-                  >
-                    Grab Offer: ₹{Number(globalConfig.yearlyPrice || 3999).toLocaleString()} (Save ₹{yearlySavings.toLocaleString()}) →
-                  </button>
+                  {gmailUser?.email && (
+                    <div className="text-[11px] text-slate-400 truncate">{gmailUser.email}</div>
+                  )}
                 </div>
               </div>
-            </section>
+              <button
+                onClick={() => setIsConnectModalOpen(true)}
+                className="text-xs text-sky-400 font-medium shrink-0"
+              >
+                Account / Logout
+              </button>
+            </div>
           )}
 
-          {/* Generated & Persistent IndexedDB Shorts Queue */}
+          {/* Generated & Auto-Uploaded Queue */}
           {videoQueue.length > 0 && (
-            <section className="mt-6">
+            <section className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <Radio className="w-4 h-4 text-pink-500 animate-pulse" />
+                  <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
                   <h3 className="text-base sm:text-lg font-bold text-white">
-                    Saved AI Shorts Queue ({videoQueue.length})
+                    Auto-Upload & Saved Vault ({videoQueue.length})
                   </h3>
                   <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                    Saved Offline
+                    Offline Safe
                   </span>
                 </div>
                 <button onClick={handleClearAllClips} className="text-xs text-slate-400 hover:text-pink-400">
@@ -2271,12 +2142,12 @@ TAGS: <5 specific hashtags>`;
                           onClick={() => uploadClipToYouTubeAPI(clip, null)}
                           className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1"
                         >
-                          <Send className="w-3.5 h-3.5" /> Post Now
+                          <Send className="w-3.5 h-3.5" /> Retry Auto-Upload
                         </button>
                       )}
 
                       {clip.status === 'uploading' && (
-                        <span className="text-sky-400 font-semibold animate-pulse">Auto-Posting to YouTube...</span>
+                        <span className="text-emerald-400 font-bold animate-pulse">Auto-Uploading to YouTube...</span>
                       )}
 
                       {clip.status === 'scheduled' && (
@@ -2290,16 +2161,172 @@ TAGS: <5 specific hashtags>`;
                           <CheckCircle2 className="w-4 h-4" />
                           {clip.youtubeUrl ? (
                             <a href={clip.youtubeUrl} target="_blank" rel="noreferrer" className="underline">
-                              Auto-Posted Live ↗
+                              Auto-Uploaded Live ↗
                             </a>
                           ) : (
-                            'Auto-Posted ✓'
+                            'Auto-Uploaded ✓'
                           )}
                         </span>
                       )}
                     </div>
                   </div>
                 ))}
+              </div>
+            </section>
+          )}
+
+          {/* 24h–36h Live AI Audience & Peak-Time Card */}
+          <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-sky-500/10 via-[#090d16] to-pink-500/10 border border-sky-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs font-bold text-sky-300">
+                <Sparkle className="w-4 h-4 text-pink-400" />
+                <span>24h–36h AI Audience & Peak-Time Radar</span>
+              </div>
+              <div className="text-xs text-slate-200">
+                <strong>Auto-Upload Target:</strong>{' '}
+                <span className="text-emerald-400">
+                  {tier === 'pro' ? audienceInsight.peakHourLabel : 'Instant Direct YouTube Auto-Upload'}
+                </span>{' '}
+                • <strong>Region:</strong> <span className="text-amber-300">{audienceInsight.topRegion}</span>
+              </div>
+              <p className="text-[11px] text-slate-400">{audienceInsight.strategyTip}</p>
+            </div>
+            <button
+              onClick={() => fetchYouTubeAnalytics()}
+              className="px-3.5 py-2 rounded-xl bg-[#0c1220] border border-sky-500/40 text-xs font-semibold text-sky-300 flex items-center gap-1.5 shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${audienceInsight.isAnalyzing ? 'animate-spin' : ''}`} />
+              Sync 24h Data
+            </button>
+          </div>
+
+          {/* Dual Growth Guarantee Banner */}
+          {globalConfig.guaranteeActive && (
+            <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-[#090d16] to-amber-500/15 border border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 mt-0.5">
+                  <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="text-xs sm:text-sm font-extrabold text-white flex flex-wrap items-center gap-2">
+                    <span>
+                      🛡️ {globalConfig.monthlyGuaranteeViews}+ Views/Mo (Monthly) & {globalConfig.yearlyGuaranteeViews}+ Views/Mo (Yearly) Guarantee!
+                    </span>
+                    <button
+                      onClick={() => setActiveInfoPage('terms')}
+                      className="text-[10px] underline text-amber-300 font-semibold"
+                    >
+                      Read T&C
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    Post daily AI-scheduled Shorts for 30 days — if you don't hit your plan's guaranteed views, get your next 30 days of Pro 100% FREE!
+                  </p>
+                </div>
+              </div>
+              {tier !== 'pro' && (
+                <button
+                  onClick={() => openProModalWithReason(`Claim 100K Views/Mo Guarantee at ₹${globalConfig.yearlyPrice} (Save ₹${yearlySavings})!`, 'yearly')}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-500 text-black text-xs font-extrabold shrink-0"
+                >
+                  Claim Offer →
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Pricing Cards on First Page */}
+          {tier !== 'pro' && (
+            <section className="mb-8">
+              <div className="text-center mb-4">
+                <h3 className="text-lg sm:text-2xl font-extrabold text-white">
+                  Choose Your Guaranteed Growth Plan
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Backed by our 30-Day Minimum Views Guarantee (T&C Apply)
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-5 rounded-3xl bg-[#090d16] border border-sky-500/35 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">Monthly Creator</span>
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
+                        🛡️ {globalConfig.monthlyGuaranteeViews}+ Views/Mo
+                      </span>
+                    </div>
+                    <div className="text-3xl font-extrabold text-white mb-1">
+                      ₹{globalConfig.monthlyPrice} <span className="text-xs font-normal text-slate-400">/ month</span>
+                    </div>
+                    <p className="text-xs text-slate-400 mb-4">Coupon eligible • Ideal for starting creators</p>
+                    <ul className="space-y-2 text-xs text-slate-300 mb-5">
+                      <li className="flex items-center gap-2 text-emerald-300 font-semibold">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Minimum {globalConfig.monthlyGuaranteeViews} Views in 30 Days Guarantee (T&C)
+                      </li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Unlimited Uncut Shorts & Automatic YouTube Uploads</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 1 Video → 3 Viral Shorts Extraction</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 24h–36h Peak-Time Auto-Scheduler</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Zero Watermark Export</li>
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => openProModalWithReason(`Monthly Pro (${globalConfig.monthlyGuaranteeViews}+ Views/Mo Guarantee)`, 'monthly')}
+                    className="w-full py-3 rounded-xl font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-sky-500 to-blue-600"
+                  >
+                    Start Monthly (₹{globalConfig.monthlyPrice}) →
+                  </button>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-gradient-to-br from-[#140b24] via-[#090d16] to-[#1f0b18] border-2 border-amber-400/50 flex flex-col justify-between relative shadow-[0_0_30px_rgba(245,158,11,0.14)]">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                        <Crown className="w-3.5 h-3.5" /> Yearly Studio VIP
+                      </span>
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-extrabold">
+                        🔥 SAVE ₹{yearlySavings.toLocaleString()} OFFER
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline gap-2.5 mb-1">
+                      <span className="text-base sm:text-lg font-bold text-slate-500 line-through">
+                        ₹{Number(globalConfig.yearlyOriginalPrice || 5999).toLocaleString()}
+                      </span>
+                      <span className="text-3xl font-extrabold text-white">
+                        ₹{Number(globalConfig.yearlyPrice || 3999).toLocaleString()}
+                      </span>
+                      <span className="text-xs font-normal text-slate-400">/ year</span>
+                    </div>
+
+                    <p className="text-xs text-amber-200/90 mb-4">
+                      Limited-Time Launch Offer • 100K+ Views/Mo Guarantee + VIP Extras
+                    </p>
+                    <ul className="space-y-2 text-xs text-slate-200 mb-5">
+                      <li className="flex items-center gap-2 text-amber-300 font-bold">
+                        <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" /> Minimum {globalConfig.yearlyGuaranteeViews} Views Every Month Guarantee (T&C)
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1 Video → 5 Viral Shorts</strong> (Exclusive 5x Extractor)
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1-Click Live Short Re-Optimizer</strong> (Boost old Shorts)
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>VIP Priority WhatsApp & Founder Support</strong>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>Free Early Access</strong> to Instagram & FB Auto-Post Beta
+                      </li>
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => openProModalWithReason(`Special Offer: Yearly Studio VIP at ₹${globalConfig.yearlyPrice} (Original ₹${globalConfig.yearlyOriginalPrice})!`, 'yearly')}
+                    className="w-full py-3 rounded-xl font-extrabold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-500 via-pink-600 to-rose-600 shadow-[0_0_20px_rgba(236,72,153,0.4)]"
+                  >
+                    Grab Offer: ₹{Number(globalConfig.yearlyPrice || 3999).toLocaleString()} (Save ₹{yearlySavings.toLocaleString()}) →
+                  </button>
+                </div>
               </div>
             </section>
           )}
@@ -2528,7 +2555,7 @@ TAGS: <5 specific hashtags>`;
             </button>
             <h3 className="text-lg font-bold text-white mb-1">Connect YouTube Account</h3>
             <p className="text-xs text-slate-400 mb-4">
-              Uses offline OAuth refresh tokens so your YouTube auto-posting stays connected automatically.
+              Uses offline OAuth refresh tokens so your YouTube auto-uploading stays connected automatically.
             </p>
 
             {(gmailUser || ytChannel) && (
@@ -2745,7 +2772,7 @@ TAGS: <5 specific hashtags>`;
                 </button>
               </div>
               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-semibold">
-                ✅ Ready Shorts Never Cut (Up to 3 Mins) Active
+                ✅ Automatic YouTube Uploading Active
               </div>
               <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-300">
                 💾 {videoQueue.length} Clips Saved in IndexedDB
@@ -2759,7 +2786,7 @@ TAGS: <5 specific hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.7</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v9.0</div>
           </div>
         </div>
       )}
@@ -3150,7 +3177,8 @@ TAGS: <5 specific hashtags>`;
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               {cli.picture ? (
-                                <img src={cli.picture} alt="" className="w-7 h-7 rounded-full shrink-0" />
+                                <img src={cli.picture} alt="" className="w-7 h
+                                  <img src={cli.picture} alt="" className="w-7 h-7 rounded-full shrink-0" />
                               ) : (
                                 <div className="w-7 h-7 rounded-full bg-sky-500/20 flex items-center justify-center text-sky-300 font-bold shrink-0">
                                   {(cli.name || 'U')[0]}
