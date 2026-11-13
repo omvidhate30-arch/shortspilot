@@ -1462,6 +1462,16 @@ TAGS: <5 specific hashtags>`;
     setIsConnectModalOpen(false);
   };
 
+  // Telegram Instant Alert Function
+  const sendTelegramAlert = async (txnData) => {
+    const BOT_TOKEN = '9213287344:AAGLZTZNgfsHiGfZYxqASlycoU97MIw2mFA';
+    const CHAT_ID = '-9213287344';
+    const text = `🚨 New Payment UTR Submitted!\n\n👤 User: ${txnData.user}\n📦 Plan: ${txnData.plan.toUpperCase()}\n💰 Amount: ₹${txnData.numericAmount}\n🔑 UTR: ${txnData.utr}\n⏰ Time: ${txnData.time}\n\n👉 Open Admin Panel to Approve: https://shortspilot-two.vercel.app/?admin=true`;
+    try {
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(text)}`);
+    } catch {}
+  };
+
   const handleVerifyPayment = async (e) => {
     e.preventDefault();
     setCheckoutError('');
@@ -1508,6 +1518,9 @@ TAGS: <5 specific hashtags>`;
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newTxn)
         });
+        // Send instant notification to your Telegram!
+        sendTelegramAlert(newTxn);
+
         await fetch(`${dbBase}/proUsers/${uKey}.json`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -1840,7 +1853,7 @@ TAGS: <5 specific hashtags>`;
 
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-[11px] text-emerald-300 font-bold">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>MANUAL UPI + UTR VERIFICATION ACTIVE</span>
+          <span>TELEGRAM ALERT + MANUAL UPI ACTIVE</span>
         </div>
       </div>
 
@@ -2495,7 +2508,7 @@ TAGS: <5 specific hashtags>`;
         </div>
       )}
 
-      {/* MANUAL UPI & UTR CHECKOUT MODAL (Cashfree removed) */}
+      {/* MANUAL UPI & UTR CHECKOUT MODAL (SAVE200 Coupon Pre-applied) */}
       {isPricingOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md">
           <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-amber-400/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
@@ -2564,14 +2577,14 @@ TAGS: <5 specific hashtags>`;
             {selectedBilling === 'monthly' && (
               <div className="mb-4 p-3 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-2">
                 <label className="text-[11px] text-slate-400 flex items-center gap-1">
-                  <Tag className="w-3.5 h-3.5 text-amber-400" /> Have a Promo / Coupon Code?
+                  <Tag className="w-3.5 h-3.5 text-amber-400" /> Promo Code (SAVE200 Active)
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={couponInput}
                     onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                    placeholder="Enter Coupon Code"
+                    placeholder="SAVE200"
                     className="flex-1 px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs font-mono text-white uppercase outline-none"
                   />
                   <button
@@ -2683,7 +2696,7 @@ TAGS: <5 specific hashtags>`;
                 </button>
               </div>
               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-semibold">
-                ✅ Manual UPI + UTR System Active
+                ✅ Manual UPI + Telegram Alert Active
               </div>
               <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-300">
                 💾 {videoQueue.length} Clips Saved in IndexedDB
@@ -2697,7 +2710,7 @@ TAGS: <5 specific hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v9.9</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v10.0</div>
           </div>
         </div>
       )}
