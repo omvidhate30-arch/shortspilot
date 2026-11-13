@@ -108,6 +108,28 @@ const idbClearAllClips = async () => {
   }
 };
 
+// Detect if uploaded video is ALREADY a vertical/square Short (<= 185s / 3 mins)
+const inspectVideoProperties = (file) =>
+  new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const vid = document.createElement('video');
+    vid.preload = 'metadata';
+    vid.src = url;
+    vid.onloadedmetadata = () => {
+      const duration = vid.duration || 15;
+      const width = vid.videoWidth || 1080;
+      const height = vid.videoHeight || 1920;
+      const isVerticalOrSquare = height >= width;
+      const isAlreadyShort = isVerticalOrSquare && duration <= 185;
+      URL.revokeObjectURL(url);
+      resolve({ duration, width, height, isVerticalOrSquare, isAlreadyShort });
+    };
+    vid.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ duration: 15, width: 1080, height: 1920, isVerticalOrSquare: true, isAlreadyShort: false });
+    };
+  });
+
 function ShortsPilotLogo({ className = 'w-5 h-5' }) {
   return (
     <svg viewBox="0 0 64 64" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -178,7 +200,7 @@ export default function App() {
   const [quotaUsed, setQuotaUsed] = useState(0);
   const [videoQueue, setVideoQueue] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [clipMode, setClipMode] = useState('1clip'); // '1clip' | '3clips' | '5clips'
+  const [clipMode, setClipMode] = useState('fullshort'); // 'fullshort' | '1clip' | '3clips' | '5clips'
 
   // 24h-36h AI Audience & Peak-Time Insight State
   const [audienceInsight, setAudienceInsight] = useState({
@@ -474,7 +496,7 @@ export default function App() {
       setTier('free');
       setIsUserBanned(false);
       setActivePlanType('');
-      setClipMode('1clip');
+      setClipMode('fullshort');
       setQuotaUsed(Number(localStorage.getItem('sp_guest_quota') || 0));
       setPaymentStatusNote('');
       return;
@@ -508,12 +530,12 @@ export default function App() {
         registerClientInAdminDb(gmailUser, ytChannel, `pro (${plan})`);
       } else if (userData && userData.status === 'pending') {
         setTier('free');
-        setClipMode('1clip');
+        setClipMode('fullshort');
         setPaymentStatusNote('pending');
         registerClientInAdminDb(gmailUser, ytChannel, 'free (pending)');
       } else {
         setTier('free');
-        setClipMode('1clip');
+        setClipMode('fullshort');
         setPaymentStatusNote('');
         registerClientInAdminDb(gmailUser, ytChannel, 'free');
       }
@@ -678,7 +700,7 @@ export default function App() {
     setTier('free');
     setIsUserBanned(false);
     setActivePlanType('');
-    setClipMode('1clip');
+    setClipMode('fullshort');
     setPaymentStatusNote('');
     setYtStats({ subscribers: '—', totalViews: '—', videoCount: '—', country: 'IN', recentVideos: [], loading: false });
     localStorage.removeItem('sp_yt_channel');
@@ -808,7 +830,6 @@ export default function App() {
   // ============================================================================
   const buildUniqueDynamicMetadata = (rawName, partLabel, clipIndex = 0) => {
     const isIndia = (ytStats.country || 'IN') === 'IN';
-    // Clean filename noise (like VID_20261113_1234 or WhatsApp Video)
     let topic = (rawName || '')
       .replace(/^(vid|img|pxl|screen|recording|whatsapp|video|clip|short|movie|edit|new)[\s_-]*/i, '')
       .replace(/\b\d{6,}\b/g, '')
@@ -851,7 +872,6 @@ export default function App() {
     }
     usedTitlesHistoryRef.current.add(chosenTitle.toLowerCase());
 
-    // Build topic-specific + rotating diverse hashtag sets (never the exact same 4 tags)
     const words = topic
       .replace(/[^a-zA-Z0-9\s]/g, '')
       .split(/\s+/)
@@ -974,7 +994,7 @@ TAGS: <5 specific hashtags>`;
     return dynamicFallback;
   };
 
-  // 1-Click Live Short Title & Tag Re-Optimizer (with 401 Auto-Refresh)
+  // 1-Click Live Short Title & Tag Re-Optimizer
   const handleReOptimizeLiveVideo = async (vid, retryOn401 = true) => {
     if (tier !== 'pro') {
       openProModalWithReason('1-Click AI Title & Tag Boost for live Shorts requires Pro!');
@@ -1017,10 +1037,28 @@ TAGS: <5 specific hashtags>`;
     }
   };
 
-  // 9:16 Vertical Cropping WITH ORIGINAL SOUND
-  const renderVertical916WithAudio = async (file, clipId, startRatio = 0, maxClipSec = 12) => {
+  // 9:16 Vertical Cropping / Watermarking WITH ORIGINAL SOUND
+  // When preserveFullShort = true, it NEVER trims or splits the video!
+  const renderVertical916WithAudio = async (
+    file,
+    clipId,
+    startRatio = 0,
+    maxClipSec = 12,
+    preserveFullShort = false
+  ) => {
+    const videoUrl = URL.createObjectURL(file);
+
+    // For Pro users uploading an already-Short or choosing Full Short, pass untouched original file directly
+    if (preserveFullShort && tier === 'pro') {
+      return {
+        croppedUrl: videoUrl,
+        clipLength: Math.round(maxClipSec),
+        blob: file,
+        hasAudio: true
+      };
+    }
+
     return new Promise((resolve) => {
-      const videoUrl = URL.createObjectURL(file);
       const video = document.createElement('video');
       video.src = videoUrl;
       video.crossOrigin = 'anonymous';
@@ -1030,13 +1068,17 @@ TAGS: <5 specific hashtags>`;
       video.volume = 0.05;
 
       const safetyTimer = setTimeout(() => {
-        resolve({ croppedUrl: videoUrl, clipLength: maxClipSec, blob: file, hasAudio: true });
-      }, 22000);
+        resolve({ croppedUrl: videoUrl, clipLength: Math.round(maxClipSec), blob: file, hasAudio: true });
+      }, 95000);
 
       video.onloadedmetadata = () => {
         const duration = video.duration || 12;
-        const startOffset = Math.min(duration * startRatio, Math.max(0, duration - 5));
-        const clipLength = Math.min(maxClipSec, Math.max(3, duration - startOffset));
+        const startOffset = preserveFullShort
+          ? 0
+          : Math.min(duration * startRatio, Math.max(0, duration - 5));
+        const clipLength = preserveFullShort
+          ? duration
+          : Math.min(maxClipSec, Math.max(3, duration - startOffset));
 
         const canvas = document.createElement('canvas');
         canvas.width = 480;
@@ -1108,7 +1150,7 @@ TAGS: <5 specific hashtags>`;
             });
 
             const drawFrame = () => {
-              if (video.paused || video.ended || video.currentTime >= startOffset + clipLength) {
+              if (video.paused || video.ended || (!preserveFullShort && video.currentTime >= startOffset + clipLength)) {
                 video.pause();
                 if (recorder.state !== 'inactive') recorder.stop();
                 return;
@@ -1154,7 +1196,7 @@ TAGS: <5 specific hashtags>`;
 
       video.onerror = () => {
         clearTimeout(safetyTimer);
-        resolve({ croppedUrl: videoUrl, clipLength: maxClipSec, blob: file, hasAudio: true });
+        resolve({ croppedUrl: videoUrl, clipLength: Math.round(maxClipSec), blob: file, hasAudio: true });
       };
     });
   };
@@ -1284,7 +1326,7 @@ TAGS: <5 specific hashtags>`;
     }, 900);
   };
 
-  // Core Pipeline: 1-Clip (Free), 3-Clips (Monthly Pro), 5-Clips (Yearly VIP) + Unique Metadata + IndexedDB + Auto-Post
+  // Core Pipeline: NEVER cuts an already-Short (<= 3 min vertical) or when Full Short mode is selected
   const processNewFile = async (file) => {
     if (isUserBanned) {
       alert('Your account has been suspended by Admin. Contact support.');
@@ -1313,35 +1355,54 @@ TAGS: <5 specific hashtags>`;
       }
     }
 
-    let segments = [{ label: 'Highlight Cut', ratio: 0.10, score: '9.5/10' }];
-    if (tier === 'pro' && clipMode === '5clips') {
+    const vidInfo = await inspectVideoProperties(file);
+
+    let segments = [];
+    // If video is ALREADY a vertical/square Short (up to 3 mins / 185s) OR user chose 'fullshort', NEVER cut it!
+    if (vidInfo.isAlreadyShort || clipMode === 'fullshort') {
       segments = [
-        { label: 'Part 1: Opening Hook', ratio: 0.02, score: '9.8/10' },
-        { label: 'Part 2: Rising Action', ratio: 0.22, score: '9.5/10' },
-        { label: 'Part 3: Peak Climax', ratio: 0.44, score: '9.7/10' },
-        { label: 'Part 4: Plot Twist', ratio: 0.65, score: '9.4/10' },
-        { label: 'Part 5: Viral Finale', ratio: 0.82, score: '9.6/10' }
+        {
+          label: 'Full Short (Uncut)',
+          ratio: 0,
+          score: '9.8/10',
+          preserveFullShort: true,
+          fullDuration: vidInfo.duration
+        }
+      ];
+    } else if (tier === 'pro' && clipMode === '5clips') {
+      segments = [
+        { label: 'Part 1: Opening Hook', ratio: 0.02, score: '9.8/10', preserveFullShort: false },
+        { label: 'Part 2: Rising Action', ratio: 0.22, score: '9.5/10', preserveFullShort: false },
+        { label: 'Part 3: Peak Climax', ratio: 0.44, score: '9.7/10', preserveFullShort: false },
+        { label: 'Part 4: Plot Twist', ratio: 0.65, score: '9.4/10', preserveFullShort: false },
+        { label: 'Part 5: Viral Finale', ratio: 0.82, score: '9.6/10', preserveFullShort: false }
       ];
     } else if (tier === 'pro' && clipMode === '3clips') {
       segments = [
-        { label: 'Part 1: Viral Hook', ratio: 0.02, score: '9.7/10' },
-        { label: 'Part 2: Peak Climax', ratio: 0.36, score: '9.4/10' },
-        { label: 'Part 3: Best Ending', ratio: 0.70, score: '9.2/10' }
+        { label: 'Part 1: Viral Hook', ratio: 0.02, score: '9.7/10', preserveFullShort: false },
+        { label: 'Part 2: Peak Climax', ratio: 0.36, score: '9.4/10', preserveFullShort: false },
+        { label: 'Part 3: Best Ending', ratio: 0.70, score: '9.2/10', preserveFullShort: false }
       ];
+    } else {
+      segments = [{ label: 'Highlight Cut', ratio: 0.10, score: '9.5/10', preserveFullShort: false }];
     }
 
     for (let idx = 0; idx < segments.length; idx++) {
       const seg = segments[idx];
       const clipId = Date.now() + Math.random();
+      const mins = Math.floor((seg.fullDuration || 12) / 60);
+      const secs = Math.round((seg.fullDuration || 12) % 60);
+
       setVideoQueue((prev) => [
         {
           id: clipId,
           title: `${baseName} — ${seg.label}`,
           hashtags: '#Shorts #Explore #MustWatch',
           status: 'cropping',
-          progress: 15,
+          progress: seg.preserveFullShort ? 50 : 15,
           hookScore: seg.score,
-          duration: '0:12',
+          duration: seg.preserveFullShort ? `${mins}:${String(secs).padStart(2, '0')}` : '0:12',
+          isFullShort: seg.preserveFullShort,
           croppedUrl: null,
           blob: file,
           hasAudio: true,
@@ -1352,7 +1413,13 @@ TAGS: <5 specific hashtags>`;
 
       const [aiMeta, renderResult] = await Promise.all([
         generateViralMetadataWithAI(baseName, seg.label, idx),
-        renderVertical916WithAudio(file, clipId, seg.ratio, 12)
+        renderVertical916WithAudio(
+          file,
+          clipId,
+          seg.ratio,
+          seg.preserveFullShort ? seg.fullDuration : 12,
+          seg.preserveFullShort
+        )
       ]);
 
       setStorageUsedGB((prev) => Number((prev + 0.02).toFixed(2)));
@@ -1362,6 +1429,9 @@ TAGS: <5 specific hashtags>`;
         setScheduleTimes((prev) => ({ ...prev, [clipId]: autoTargetTime }));
       }
 
+      const rMins = Math.floor(renderResult.clipLength / 60);
+      const rSecs = Math.round(renderResult.clipLength % 60);
+
       const readyClip = {
         id: clipId,
         title: aiMeta.title,
@@ -1369,7 +1439,8 @@ TAGS: <5 specific hashtags>`;
         status: 'ready',
         progress: 100,
         hookScore: seg.score,
-        duration: `0:${String(renderResult.clipLength).padStart(2, '0')}`,
+        duration: `${rMins}:${String(rSecs).padStart(2, '0')}`,
+        isFullShort: seg.preserveFullShort,
         croppedUrl: renderResult.croppedUrl,
         blob: renderResult.blob,
         hasAudio: renderResult.hasAudio,
@@ -1519,7 +1590,7 @@ TAGS: <5 specific hashtags>`;
       if (gmailUser?.email === clientObj.email) {
         setTier(targetTier);
         setActivePlanType(planType);
-        setClipMode(targetTier === 'pro' ? (planType === 'yearly' ? '5clips' : '3clips') : '1clip');
+        setClipMode(targetTier === 'pro' ? (planType === 'yearly' ? '5clips' : '3clips') : 'fullshort');
       }
       fetchFirebaseAll();
       alert(`✅ ${clientObj.email} is now set to ${targetTier.toUpperCase()}!`);
@@ -1807,7 +1878,7 @@ TAGS: <5 specific hashtags>`;
 
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-300 font-semibold">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>Unique AI Captions & Auto-Refresh Active</span>
+          <span>Ready Shorts Post Uncut (Up to 3 Mins)</span>
         </div>
       </div>
 
@@ -1817,7 +1888,7 @@ TAGS: <5 specific hashtags>`;
           <div className="text-center max-w-2xl mx-auto mb-5">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] sm:text-xs font-semibold mb-3">
               <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>Select Video → Unique AI Title & Tags → Auto-Posts to YouTube</span>
+              <span>Ready Shorts Never Cut • Long Videos Auto-Split into Clips</span>
             </div>
             <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
               1 Video →{' '}
@@ -1826,7 +1897,7 @@ TAGS: <5 specific hashtags>`;
               </span>
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm mb-3">
-              Tracks 24h–36h audience & peak hours, writes fresh unique titles & tags for every clip, and automatically publishes to YouTube.
+              Upload an existing Short (posted full & uncut!) or a long video (auto-cropped into 9:16 viral clips) with unique AI titles & hashtags.
             </p>
           </div>
 
@@ -1963,12 +2034,21 @@ TAGS: <5 specific hashtags>`;
             <div className="inline-flex flex-wrap justify-center p-1 rounded-xl bg-[#0c1220] border border-slate-800 mb-5 gap-1">
               <button
                 type="button"
+                onClick={() => setClipMode('fullshort')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  clipMode === 'fullshort' ? 'bg-emerald-600 text-white' : 'text-emerald-300'
+                }`}
+              >
+                Full Short (No Cut)
+              </button>
+              <button
+                type="button"
                 onClick={() => setClipMode('1clip')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   clipMode === '1clip' ? 'bg-sky-600 text-white' : 'text-slate-400'
                 }`}
               >
-                1 Clip (Free)
+                1 Clip Cut (Free)
               </button>
               <button
                 type="button"
@@ -2008,10 +2088,10 @@ TAGS: <5 specific hashtags>`;
               <Upload className="w-6 h-6 text-sky-400" />
             </div>
             <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">
-              Select Video to Auto-Post on YouTube
+              Select Short or Long Video to Auto-Post
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
-              Automatically crops to 9:16 with original audio, writes unique viral title & niche hashtags for every Short, and auto-posts to YouTube.
+              Any ready Short (9:16 up to 3 mins) uploads 100% uncut automatically. Long horizontal videos split into viral clips.
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -2051,7 +2131,7 @@ TAGS: <5 specific hashtags>`;
                       <li className="flex items-center gap-2 text-emerald-300 font-semibold">
                         <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Minimum {globalConfig.monthlyGuaranteeViews} Views in 30 Days Guarantee (T&C)
                       </li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Unlimited 9:16 Conversions + Original Audio</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Unlimited Uncut Shorts & 9:16 Conversions</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 1 Video → 3 Viral Shorts Extraction</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 24h–36h Peak-Time Auto-Scheduler</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Zero Watermark Export</li>
@@ -2146,7 +2226,7 @@ TAGS: <5 specific hashtags>`;
                             Hook {clip.hookScore}
                           </span>
                           <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                            <Volume2 className="w-3 h-3" /> Audio ON
+                            <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Full Short (Uncut)' : 'Audio ON'}
                           </span>
                         </div>
                         <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
@@ -2183,7 +2263,7 @@ TAGS: <5 specific hashtags>`;
                           <Download className="w-3.5 h-3.5 text-sky-400" /> Save
                         </a>
                       ) : (
-                        <span className="text-slate-400">Rendering {clip.progress}%...</span>
+                        <span className="text-slate-400">Processing {clip.progress}%...</span>
                       )}
 
                       {clip.status === 'ready' && (
@@ -2665,7 +2745,7 @@ TAGS: <5 specific hashtags>`;
                 </button>
               </div>
               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-semibold">
-                ✅ Unique AI Captions & Auto-Refresh Active
+                ✅ Ready Shorts Never Cut (Up to 3 Mins) Active
               </div>
               <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-300">
                 💾 {videoQueue.length} Clips Saved in IndexedDB
@@ -2679,7 +2759,7 @@ TAGS: <5 specific hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.5</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.7</div>
           </div>
         </div>
       )}
@@ -3202,7 +3282,7 @@ TAGS: <5 specific hashtags>`;
                       const nextTier = tier === 'pro' ? 'free' : 'pro';
                       setTier(nextTier);
                       setActivePlanType('yearly');
-                      setClipMode(nextTier === 'pro' ? '5clips' : '1clip');
+                      setClipMode(nextTier === 'pro' ? '5clips' : 'fullshort');
                       setQuotaUsed(0);
                     }}
                     className="px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 flex items-center gap-1"
