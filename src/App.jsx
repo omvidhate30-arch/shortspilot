@@ -2337,7 +2337,170 @@ TAGS: <5 specific hashtags>`;
         </main>
       )}
 
-      {/* Pro Upgrade & Manual UPI Checkout Modal */}
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-slate-800/80 bg-[#05070c] py-6 px-4 text-center text-xs text-slate-400">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ShortsPilotLogo className="w-4 h-4" />
+            <span className="font-semibold text-slate-300">ShortsPilot AI Studio</span>
+            <span>© {new Date().getFullYear()}</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
+            <button onClick={() => setActiveInfoPage('about')} className="hover:text-sky-400">About Us</button>
+            <button onClick={() => setActiveInfoPage('privacy')} className="hover:text-sky-400">Privacy Policy</button>
+            <button onClick={() => setActiveInfoPage('terms')} className="hover:text-amber-300 text-amber-300/90 font-semibold">
+              Terms & 50K/100K Guarantee T&C
+            </button>
+            <button onClick={() => setActiveInfoPage('refund')} className="hover:text-sky-400">Refund & Cancellation</button>
+            <a href={`mailto:${globalConfig.supportEmail}`} className="hover:text-sky-400 flex items-center gap-1">
+              <Mail className="w-3 h-3" /> {globalConfig.supportEmail}
+            </a>
+          </div>
+        </div>
+      </footer>
+
+      {/* Legal Pages Modal */}
+      {activeInfoPage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-lg rounded-3xl bg-[#080c15] border border-sky-500/30 p-6 max-h-[85vh] overflow-y-auto space-y-3">
+            <button onClick={() => setActiveInfoPage(null)} className="absolute top-4 right-4 p-2 text-slate-400">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2 text-sky-400 font-bold text-base">
+              <FileText className="w-5 h-5" />
+              <span>
+                {activeInfoPage === 'about' && 'About ShortsPilot AI Studio'}
+                {activeInfoPage === 'privacy' && 'Privacy Policy'}
+                {activeInfoPage === 'terms' && 'Terms & Conditions (Views Guarantee Policy)'}
+                {activeInfoPage === 'refund' && 'Refund & Cancellation Policy'}
+              </span>
+            </div>
+            <div className="text-xs text-slate-300 leading-relaxed space-y-2.5">
+              {activeInfoPage === 'about' && (
+                <>
+                  <p>
+                    ShortsPilot is an AI-powered SaaS studio designed for YouTube creators to automatically convert long videos into high-retention 9:16 vertical Shorts with original audio, AI-generated viral metadata, and daily peak-time YouTube auto-scheduling.
+                  </p>
+                  <p><strong>Contact Support:</strong> {globalConfig.supportEmail}</p>
+                </>
+              )}
+              {activeInfoPage === 'privacy' && (
+                <>
+                  <p>
+                    We respect creator privacy. When you connect your YouTube account, ShortsPilot only requests permissions required to view your YouTube channel analytics and auto-publish Shorts on your behalf.
+                  </p>
+                  <p>
+                    We never sell your email, channel tokens, or video files to third parties. Videos are processed directly in your browser.
+                  </p>
+                </>
+              )}
+              {activeInfoPage === 'terms' && (
+                <>
+                  <p className="text-amber-300 font-semibold">
+                    30-Day Minimum Views Guarantee — Terms & Conditions:
+                  </p>
+                  <ul className="list-disc pl-4 space-y-1.5 text-slate-300">
+                    <li>
+                      <strong>Monthly Plan (₹{globalConfig.monthlyPrice}/mo):</strong> Minimum <strong>{globalConfig.monthlyGuaranteeViews} total views</strong> within 30 days of active Pro subscription.
+                    </li>
+                    <li>
+                      <strong>Yearly VIP Plan (₹{globalConfig.yearlyPrice}/yr):</strong> Minimum <strong>{globalConfig.yearlyGuaranteeViews} total views per 30-day cycle</strong>.
+                    </li>
+                    <li>
+                      <strong>Mandatory Posting Requirement:</strong> Creator must publish at least <strong>1 Short per day (minimum 30 Shorts in 30 days)</strong> using ShortsPilot's AI Peak-Time Auto-Scheduler.
+                    </li>
+                    <li>
+                      <strong>Original & Policy-Compliant Content:</strong> Videos must be public, original, and free from YouTube Community Guideline or Copyright strikes. Deleted or private videos are excluded.
+                    </li>
+                    <li>
+                      <strong>Guarantee Remedy:</strong> If all conditions above are met and the channel still receives fewer than the guaranteed views, ShortsPilot will extend your Pro subscription for the <strong>next 30 days 100% FREE</strong> upon verification at {globalConfig.supportEmail}.
+                    </li>
+                  </ul>
+                </>
+              )}
+              {activeInfoPage === 'refund' && (
+                <>
+                  <p>
+                    You may cancel your subscription renewal at any time by contacting {globalConfig.supportEmail}.
+                  </p>
+                  <p>
+                    Under our 30-Day Views Guarantee, eligible creators who meet the daily posting criteria receive a free 30-day Pro extension. Technical billing errors are refunded 100% within 5–7 business days.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clip Preview Modal */}
+      {previewClip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
+          <div className="relative w-full max-w-[300px] rounded-3xl bg-[#080c15] border border-sky-500/30 p-3">
+            <button
+              onClick={() => setPreviewClip(null)}
+              className="absolute -top-3 -right-3 p-2.5 rounded-full bg-slate-900 border border-slate-700 text-white z-10"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <video src={previewClip.croppedUrl} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
+          </div>
+        </div>
+      )}
+
+      {/* Connect YouTube Modal */}
+      {isConnectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-rose-500/35 p-5 sm:p-7">
+            <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400">
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-lg font-bold text-white mb-1">Connect YouTube Account</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Uses offline OAuth refresh tokens so your YouTube auto-uploading stays connected automatically.
+            </p>
+
+            {(gmailUser || ytChannel) && (
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 mb-4 flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-white truncate">{ytChannel?.handle || gmailUser?.name}</div>
+                  <div className="text-[11px] text-emerald-300 truncate">{gmailUser?.email}</div>
+                </div>
+                <button
+                  onClick={handleDisconnectAll}
+                  className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 text-xs font-semibold"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleConnectYouTubeOAuth}
+              className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-sky-500 to-blue-600 flex items-center justify-center gap-2 mb-4"
+            >
+              <Youtube className="w-4 h-4" /> Connect YouTube (OAuth Auto-Refresh)
+            </button>
+
+            <form onSubmit={handleQuickConnectYouTube} className="space-y-2.5">
+              <input
+                type="text"
+                value={ytHandleInput}
+                onChange={(e) => setYtHandleInput(e.target.value)}
+                placeholder="@YourChannelHandle"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 text-sm text-white outline-none"
+              />
+              {connectError && <p className="text-xs text-rose-400">{connectError}</p>}
+              <button type="submit" className="w-full py-2.5 rounded-xl font-semibold text-xs text-white bg-rose-600">
+                Save Channel Handle
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MANUAL UPI & UTR CHECKOUT MODAL (Cashfree removed) */}
       {isPricingOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md">
           <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-amber-400/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
