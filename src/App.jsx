@@ -6,7 +6,7 @@ import {
   Megaphone, Wrench, IndianRupee, BarChart3, Calendar,
   Clock, Eye, ThumbsUp, Users, Bot, Volume2, ExternalLink,
   Crown, Flame, Award, Check, Hourglass, Tag,
-  FileText, Mail, Globe, Sparkle, Ban, UserPlus, Bell, KeyRound
+  FileText, Mail, Globe, Sparkle, Ban, UserPlus, Bell, KeyRound, ShieldCheck
 } from 'lucide-react';
 
 const DEFAULT_GOOGLE_CLIENT_ID = '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
@@ -56,9 +56,12 @@ export default function App() {
     couponCode: '',
     couponDiscount: '200',
     freeLimit: 3,
-    heroHeadline: '3 Viral Shorts Auto-Posted',
+    heroHeadline: 'Viral Shorts Auto-Posted',
     watermarkText: 'Made with ShortsPilot',
-    bannerText: '🚀 ShortsPilot v8.0: 100% Hands-Free Auto-Post & 24h AI Peak-Time Scheduler Live!',
+    guaranteeActive: true,
+    monthlyGuaranteeViews: '50K',
+    yearlyGuaranteeViews: '100K',
+    bannerText: '🛡️ Growth Guarantee: 50K+ Views/Mo on Monthly & 100K+ Views/Mo on Yearly Pro (T&C Apply)!',
     bannerActive: true,
     broadcastAlertText: '',
     broadcastAlertActive: false,
@@ -77,12 +80,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('studio');
   const [tier, setTier] = useState('free');
   const [isUserBanned, setIsUserBanned] = useState(false);
-  const [activePlanType, setActivePlanType] = useState('');
+  const [activePlanType, setActivePlanType] = useState(''); // 'monthly' | 'yearly'
   const [paymentStatusNote, setPaymentStatusNote] = useState('');
   const [quotaUsed, setQuotaUsed] = useState(0);
   const [videoQueue, setVideoQueue] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [clipMode, setClipMode] = useState('1clip');
+  const [clipMode, setClipMode] = useState('1clip'); // '1clip' | '3clips' | '5clips'
 
   // 24h-36h AI Audience & Peak-Time Insight State
   const [audienceInsight, setAudienceInsight] = useState({
@@ -125,7 +128,7 @@ export default function App() {
   const [connectError, setConnectError] = useState('');
 
   const [isPricingOpen, setIsPricingOpen] = useState(false);
-  const [selectedBilling, setSelectedBilling] = useState('monthly');
+  const [selectedBilling, setSelectedBilling] = useState('yearly');
   const [couponInput, setCouponInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponMsg, setCouponMsg] = useState('');
@@ -143,7 +146,7 @@ export default function App() {
   // Owner Control Center State
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
-  const [adminSubTab, setAdminSubTab] = useState('controls'); // 'controls' | 'clients' | 'payments' | 'site'
+  const [adminSubTab, setAdminSubTab] = useState('controls');
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
   const [manualProEmail, setManualProEmail] = useState('');
@@ -229,11 +232,12 @@ export default function App() {
       }
 
       if (userData && userData.tier === 'pro') {
+        const plan = userData.plan || 'monthly';
         setTier('pro');
-        setActivePlanType(userData.plan || 'monthly');
-        setClipMode('3clips');
+        setActivePlanType(plan);
+        setClipMode(plan === 'yearly' ? '5clips' : '3clips');
         setPaymentStatusNote('');
-        registerClientInAdminDb(gmailUser, ytChannel, 'pro');
+        registerClientInAdminDb(gmailUser, ytChannel, `pro (${plan})`);
       } else if (userData && userData.status === 'pending') {
         setTier('free');
         setClipMode('1clip');
@@ -289,12 +293,13 @@ export default function App() {
     setCouponMsg(`🎉 Coupon "${configuredCode}" applied! ₹${globalConfig.couponDiscount} OFF.`);
   };
 
-  const openProModalWithReason = (reasonText = '') => {
+  const openProModalWithReason = (reasonText = '', preferredPlan = null) => {
     if (!gmailUser?.email) {
-      setConnectError('Please sign in with Google first so your Pro plan saves to your Gmail account.');
+      setConnectError('Please sign in with Google first so your Pro plan & Views Guarantee link to your Gmail.');
       setIsConnectModalOpen(true);
       return;
     }
+    if (preferredPlan) setSelectedBilling(preferredPlan);
     setCheckoutError('');
     setCheckoutPendingMsg('');
     setUpgradeReason(reasonText);
@@ -323,7 +328,8 @@ export default function App() {
           })
         }).then(() => {
           setTier('pro');
-          setClipMode('3clips');
+          setActivePlanType(planParam);
+          setClipMode(planParam === 'yearly' ? '5clips' : '3clips');
           alert(`🎉 Cashfree Payment Confirmed! ShortsPilot Pro unlocked for ${savedUser.email}.`);
         });
       }
@@ -713,7 +719,7 @@ TAGS: <hashtags>`;
     }
   };
 
-  // 9:16 Vertical Cropping WITH ORIGINAL SOUND & Custom Admin Watermark
+  // 9:16 Vertical Cropping WITH ORIGINAL SOUND
   const renderVertical916WithAudio = async (file, clipId, startRatio = 0, maxClipSec = 12) => {
     return new Promise((resolve) => {
       const videoUrl = URL.createObjectURL(file);
@@ -955,7 +961,7 @@ TAGS: <hashtags>`;
     }, 900);
   };
 
-  // Core Pipeline: Render 9:16 + AI Metadata + AUTOMATIC YOUTUBE POSTING
+  // Core Pipeline: 1-Clip (Free), 3-Clips (Monthly Pro), 5-Clips (Yearly Pro) + Auto-Post
   const processNewFile = async (file) => {
     if (isUserBanned) {
       alert('Your account has been suspended by Admin. Contact support.');
@@ -984,14 +990,22 @@ TAGS: <hashtags>`;
       }
     }
 
-    const segments =
-      clipMode === '3clips' && tier === 'pro'
-        ? [
-            { label: 'Part 1: Viral Hook', ratio: 0.02, score: '9.7/10' },
-            { label: 'Part 2: Peak Climax', ratio: 0.36, score: '9.4/10' },
-            { label: 'Part 3: Best Ending', ratio: 0.70, score: '9.2/10' }
-          ]
-        : [{ label: 'Highlight Cut', ratio: 0.10, score: '9.5/10' }];
+    let segments = [{ label: 'Highlight Cut', ratio: 0.10, score: '9.5/10' }];
+    if (tier === 'pro' && clipMode === '5clips') {
+      segments = [
+        { label: 'Part 1: Opening Hook', ratio: 0.02, score: '9.8/10' },
+        { label: 'Part 2: Rising Action', ratio: 0.22, score: '9.5/10' },
+        { label: 'Part 3: Peak Climax', ratio: 0.44, score: '9.7/10' },
+        { label: 'Part 4: Plot Twist', ratio: 0.65, score: '9.4/10' },
+        { label: 'Part 5: Viral Finale', ratio: 0.82, score: '9.6/10' }
+      ];
+    } else if (tier === 'pro' && clipMode === '3clips') {
+      segments = [
+        { label: 'Part 1: Viral Hook', ratio: 0.02, score: '9.7/10' },
+        { label: 'Part 2: Peak Climax', ratio: 0.36, score: '9.4/10' },
+        { label: 'Part 3: Best Ending', ratio: 0.70, score: '9.2/10' }
+      ];
+    }
 
     for (const seg of segments) {
       const clipId = Date.now() + Math.random();
@@ -1155,14 +1169,14 @@ TAGS: <hashtags>`;
 
     setPaymentStatusNote('pending');
     setCheckoutPendingMsg(
-      '⏳ UTR Submitted! Pro will unlock automatically within 1–2 minutes once verified by Admin.'
+      '⏳ UTR Submitted! Pro & Views Guarantee will unlock automatically within 1–2 minutes once verified.'
     );
     setUtrNumber('');
     fetchFirebaseAll();
   };
 
-  // Admin: Direct Client Plan Toggle (Make PRO / Set Free)
-  const handleAdminSetClientTier = async (clientObj, targetTier) => {
+  // Admin: Direct Client Plan Toggle
+  const handleAdminSetClientTier = async (clientObj, targetTier, planType = 'yearly') => {
     if (!dbBase || !clientObj?.email) return;
     const uKey = clientObj.id || emailToKey(clientObj.email);
     try {
@@ -1173,7 +1187,7 @@ TAGS: <hashtags>`;
           body: JSON.stringify({
             email: clientObj.email,
             tier: targetTier,
-            plan: targetTier === 'pro' ? 'admin_granted' : '',
+            plan: targetTier === 'pro' ? planType : '',
             status: targetTier === 'pro' ? 'verified' : 'free',
             updatedAt: new Date().toISOString()
           })
@@ -1186,7 +1200,8 @@ TAGS: <hashtags>`;
       ]);
       if (gmailUser?.email === clientObj.email) {
         setTier(targetTier);
-        setClipMode(targetTier === 'pro' ? '3clips' : '1clip');
+        setActivePlanType(planType);
+        setClipMode(targetTier === 'pro' ? (planType === 'yearly' ? '5clips' : '3clips') : '1clip');
       }
       fetchFirebaseAll();
       alert(`✅ ${clientObj.email} is now set to ${targetTier.toUpperCase()}!`);
@@ -1195,7 +1210,6 @@ TAGS: <hashtags>`;
     }
   };
 
-  // Admin: Ban / Unban Client
   const handleAdminToggleBanClient = async (clientObj) => {
     if (!dbBase || !clientObj?.email) return;
     const uKey = clientObj.id || emailToKey(clientObj.email);
@@ -1210,7 +1224,6 @@ TAGS: <hashtags>`;
     } catch {}
   };
 
-  // Admin: Manual Grant Pro by Email
   const handleManualGrantPro = async (e) => {
     e.preventDefault();
     const cleanEmail = manualProEmail.trim().toLowerCase();
@@ -1219,13 +1232,14 @@ TAGS: <hashtags>`;
       return;
     }
     const uKey = emailToKey(cleanEmail);
-    await handleAdminSetClientTier({ id: uKey, email: cleanEmail }, 'pro');
+    await handleAdminSetClientTier({ id: uKey, email: cleanEmail }, 'pro', 'yearly');
     setManualProEmail('');
   };
 
   const handleAdminApproveTxn = async (txn) => {
     if (!dbBase) return;
     try {
+      const planType = txn.plan || 'monthly';
       if (txn.firebaseKey) {
         await fetch(`${dbBase}/transactions/${txn.firebaseKey}.json`, {
           method: 'PATCH',
@@ -1240,7 +1254,7 @@ TAGS: <hashtags>`;
           body: JSON.stringify({
             email: txn.user,
             tier: 'pro',
-            plan: txn.plan || 'monthly',
+            plan: planType,
             status: 'verified',
             utr: txn.utr,
             verifiedAt: new Date().toISOString()
@@ -1254,7 +1268,8 @@ TAGS: <hashtags>`;
       }
       if (gmailUser?.email === txn.user) {
         setTier('pro');
-        setClipMode('3clips');
+        setActivePlanType(planType);
+        setClipMode(planType === 'yearly' ? '5clips' : '3clips');
         setPaymentStatusNote('');
       }
       fetchFirebaseAll();
@@ -1308,7 +1323,7 @@ TAGS: <hashtags>`;
         body: JSON.stringify(globalConfig)
       });
       if (!res.ok) throw new Error('Firebase permission error');
-      alert('✅ Live Updated! All website controls & settings are now live.');
+      alert('✅ Live Updated! All website controls & guarantees are now live.');
     } catch {
       alert('Check Firebase Realtime Database Rules (.read: true, .write: true).');
     } finally {
@@ -1327,7 +1342,6 @@ TAGS: <hashtags>`;
     }
   };
 
-  // Calculate Total Verified Revenue for Admin KPI
   const totalVerifiedRevenue = transactions
     .filter((t) => t.status === 'Verified')
     .reduce((sum, t) => sum + (Number(t.numericAmount) || 499), 0);
@@ -1349,7 +1363,7 @@ TAGS: <hashtags>`;
 
   return (
     <div className="min-h-screen w-full max-w-[100vw] bg-[#06080d] text-slate-100 font-sans relative overflow-x-hidden flex flex-col">
-      {/* Live Broadcast Alert Popup from Admin */}
+      {/* Live Broadcast Alert Popup */}
       {globalConfig.broadcastAlertActive && globalConfig.broadcastAlertText && !dismissedBroadcast && (
         <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:max-w-sm z-40 p-4 rounded-2xl bg-[#0c1324] border border-amber-400/50 shadow-2xl flex items-start justify-between gap-3">
           <div className="flex items-start gap-2.5">
@@ -1368,7 +1382,7 @@ TAGS: <hashtags>`;
       {/* Top Banner */}
       {globalConfig.bannerActive && globalConfig.bannerText && (
         <div
-          onClick={() => tier !== 'pro' && openProModalWithReason('Upgrade to ShortsPilot Pro!')}
+          onClick={() => tier !== 'pro' && openProModalWithReason('Unlock Guaranteed Monthly Views with ShortsPilot Pro!')}
           className="w-full bg-gradient-to-r from-sky-600 via-blue-600 to-pink-600 text-white text-[11px] sm:text-xs font-semibold py-2 px-3 text-center cursor-pointer"
         >
           {globalConfig.bannerText}
@@ -1416,7 +1430,7 @@ TAGS: <hashtags>`;
             {tier === 'pro' ? (
               <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-pink-500/15 border border-pink-500/40 text-[11px] font-semibold text-pink-200 shrink-0">
                 <Crown className="w-3.5 h-3.5 text-amber-400" />
-                <span>PRO</span>
+                <span>{activePlanType === 'yearly' ? 'YEARLY PRO' : 'PRO'}</span>
               </div>
             ) : paymentStatusNote === 'pending' ? (
               <button
@@ -1428,7 +1442,7 @@ TAGS: <hashtags>`;
               </button>
             ) : (
               <button
-                onClick={() => openProModalWithReason('Unlock Pro AI Tools & 24h Peak-Time Auto-Post!')}
+                onClick={() => openProModalWithReason('Get 50K–100K Guaranteed Views/Month with Pro!')}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-400/50 text-[11px] sm:text-xs font-bold text-amber-300 shrink-0"
               >
                 <Crown className="w-3.5 h-3.5 text-amber-400" />
@@ -1482,7 +1496,7 @@ TAGS: <hashtags>`;
       {/* TAB 1: AI AUTO-POST STUDIO */}
       {activeTab === 'studio' && (
         <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 pb-16 flex-1">
-          <div className="text-center max-w-2xl mx-auto mb-6">
+          <div className="text-center max-w-2xl mx-auto mb-5">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] sm:text-xs font-semibold mb-3">
               <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
               <span>Select Video → AI Crops 9:16 + Writes Title → Auto-Posts to YouTube</span>
@@ -1490,13 +1504,48 @@ TAGS: <hashtags>`;
             <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
               1 Video →{' '}
               <span className="bg-gradient-to-r from-sky-400 via-blue-400 to-pink-500 bg-clip-text text-transparent">
-                {globalConfig.heroHeadline || '3 Viral Shorts Auto-Posted'}
+                {globalConfig.heroHeadline || 'Viral Shorts Auto-Posted'}
               </span>
             </h1>
-            <p className="text-slate-400 text-xs sm:text-sm mb-4">
+            <p className="text-slate-400 text-xs sm:text-sm mb-3">
               Tracks 24h–36h audience & peak hours, generates viral titles & tags with AI, and automatically publishes to your YouTube channel.
             </p>
           </div>
+
+          {/* Dual Growth Guarantee Banner (50K Monthly / 100K Yearly) */}
+          {globalConfig.guaranteeActive && (
+            <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-[#090d16] to-amber-500/15 border border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 mt-0.5">
+                  <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="text-xs sm:text-sm font-extrabold text-white flex flex-wrap items-center gap-2">
+                    <span>
+                      🛡️ {globalConfig.monthlyGuaranteeViews}+ Views/Mo (Monthly) & {globalConfig.yearlyGuaranteeViews}+ Views/Mo (Yearly) Guarantee!
+                    </span>
+                    <button
+                      onClick={() => setActiveInfoPage('terms')}
+                      className="text-[10px] underline text-amber-300 font-semibold"
+                    >
+                      Read T&C
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    Post daily AI-scheduled Shorts for 30 days — if you don't hit your plan's guaranteed views, get your next 30 days of Pro 100% FREE!
+                  </p>
+                </div>
+              </div>
+              {tier !== 'pro' && (
+                <button
+                  onClick={() => openProModalWithReason('Claim 100K Views/Month Guarantee with Yearly Pro!', 'yearly')}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-500 text-black text-xs font-extrabold shrink-0"
+                >
+                  Claim Guarantee →
+                </button>
+              )}
+            </div>
+          )}
 
           {/* 24h–36h Live AI Audience & Peak-Time Card */}
           <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-sky-500/10 via-[#090d16] to-pink-500/10 border border-sky-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1561,7 +1610,7 @@ TAGS: <hashtags>`;
                       {ytChannel?.handle || gmailUser?.name}
                     </span>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                      Auto-Post Ready • {tier === 'pro' ? 'PRO' : 'Free'}
+                      Auto-Post Ready • {tier === 'pro' ? `PRO (${activePlanType || 'Active'})` : 'Free'}
                     </span>
                   </div>
                   {gmailUser?.email && (
@@ -1578,7 +1627,7 @@ TAGS: <hashtags>`;
             </div>
           )}
 
-          {/* Upload Dropzone */}
+          {/* Upload Dropzone with 1-Clip, 3-Clips (Monthly) & 5-Clips (Yearly VIP) Selector */}
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
@@ -1593,7 +1642,7 @@ TAGS: <hashtags>`;
           >
             <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileUpload} className="hidden" />
 
-            <div className="inline-flex p-1 rounded-xl bg-[#0c1220] border border-slate-800 mb-5">
+            <div className="inline-flex flex-wrap justify-center p-1 rounded-xl bg-[#0c1220] border border-slate-800 mb-5 gap-1">
               <button
                 type="button"
                 onClick={() => setClipMode('1clip')}
@@ -1601,23 +1650,39 @@ TAGS: <hashtags>`;
                   clipMode === '1clip' ? 'bg-sky-600 text-white' : 'text-slate-400'
                 }`}
               >
-                1 Single Clip (Free)
+                1 Clip (Free)
               </button>
               <button
                 type="button"
                 onClick={() => {
                   if (tier !== 'pro') {
-                    openProModalWithReason('Extract & Auto-Post 3 Viral Shorts from 1 video with Pro!');
+                    openProModalWithReason('Extract 3 Viral Shorts + 50K Views/Mo Guarantee with Monthly Pro!', 'monthly');
                     return;
                   }
                   setClipMode('3clips');
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                  clipMode === '3clips' ? 'bg-gradient-to-r from-amber-500 to-pink-600 text-white' : 'text-amber-300'
+                  clipMode === '3clips' ? 'bg-blue-600 text-white' : 'text-sky-300'
                 }`}
               >
                 {tier !== 'pro' ? <Lock className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
-                3x Viral Clips (PRO)
+                3x Clips (PRO)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (tier !== 'pro' || activePlanType !== 'yearly') {
+                    openProModalWithReason('1 Video → 5 Viral Shorts + 100K Views/Mo Guarantee is exclusive to Yearly Studio Pro!', 'yearly');
+                    return;
+                  }
+                  setClipMode('5clips');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                  clipMode === '5clips' ? 'bg-gradient-to-r from-amber-500 to-pink-600 text-white' : 'text-amber-300'
+                }`}
+              >
+                {tier !== 'pro' || activePlanType !== 'yearly' ? <Lock className="w-3 h-3" /> : <Crown className="w-3 h-3" />}
+                5x Clips (YEARLY VIP)
               </button>
             </div>
 
@@ -1639,76 +1704,88 @@ TAGS: <hashtags>`;
             </button>
           </div>
 
-          {/* Pricing Cards on First Page (₹499 Monthly & ₹3999 Yearly) */}
+          {/* Pricing Cards on First Page (50K Views Monthly vs 100K Views + Extra Benefits Yearly) */}
           {tier !== 'pro' && (
             <section className="mb-8">
               <div className="text-center mb-4">
                 <h3 className="text-lg sm:text-2xl font-extrabold text-white">
-                  Upgrade to ShortsPilot PRO
+                  Choose Your Guaranteed Growth Plan
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Unlock 24h–36h Peak-Time Auto-Posting, 1-to-3 Viral Clipper & Zero Watermark Exports
+                  Backed by our 30-Day Minimum Views Guarantee (T&C Apply)
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Monthly Plan: 50K Views/Mo Guarantee */}
                 <div className="p-5 rounded-3xl bg-[#090d16] border border-sky-500/35 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">Monthly Creator</span>
-                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                        Coupon Eligible
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
+                        🛡️ {globalConfig.monthlyGuaranteeViews}+ Views/Mo
                       </span>
                     </div>
                     <div className="text-3xl font-extrabold text-white mb-1">
                       ₹{globalConfig.monthlyPrice} <span className="text-xs font-normal text-slate-400">/ month</span>
                     </div>
-                    <p className="text-xs text-slate-400 mb-4">Flexible monthly billing • Apply coupon code at checkout</p>
+                    <p className="text-xs text-slate-400 mb-4">Coupon eligible • Ideal for starting creators</p>
                     <ul className="space-y-2 text-xs text-slate-300 mb-5">
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Unlimited 9:16 Conversions + Original Audio</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> 1 Video → 3 Viral Shorts Extraction</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> 24h–36h Peak-Time Auto-Scheduler</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Zero Watermark Export</li>
+                      <li className="flex items-center gap-2 text-emerald-300 font-semibold">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Minimum {globalConfig.monthlyGuaranteeViews} Views in 30 Days Guarantee (T&C)
+                      </li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Unlimited 9:16 Conversions + Original Audio</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 1 Video → 3 Viral Shorts Extraction</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 24h–36h Peak-Time Auto-Scheduler</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Zero Watermark Export</li>
                     </ul>
                   </div>
                   <button
-                    onClick={() => {
-                      setSelectedBilling('monthly');
-                      openProModalWithReason('Monthly Pro Plan Selected (Apply Coupon if available)');
-                    }}
+                    onClick={() => openProModalWithReason(`Monthly Pro (${globalConfig.monthlyGuaranteeViews}+ Views/Mo Guarantee)`, 'monthly')}
                     className="w-full py-3 rounded-xl font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-sky-500 to-blue-600"
                   >
-                    Choose Monthly (₹{globalConfig.monthlyPrice}) →
+                    Start Monthly (₹{globalConfig.monthlyPrice}) →
                   </button>
                 </div>
 
-                <div className="p-5 rounded-3xl bg-gradient-to-br from-[#120b1e] via-[#090d16] to-[#1a0b16] border border-pink-500/45 flex flex-col justify-between relative">
+                {/* Yearly Studio Pro: 100K Views/Mo Guarantee + Exclusive Benefits */}
+                <div className="p-5 rounded-3xl bg-gradient-to-br from-[#140b24] via-[#090d16] to-[#1f0b18] border-2 border-amber-400/50 flex flex-col justify-between relative shadow-[0_0_30px_rgba(245,158,11,0.12)]">
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-pink-400 uppercase tracking-wider">Yearly Studio Pro</span>
-                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
-                        SAVE ₹1,989
+                      <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                        <Crown className="w-3.5 h-3.5" /> Yearly Studio VIP
+                      </span>
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold">
+                        🛡️ {globalConfig.yearlyGuaranteeViews}+ Views/Mo
                       </span>
                     </div>
                     <div className="text-3xl font-extrabold text-white mb-1">
                       ₹{globalConfig.yearlyPrice} <span className="text-xs font-normal text-slate-400">/ year</span>
                     </div>
-                    <p className="text-xs text-slate-400 mb-4">Just ₹333/month billed annually • Priority AI Speed</p>
-                    <ul className="space-y-2 text-xs text-slate-300 mb-5">
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Everything in Monthly Pro Unlimited</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> 1-Click Live Short Title & Tag Re-Optimizer</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Dual DeepSeek + Claude AI Priority Queue</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Dedicated Creator Support</li>
+                    <p className="text-xs text-amber-200/80 mb-4">Just ₹333/mo • Double Views Guarantee + VIP Extras</p>
+                    <ul className="space-y-2 text-xs text-slate-200 mb-5">
+                      <li className="flex items-center gap-2 text-amber-300 font-bold">
+                        <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" /> Minimum {globalConfig.yearlyGuaranteeViews} Views Every Month Guarantee (T&C)
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1 Video → 5 Viral Shorts</strong> (Exclusive 5x Extractor)
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1-Click Live Short Re-Optimizer</strong> (Boost old Shorts)
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>VIP Priority WhatsApp & Founder Support</strong>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>Free Early Access</strong> to Instagram & FB Auto-Post Beta
+                      </li>
                     </ul>
                   </div>
                   <button
-                    onClick={() => {
-                      setSelectedBilling('yearly');
-                      openProModalWithReason('Yearly Studio Pro Selected (Best Value)');
-                    }}
-                    className="w-full py-3 rounded-xl font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-500 via-pink-600 to-rose-600 shadow-[0_0_20px_rgba(236,72,153,0.35)]"
+                    onClick={() => openProModalWithReason(`Yearly Studio VIP (${globalConfig.yearlyGuaranteeViews}+ Views/Mo Guarantee + 5x Clips)`, 'yearly')}
+                    className="w-full py-3 rounded-xl font-extrabold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-500 via-pink-600 to-rose-600 shadow-[0_0_20px_rgba(236,72,153,0.4)]"
                   >
-                    Choose Yearly (₹{globalConfig.yearlyPrice}) →
+                    Claim Yearly VIP (₹{globalConfig.yearlyPrice}) →
                   </button>
                 </div>
               </div>
@@ -1921,7 +1998,7 @@ TAGS: <hashtags>`;
         </main>
       )}
 
-      {/* Website Footer with Mandatory Legal & Info Pages */}
+      {/* Website Footer with Mandatory Legal & Guarantee Terms Pages */}
       <footer className="relative z-10 border-t border-slate-800/80 bg-[#05070c] py-6 px-4 text-center text-xs text-slate-400">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -1932,7 +2009,9 @@ TAGS: <hashtags>`;
           <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
             <button onClick={() => setActiveInfoPage('about')} className="hover:text-sky-400">About Us</button>
             <button onClick={() => setActiveInfoPage('privacy')} className="hover:text-sky-400">Privacy Policy</button>
-            <button onClick={() => setActiveInfoPage('terms')} className="hover:text-sky-400">Terms & Conditions</button>
+            <button onClick={() => setActiveInfoPage('terms')} className="hover:text-amber-300 text-amber-300/90 font-semibold">
+              Terms & 50K/100K Guarantee T&C
+            </button>
             <button onClick={() => setActiveInfoPage('refund')} className="hover:text-sky-400">Refund & Cancellation</button>
             <a href={`mailto:${globalConfig.supportEmail}`} className="hover:text-sky-400 flex items-center gap-1">
               <Mail className="w-3 h-3" /> {globalConfig.supportEmail}
@@ -1941,7 +2020,7 @@ TAGS: <hashtags>`;
         </div>
       </footer>
 
-      {/* Info & Legal Pages Modal */}
+      {/* Info & Legal Pages Modal (Includes Clear Guarantee Terms & Conditions) */}
       {activeInfoPage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
           <div className="relative w-full max-w-lg rounded-3xl bg-[#080c15] border border-sky-500/30 p-6 max-h-[85vh] overflow-y-auto space-y-3">
@@ -1953,7 +2032,7 @@ TAGS: <hashtags>`;
               <span>
                 {activeInfoPage === 'about' && 'About ShortsPilot AI Studio'}
                 {activeInfoPage === 'privacy' && 'Privacy Policy'}
-                {activeInfoPage === 'terms' && 'Terms & Conditions'}
+                {activeInfoPage === 'terms' && 'Terms & Conditions (Views Guarantee Policy)'}
                 {activeInfoPage === 'refund' && 'Refund & Cancellation Policy'}
               </span>
             </div>
@@ -1978,12 +2057,26 @@ TAGS: <hashtags>`;
               )}
               {activeInfoPage === 'terms' && (
                 <>
-                  <p>
-                    By using ShortsPilot, you agree to upload only content for which you hold copyright or distribution rights, in compliance with YouTube Terms of Service.
+                  <p className="text-amber-300 font-semibold">
+                    30-Day Minimum Views Guarantee — Terms & Conditions:
                   </p>
-                  <p>
-                    Pro subscriptions (₹{globalConfig.monthlyPrice}/month or ₹{globalConfig.yearlyPrice}/year) are tied to your registered Gmail account.
-                  </p>
+                  <ul className="list-disc pl-4 space-y-1.5 text-slate-300">
+                    <li>
+                      <strong>Monthly Plan (₹{globalConfig.monthlyPrice}/mo):</strong> Minimum <strong>{globalConfig.monthlyGuaranteeViews} total views</strong> within 30 days of active Pro subscription.
+                    </li>
+                    <li>
+                      <strong>Yearly VIP Plan (₹{globalConfig.yearlyPrice}/yr):</strong> Minimum <strong>{globalConfig.yearlyGuaranteeViews} total views per 30-day cycle</strong>.
+                    </li>
+                    <li>
+                      <strong>Mandatory Posting Requirement:</strong> Creator must publish at least <strong>1 Short per day (minimum 30 Shorts in 30 days)</strong> using ShortsPilot's AI Peak-Time Auto-Scheduler.
+                    </li>
+                    <li>
+                      <strong>Original & Policy-Compliant Content:</strong> Videos must be public, original, and free from YouTube Community Guideline or Copyright strikes. Deleted or private videos are excluded.
+                    </li>
+                    <li>
+                      <strong>Guarantee Remedy:</strong> If all conditions above are met and the channel still receives fewer than the guaranteed views, ShortsPilot will extend your Pro subscription for the <strong>next 30 days 100% FREE</strong> upon verification at {globalConfig.supportEmail}.
+                    </li>
+                  </ul>
                 </>
               )}
               {activeInfoPage === 'refund' && (
@@ -1992,7 +2085,7 @@ TAGS: <hashtags>`;
                     You may cancel your subscription renewal at any time by contacting {globalConfig.supportEmail}.
                   </p>
                   <p>
-                    If a verified payment fails to activate Pro features due to a technical issue, a 100% refund is processed to the original payment method within 5–7 business days.
+                    Under our 30-Day Views Guarantee, eligible creators who meet the daily posting criteria receive a free 30-day Pro extension. Technical billing errors are refunded 100% within 5–7 business days.
                   </p>
                 </>
               )}
@@ -2111,8 +2204,32 @@ TAGS: <hashtags>`;
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Yearly • ₹{globalConfig.yearlyPrice}
+                Yearly VIP • ₹{globalConfig.yearlyPrice}
               </button>
+            </div>
+
+            {/* Active Guarantee Highlight inside Checkout */}
+            <div className="mb-4 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200 flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <strong>
+                  Included: Minimum{' '}
+                  {selectedBilling === 'yearly'
+                    ? `${globalConfig.yearlyGuaranteeViews} Views/Month`
+                    : `${globalConfig.monthlyGuaranteeViews} Views in 30 Days`}{' '}
+                  Guarantee
+                </strong>{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPricingOpen(false);
+                    setActiveInfoPage('terms');
+                  }}
+                  className="underline text-amber-300 ml-1"
+                >
+                  (T&C Apply)
+                </button>
+              </div>
             </div>
 
             {selectedBilling === 'monthly' && (
@@ -2219,7 +2336,7 @@ TAGS: <hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.0</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v8.2</div>
           </div>
         </div>
       )}
@@ -2236,7 +2353,7 @@ TAGS: <hashtags>`;
               <form onSubmit={handleAdminUnlock} className="py-6 text-center">
                 <Lock className="w-10 h-10 text-pink-400 mx-auto mb-3" />
                 <h3 className="text-lg font-bold text-white mb-1">Owner Master Control Panel</h3>
-                <p className="text-xs text-slate-400 mb-4">Enter Master PIN to manage Revenue, Clients, Website Content & AI.</p>
+                <p className="text-xs text-slate-400 mb-4">Enter Master PIN to manage Revenue, Clients, Guarantees & AI.</p>
                 <input
                   type="password"
                   inputMode="numeric"
@@ -2299,7 +2416,7 @@ TAGS: <hashtags>`;
                     onClick={() => setAdminSubTab('site')}
                     className={`py-2 rounded-lg ${adminSubTab === 'site' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}
                   >
-                    🌐 Site & Alerts
+                    🌐 Guarantee & Alerts
                   </button>
                   <button
                     onClick={() => setAdminSubTab('clients')}
@@ -2318,7 +2435,6 @@ TAGS: <hashtags>`;
                 {/* TAB 1: PLANS, COUPONS, AI KEYS & MANUAL PRO GRANT */}
                 {adminSubTab === 'controls' && (
                   <div className="space-y-3.5">
-                    {/* Direct Grant Pro by Email */}
                     <form onSubmit={handleManualGrantPro} className="p-3 rounded-2xl bg-[#0c1220] border border-amber-500/35 flex flex-col sm:flex-row gap-2">
                       <div className="flex-1 flex items-center gap-2 bg-[#05070c] px-3 py-1.5 rounded-xl border border-slate-700">
                         <UserPlus className="w-4 h-4 text-amber-400 shrink-0" />
@@ -2326,16 +2442,15 @@ TAGS: <hashtags>`;
                           type="email"
                           value={manualProEmail}
                           onChange={(e) => setManualProEmail(e.target.value)}
-                          placeholder="Grant Instant PRO to any Gmail ID..."
+                          placeholder="Grant Instant Yearly VIP PRO to Gmail ID..."
                           className="w-full bg-transparent text-xs text-white outline-none"
                         />
                       </div>
                       <button type="submit" className="px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs shrink-0">
-                        + Grant PRO
+                        + Grant VIP PRO
                       </button>
                     </form>
 
-                    {/* Prices, Coupon & Cashfree */}
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/30 space-y-3">
                       <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
                         <IndianRupee className="w-3.5 h-3.5" /> Pricing, Coupon Code & Cashfree Links
@@ -2404,7 +2519,6 @@ TAGS: <hashtags>`;
                       </div>
                     </div>
 
-                    {/* AI Keys */}
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5">
@@ -2439,9 +2553,45 @@ TAGS: <hashtags>`;
                   </div>
                 )}
 
-                {/* TAB 2: WEBSITE CONTENT, BROADCAST ALERTS & SECURITY PIN */}
+                {/* TAB 2: VIEWS GUARANTEE CONTROL, WEBSITE CONTENT & ALERTS */}
                 {adminSubTab === 'site' && (
                   <div className="space-y-3.5">
+                    {/* Views Guarantee Live Settings */}
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/35 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4" /> 30-Day Minimum Views Guarantee
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setGlobalConfig({ ...globalConfig, guaranteeActive: !globalConfig.guaranteeActive })}
+                          className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-emerald-300 font-semibold"
+                        >
+                          Badge: {globalConfig.guaranteeActive ? 'ON' : 'OFF'}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Monthly Guarantee Views</label>
+                          <input
+                            type="text"
+                            value={globalConfig.monthlyGuaranteeViews}
+                            onChange={(e) => setGlobalConfig({ ...globalConfig, monthlyGuaranteeViews: e.target.value })}
+                            className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Yearly Guarantee Views/Mo</label>
+                          <input
+                            type="text"
+                            value={globalConfig.yearlyGuaranteeViews}
+                            onChange={(e) => setGlobalConfig({ ...globalConfig, yearlyGuaranteeViews: e.target.value })}
+                            className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-indigo-500/30 space-y-2.5">
                       <div className="text-xs font-semibold text-indigo-300 flex items-center gap-1.5">
                         <Globe className="w-3.5 h-3.5" /> Live Website Content & Limits
@@ -2486,7 +2636,6 @@ TAGS: <hashtags>`;
                       </div>
                     </div>
 
-                    {/* Broadcast Popup & Top Banner */}
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-pink-500/30 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-pink-300 flex items-center gap-1.5">
@@ -2509,28 +2658,8 @@ TAGS: <hashtags>`;
                         placeholder="Type message to show as popup on all users' screens..."
                         className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
                       />
-
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5">
-                          <Megaphone className="w-3.5 h-3.5" /> Top Offer Banner
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setGlobalConfig({ ...globalConfig, bannerActive: !globalConfig.bannerActive })}
-                          className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-sky-300 font-semibold"
-                        >
-                          Banner: {globalConfig.bannerActive ? 'ON' : 'OFF'}
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        value={globalConfig.bannerText}
-                        onChange={(e) => setGlobalConfig({ ...globalConfig, bannerText: e.target.value })}
-                        className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white"
-                      />
                     </div>
 
-                    {/* System Kill Switches & Master PIN */}
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-2.5">
                       <div className="grid grid-cols-2 gap-2">
                         <button
@@ -2580,9 +2709,7 @@ TAGS: <hashtags>`;
                       </button>
                     </div>
                     {clientsList.length === 0 ? (
-                      <div className="text-xs text-slate-500 py-4 text-center">
-                        No clients logged in yet.
-                      </div>
+                      <div className="text-xs text-slate-500 py-4 text-center">No clients logged in yet.</div>
                     ) : (
                       <div className="space-y-2 max-h-72 overflow-y-auto">
                         {clientsList.map((cli) => (
@@ -2616,12 +2743,20 @@ TAGS: <hashtags>`;
                                   Set Free
                                 </button>
                               ) : (
-                                <button
-                                  onClick={() => handleAdminSetClientTier(cli, 'pro')}
-                                  className="px-2 py-1 rounded bg-emerald-600 text-white text-[10px] font-bold"
-                                >
-                                  Make PRO
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => handleAdminSetClientTier(cli, 'pro', 'monthly')}
+                                    className="px-2 py-1 rounded bg-sky-600 text-white text-[10px] font-bold"
+                                  >
+                                    Monthly Pro
+                                  </button>
+                                  <button
+                                    onClick={() => handleAdminSetClientTier(cli, 'pro', 'yearly')}
+                                    className="px-2 py-1 rounded bg-emerald-600 text-white text-[10px] font-bold"
+                                  >
+                                    Yearly VIP
+                                  </button>
+                                </>
                               )}
                               <button
                                 onClick={() => handleAdminToggleBanClient(cli)}
@@ -2699,7 +2834,6 @@ TAGS: <hashtags>`;
                   </div>
                 )}
 
-                {/* Global Publish Button (Always Visible at Bottom of Admin Panel) */}
                 {(adminSubTab === 'controls' || adminSubTab === 'site') && (
                   <button
                     type="button"
@@ -2714,7 +2848,10 @@ TAGS: <hashtags>`;
                 <div className="flex items-center justify-between pt-1 text-xs">
                   <button
                     onClick={() => {
-                      setTier(tier === 'pro' ? 'free' : 'pro');
+                      const nextTier = tier === 'pro' ? 'free' : 'pro';
+                      setTier(nextTier);
+                      setActivePlanType('yearly');
+                      setClipMode(nextTier === 'pro' ? '5clips' : '1clip');
                       setQuotaUsed(0);
                     }}
                     className="px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 flex items-center gap-1"
