@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles, Upload, Play, CheckCircle2, Zap, Shield, Lock,
@@ -7,7 +6,7 @@ import {
   Wrench, IndianRupee, BarChart3, Calendar,
   Clock, Eye, ThumbsUp, Users, Bot, Volume2,
   Crown, Check, Hourglass, Tag,
-  FileText, Mail, Globe, Ban, UserPlus, Bell, KeyRound, ShieldCheck
+  FileText, Mail, Globe, Ban, UserPlus, Bell, KeyRound, ShieldCheck, Megaphone
 } from 'lucide-react';
 
 const DEFAULT_GOOGLE_CLIENT_ID =
@@ -15,8 +14,10 @@ const DEFAULT_GOOGLE_CLIENT_ID =
   '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
 const YOUTUBE_REDIRECT_URI = 'https://shortspilot-two.vercel.app/api/youtube/callback';
 const FIREBASE_DB_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
+
 const DEFAULT_DEEPSEEK_KEY = '';
 const DEFAULT_CLAUDE_KEY = '';
+
 const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
 
@@ -157,7 +158,7 @@ export default function App() {
     monthlyGuaranteeViews: '50K',
     yearlyGuaranteeViews: '100K',
     bannerText: '🔥 COUPON OFFER: Use code "SAVE200" at checkout & get Flat ₹200 OFF on Monthly Pro! (Pay only ₹299)',
-    bannerActive: true,
+    bannerActive: false,
     broadcastAlertText: '',
     broadcastAlertActive: false,
     maintenanceMode: false,
@@ -185,9 +186,9 @@ export default function App() {
   const [autoUploadBannerStatus, setAutoUploadBannerStatus] = useState('idle');
 
   const [audienceInsight, setAudienceInsight] = useState({
-    peakHour: 19,
+    peakHour: 21,
     peakMinute: 30,
-    peakHourLabel: '07:30 PM IST (High Evening Engagement)',
+    peakHourLabel: '09:30 PM IST (AI Algorithm Peak Engagement)',
     suggestedIso: '',
     topRegion: 'India (IN) • Hindi / Hinglish',
     strategyTip: 'Batch upload multiple videos once — ShortsPilot auto-schedules 1 Short per day at Peak Time on YouTube servers.',
@@ -265,7 +266,7 @@ export default function App() {
 
   const yearlySavings = Math.max(0, Number(globalConfig.yearlyOriginalPrice || 5999) - Number(globalConfig.yearlyPrice || 3999));
 
-  const getNextPeakIsoWithOffset = (hour24 = 19, minute = 30, dayOffset = 0) => {
+  const getNextPeakIsoWithOffset = (hour24 = 21, minute = 30, dayOffset = 0) => {
     const now = new Date();
     const target = new Date();
     target.setHours(hour24, minute, 0, 0);
@@ -290,8 +291,9 @@ export default function App() {
           if (c.title) usedTitlesHistoryRef.current.add(c.title.toLowerCase());
         });
         setVideoQueue(
-          savedClips.map((c) => ({
+          savedClips.map((c, idx) => ({
             ...c,
+            scheduledFor: c.scheduledFor || getNextPeakIsoWithOffset(21, 30, idx),
             status: c.status === 'uploading' || c.status === 'cropping' ? 'ready' : c.status
           }))
         );
@@ -602,9 +604,18 @@ export default function App() {
       ]);
       const data = await cfgRes.json();
       if (data && typeof data === 'object') {
+        // Automatically scrub old ₹2 trial text if it was saved in Firebase earlier
+        const isOldTrialBanner =
+          typeof data.bannerText === 'string' &&
+          (data.bannerText.includes('₹2') || data.bannerText.toLowerCase().includes('7-day'));
+
         setGlobalConfig((prev) => ({
           ...prev,
           ...data,
+          bannerText: isOldTrialBanner
+            ? '🔥 COUPON OFFER: Use code "SAVE200" at checkout & get Flat ₹200 OFF on Monthly Pro! (Pay only ₹299)'
+            : data.bannerText ?? prev.bannerText,
+          bannerActive: isOldTrialBanner ? false : Boolean(data.bannerActive),
           deepseekApiKey: data.deepseekApiKey || prev.deepseekApiKey,
           claudeApiKey: data.claudeApiKey || prev.claudeApiKey,
           adminPin: data.adminPin || prev.adminPin
@@ -675,7 +686,7 @@ export default function App() {
       const uploadsId = item?.contentDetails?.relatedPlaylists?.uploads;
 
       let videosList = [];
-      let bestHour = 19;
+      let bestHour = 21;
       let topTitleSample = '';
 
       if (uploadsId) {
@@ -716,7 +727,7 @@ export default function App() {
       setAudienceInsight({
         peakHour: bestHour,
         peakMinute: 30,
-        peakHourLabel: `${hr12}:30 ${ampm} (Based on 24h–36h View Velocity)`,
+        peakHourLabel: `${hr12}:30 ${ampm} (Based on 24h–36h AI View Velocity)`,
         suggestedIso: getNextPeakIsoWithOffset(bestHour, 30, 0),
         topRegion: regionName,
         strategyTip: topTitleSample
@@ -1136,7 +1147,7 @@ TAGS: <5 specific hashtags>`;
         const finalizedClip = {
           ...clip,
           status: useSchedule ? 'scheduled' : 'published',
-          scheduledFor: useSchedule ? scheduledIsoTime : null,
+          scheduledFor: scheduledIsoTime || clip.scheduledFor,
           youtubeUrl: uploadedVideo.id ? `https://youtube.com/shorts/${uploadedVideo.id}` : null
         };
 
@@ -1144,7 +1155,7 @@ TAGS: <5 specific hashtags>`;
         setVideoQueue((prev) => prev.map((item) => (item.id === clip.id ? finalizedClip : item)));
         return;
       } catch (err) {
-        const fallbackReady = { ...clip, status: 'ready', scheduledFor: scheduledIsoTime };
+        const fallbackReady = { ...clip, status: 'ready', scheduledFor: scheduledIsoTime || clip.scheduledFor };
         await idbSaveClip(fallbackReady);
         setVideoQueue((prev) => prev.map((item) => (item.id === clip.id ? fallbackReady : item)));
         alert(`YouTube Auto-Post Error: ${err.message}`);
@@ -1156,7 +1167,7 @@ TAGS: <5 specific hashtags>`;
       const simDone = {
         ...clip,
         status: scheduledIsoTime && tier === 'pro' ? 'scheduled' : 'published',
-        scheduledFor: scheduledIsoTime
+        scheduledFor: scheduledIsoTime || clip.scheduledFor
       };
       await idbSaveClip(simDone);
       setVideoQueue((prev) => prev.map((item) => (item.id === clip.id ? simDone : item)));
@@ -1225,10 +1236,9 @@ TAGS: <5 specific hashtags>`;
         const dayOffset = scheduleDayOffsetRef.current;
         scheduleDayOffsetRef.current += 1;
 
-        const targetIso =
-          tier === 'pro' && autoPostCadence === 'daily_peak'
-            ? getNextPeakIsoWithOffset(audienceInsight.peakHour, audienceInsight.peakMinute, dayOffset)
-            : null;
+        // Always calculate AI Algorithm Peak Time for every clip in the Vault
+        const aiPeakIso = getNextPeakIsoWithOffset(audienceInsight.peakHour, audienceInsight.peakMinute, dayOffset);
+        const targetIso = autoPostCadence === 'daily_peak' ? aiPeakIso : null;
 
         setVideoQueue((prev) => [
           {
@@ -1240,7 +1250,8 @@ TAGS: <5 specific hashtags>`;
             hookScore: seg.score,
             duration: seg.preserveFullShort ? `${mins}:${String(secs).padStart(2, '0')}` : '0:12',
             isFullShort: seg.preserveFullShort,
-            scheduledFor: targetIso,
+            scheduledFor: aiPeakIso,
+            aiPeakLabel: audienceInsight.peakHourLabel.split('(')[0].trim(),
             croppedUrl: null,
             blob: file,
             hasAudio: true,
@@ -1268,7 +1279,8 @@ TAGS: <5 specific hashtags>`;
           hookScore: seg.score,
           duration: `${rMins}:${String(rSecs).padStart(2, '0')}`,
           isFullShort: seg.preserveFullShort,
-          scheduledFor: targetIso,
+          scheduledFor: aiPeakIso,
+          aiPeakLabel: audienceInsight.peakHourLabel.split('(')[0].trim(),
           croppedUrl: renderResult.croppedUrl,
           blob: renderResult.blob,
           hasAudio: renderResult.hasAudio,
@@ -1289,6 +1301,19 @@ TAGS: <5 specific hashtags>`;
     const files = Array.from(e.target.files || []);
     processBatchFiles(files);
     e.target.value = '';
+  };
+
+  const handleUpdateClipScheduleTime = async (clipId, newIsoTime) => {
+    setVideoQueue((prev) =>
+      prev.map((item) => {
+        if (item.id === clipId) {
+          const updated = { ...item, scheduledFor: newIsoTime };
+          idbSaveClip(updated);
+          return updated;
+        }
+        return item;
+      })
+    );
   };
 
   const handleDeleteClip = async (clipId) => {
@@ -1540,7 +1565,7 @@ TAGS: <5 specific hashtags>`;
         body: JSON.stringify(globalConfig)
       });
       if (!res.ok) throw new Error('Firebase permission error');
-      alert('✅ Live Updated! All website controls & AI keys are now live.');
+      alert('✅ Live Updated! All website controls, Top Banner & AI keys are now live.');
     } catch {
       alert('Check Firebase Realtime Database Rules (.read: true, .write: true).');
     } finally {
@@ -1688,11 +1713,6 @@ TAGS: <5 specific hashtags>`;
           >
             <BarChart3 className="w-3.5 h-3.5" /> 24h–36h AI Insights & Analytics
           </button>
-        </div>
-
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-[11px] text-emerald-300 font-bold">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>TELEGRAM ALERT + MANUAL UPI ACTIVE</span>
         </div>
       </div>
 
@@ -1848,90 +1868,138 @@ TAGS: <5 specific hashtags>`;
 
           {videoQueue.length > 0 && (
             <section className="mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <div className="flex flex-wrap items-center gap-2">
                   <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
                   <h3 className="text-base sm:text-lg font-bold text-white">Auto-Schedule & Saved Vault ({videoQueue.length})</h3>
                   <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">Offline Safe</span>
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold flex items-center gap-1">
+                    <Bot className="w-3 h-3" /> AI Algorithm Peak Slot: {audienceInsight.peakHourLabel.split('(')[0].trim()}
+                  </span>
                 </div>
                 <button onClick={handleClearAllClips} className="text-xs text-slate-400 hover:text-pink-400">Clear All</button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {videoQueue.map((clip) => (
-                  <div key={clip.id} className="p-4 rounded-2xl bg-[#090d16] border border-sky-500/20 flex flex-col gap-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30">Hook {clip.hookScore}</span>
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                            <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Full Short (Uncut)' : 'Audio ON'}
-                          </span>
+                {videoQueue.map((clip, index) => {
+                  const displayIso =
+                    clip.scheduledFor ||
+                    getNextPeakIsoWithOffset(audienceInsight.peakHour, audienceInsight.peakMinute, index);
+
+                  return (
+                    <div key={clip.id} className="p-4 rounded-2xl bg-[#090d16] border border-sky-500/20 flex flex-col gap-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                            <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30">
+                              Hook {clip.hookScore}
+                            </span>
+                            <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                              <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Full Short (Uncut)' : 'Audio ON'}
+                            </span>
+                          </div>
+                          <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
+                          <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
+
+                          {/* AI ALGORITHM AUTO-UPLOADING TIME BOX */}
+                          <div className="mt-2.5 p-2.5 rounded-xl bg-[#0c1322] border border-amber-500/30 space-y-1.5">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-amber-300 font-bold flex items-center gap-1">
+                                <Bot className="w-3.5 h-3.5 text-amber-400" /> AI Auto-Upload Time:
+                              </span>
+                              <span className="text-emerald-300 font-semibold">
+                                {new Date(displayIso).toLocaleString([], {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
+                              <span className="text-[10px] text-slate-400">
+                                Algorithm: 24h–36h Peak Velocity ({audienceInsight.peakHourLabel.split('(')[0].trim()})
+                              </span>
+                              <input
+                                type="datetime-local"
+                                value={displayIso.slice(0, 16)}
+                                onChange={(e) => handleUpdateClipScheduleTime(clip.id, e.target.value)}
+                                className="bg-[#05070c] text-[10px] text-sky-300 px-2 py-0.5 rounded border border-slate-700 outline-none"
+                                title="Modify AI Auto-Upload Time"
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
-                        <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
-                        {clip.scheduledFor && (
-                          <p className="text-[11px] text-amber-300 mt-1 font-medium">
-                            📅 Scheduled: {new Date(clip.scheduledFor).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </p>
+
+                        <button
+                          onClick={() => handleDeleteClip(clip.id)}
+                          className="text-slate-500 hover:text-pink-400 p-1 shrink-0"
+                          title="Delete saved clip"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {clip.croppedUrl && (
+                        <div
+                          onClick={() => setPreviewClip(clip)}
+                          className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] h-52 mx-auto w-28 cursor-pointer"
+                        >
+                          <video src={clip.croppedUrl} className="w-full h-full object-cover" muted playsInline />
+                          <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                            <Play className="w-6 h-6 text-white fill-white" />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
+                        {clip.croppedUrl ? (
+                          <a
+                            href={clip.croppedUrl}
+                            download={`${clip.title.slice(0, 25)}_9x16.webm`}
+                            className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1"
+                          >
+                            <Download className="w-3.5 h-3.5 text-sky-400" /> Save
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">Processing {clip.progress}%...</span>
+                        )}
+
+                        {clip.status === 'ready' && (
+                          <button
+                            onClick={() => uploadClipToYouTubeAPI(clip, displayIso)}
+                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-sky-600 text-white font-semibold flex items-center gap-1"
+                          >
+                            <Clock className="w-3.5 h-3.5" /> Auto-Schedule on YT
+                          </button>
+                        )}
+
+                        {clip.status === 'uploading' && (
+                          <span className="text-emerald-400 font-bold animate-pulse">Uploading to YouTube...</span>
+                        )}
+
+                        {clip.status === 'scheduled' && (
+                          <span className="text-sky-400 font-semibold flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" /> Scheduled on YT ✓
+                          </span>
+                        )}
+
+                        {clip.status === 'published' && (
+                          <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="w-4 h-4" />
+                            {clip.youtubeUrl ? (
+                              <a href={clip.youtubeUrl} target="_blank" rel="noreferrer" className="underline">
+                                Live on YT ↗
+                              </a>
+                            ) : (
+                              'Live ✓'
+                            )}
+                          </span>
                         )}
                       </div>
-                      <button onClick={() => handleDeleteClip(clip.id)} className="text-slate-500 hover:text-pink-400 p-1 shrink-0" title="Delete saved clip">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
                     </div>
-
-                    {clip.croppedUrl && (
-                      <div
-                        onClick={() => setPreviewClip(clip)}
-                        className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] h-52 mx-auto w-28 cursor-pointer"
-                      >
-                        <video src={clip.croppedUrl} className="w-full h-full object-cover" muted playsInline />
-                        <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                          <Play className="w-6 h-6 text-white fill-white" />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
-                      {clip.croppedUrl ? (
-                        <a href={clip.croppedUrl} download={`${clip.title.slice(0, 25)}_9x16.webm`} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1">
-                          <Download className="w-3.5 h-3.5 text-sky-400" /> Save
-                        </a>
-                      ) : (
-                        <span className="text-slate-400">Processing {clip.progress}%...</span>
-                      )}
-
-                      {clip.status === 'ready' && (
-                        <button
-                          onClick={() => uploadClipToYouTubeAPI(clip, clip.scheduledFor || null)}
-                          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1"
-                        >
-                          <Send className="w-3.5 h-3.5" /> Retry Upload
-                        </button>
-                      )}
-
-                      {clip.status === 'uploading' && <span className="text-emerald-400 font-bold animate-pulse">Uploading to YouTube...</span>}
-
-                      {clip.status === 'scheduled' && (
-                        <span className="text-sky-400 font-semibold flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" /> Scheduled on YT ✓
-                        </span>
-                      )}
-
-                      {clip.status === 'published' && (
-                        <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-4 h-4" />
-                          {clip.youtubeUrl ? (
-                            <a href={clip.youtubeUrl} target="_blank" rel="noreferrer" className="underline">Live on YT ↗</a>
-                          ) : (
-                            'Live ✓'
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}
@@ -2045,259 +2113,4 @@ TAGS: <5 specific hashtags>`;
             <>
               <div className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-5">
                 <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-sky-500/25">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1"><Users className="w-3.5 h-3.5 text-sky-400" /> Subscribers</div>
-                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.subscribers}</div>
-                </div>
-                <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-pink-500/25">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1"><Eye className="w-3.5 h-3.5 text-pink-400" /> Total Views</div>
-                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.totalViews}</div>
-                </div>
-                <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-emerald-500/25">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1"><Globe className="w-3.5 h-3.5 text-emerald-400" /> Audience Region</div>
-                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.country}</div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-300">Recent Uploads & 1-Click AI Title/Tag Boost</h3>
-                {ytStats.recentVideos.length === 0 ? (
-                  <div className="p-6 rounded-2xl bg-[#090d16] border border-slate-800 text-xs text-slate-400 text-center">
-                    {ytStats.loading ? 'Loading YouTube stats...' : 'No videos found on this channel yet.'}
-                  </div>
-                ) : (
-                  ytStats.recentVideos.map((vid) => (
-                    <div key={vid.id} className="p-3 sm:p-4 rounded-2xl bg-[#090d16] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {vid.thumbnail && <img src={vid.thumbnail} alt={vid.title} className="w-16 h-10 rounded-lg object-cover shrink-0" />}
-                        <div className="min-w-0">
-                          <div className="text-xs sm:text-sm font-semibold text-white truncate">{vid.title}</div>
-                          <div className="text-[11px] text-slate-500">Posted: {vid.publishedAt}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-3 text-xs shrink-0">
-                        <div className="flex items-center gap-2.5">
-                          <span className="flex items-center gap-1 text-sky-300 font-semibold"><Eye className="w-3.5 h-3.5" /> {vid.views}</span>
-                          <span className="flex items-center gap-1 text-pink-300 font-semibold"><ThumbsUp className="w-3.5 h-3.5" /> {vid.likes}</span>
-                        </div>
-                        <button
-                          onClick={() => handleReOptimizeLiveVideo(vid)}
-                          className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-500/20 to-pink-500/20 border border-pink-500/40 text-pink-300 text-[11px] font-semibold flex items-center gap-1"
-                        >
-                          <Bot className="w-3.5 h-3.5" /> AI Boost Title/Tags
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
-          )}
-        </main>
-      )}
-
-      <footer className="relative z-10 border-t border-slate-800/80 bg-[#05070c] py-6 px-4 text-center text-xs text-slate-400">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <ShortsPilotLogo className="w-4 h-4" />
-            <span className="font-semibold text-slate-300">ShortsPilot AI Studio</span>
-            <span>© {new Date().getFullYear()}</span>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
-            <button onClick={() => setActiveInfoPage('about')} className="hover:text-sky-400">About Us</button>
-            <button onClick={() => setActiveInfoPage('privacy')} className="hover:text-sky-400">Privacy Policy</button>
-            <button onClick={() => setActiveInfoPage('terms')} className="hover:text-amber-300 text-amber-300/90 font-semibold">Terms & 50K/100K Guarantee T&C</button>
-            <button onClick={() => setActiveInfoPage('refund')} className="hover:text-sky-400">Refund & Cancellation</button>
-            <a href={`mailto:${globalConfig.supportEmail}`} className="hover:text-sky-400 flex items-center gap-1">
-              <Mail className="w-3 h-3" /> {globalConfig.supportEmail}
-            </a>
-          </div>
-        </div>
-      </footer>
-
-      {activeInfoPage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-          <div className="relative w-full max-w-lg rounded-3xl bg-[#080c15] border border-sky-500/30 p-6 max-h-[85vh] overflow-y-auto space-y-3">
-            <button onClick={() => setActiveInfoPage(null)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
-            <div className="flex items-center gap-2 text-sky-400 font-bold text-base">
-              <FileText className="w-5 h-5" />
-              <span>
-                {activeInfoPage === 'about' && 'About ShortsPilot AI Studio'}
-                {activeInfoPage === 'privacy' && 'Privacy Policy'}
-                {activeInfoPage === 'terms' && 'Terms & Conditions (Views Guarantee Policy)'}
-                {activeInfoPage === 'refund' && 'Refund & Cancellation Policy'}
-              </span>
-            </div>
-            <div className="text-xs text-slate-300 leading-relaxed space-y-2.5">
-              {activeInfoPage === 'about' && (
-                <>
-                  <p>ShortsPilot is an AI-powered SaaS studio designed for YouTube creators to automatically convert long videos into high-retention 9:16 vertical Shorts with original audio, AI-generated viral metadata, and daily peak-time YouTube auto-scheduling.</p>
-                  <p><strong>Contact Support:</strong> {globalConfig.supportEmail}</p>
-                </>
-              )}
-              {activeInfoPage === 'privacy' && (
-                <>
-                  <p>We respect creator privacy. When you connect your YouTube account, ShortsPilot only requests permissions required to view your YouTube channel analytics and auto-publish Shorts on your behalf.</p>
-                  <p>We never sell your email, channel tokens, or video files to third parties. Videos are processed directly in your browser.</p>
-                </>
-              )}
-              {activeInfoPage === 'terms' && (
-                <>
-                  <p className="text-amber-300 font-semibold">30-Day Minimum Views Guarantee — Terms & Conditions:</p>
-                  <ul className="list-disc pl-4 space-y-1.5 text-slate-300">
-                    <li><strong>Monthly Plan (₹{globalConfig.monthlyPrice}/mo):</strong> Minimum <strong>{globalConfig.monthlyGuaranteeViews} total views</strong> within 30 days of active Pro subscription.</li>
-                    <li><strong>Yearly VIP Plan (₹{globalConfig.yearlyPrice}/yr):</strong> Minimum <strong>{globalConfig.yearlyGuaranteeViews} total views per 30-day cycle</strong>.</li>
-                    <li><strong>Mandatory Posting Requirement:</strong> Creator must publish at least <strong>1 Short per day (minimum 30 Shorts in 30 days)</strong> using ShortsPilot's AI Peak-Time Auto-Scheduler.</li>
-                    <li><strong>Original & Policy-Compliant Content:</strong> Videos must be public, original, and free from YouTube Community Guideline or Copyright strikes. Deleted or private videos are excluded.</li>
-                    <li><strong>Guarantee Remedy:</strong> If all conditions above are met and the channel still receives fewer than the guaranteed views, ShortsPilot will extend your Pro subscription for the <strong>next 30 days 100% FREE</strong> upon verification at {globalConfig.supportEmail}.</li>
-                  </ul>
-                </>
-              )}
-              {activeInfoPage === 'refund' && (
-                <>
-                  <p>You may cancel your subscription renewal at any time by contacting {globalConfig.supportEmail}.</p>
-                  <p>Under our 30-Day Views Guarantee, eligible creators who meet the daily posting criteria receive a free 30-day Pro extension. Technical billing errors are refunded 100% within 5–7 business days.</p>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {previewClip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
-          <div className="relative w-full max-w-[300px] rounded-3xl bg-[#080c15] border border-sky-500/30 p-3">
-            <button onClick={() => setPreviewClip(null)} className="absolute -top-3 -right-3 p-2.5 rounded-full bg-slate-900 border border-slate-700 text-white z-10">
-              <X className="w-4 h-4" />
-            </button>
-            <video src={previewClip.croppedUrl} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
-          </div>
-        </div>
-      )}
-
-      {isConnectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
-          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-rose-500/35 p-5 sm:p-7">
-            <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
-            <h3 className="text-lg font-bold text-white mb-1">Connect YouTube Account</h3>
-            <p className="text-xs text-slate-400 mb-4">Uses offline OAuth refresh tokens so your YouTube auto-uploading stays connected automatically.</p>
-
-            {(gmailUser || ytChannel) && (
-              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 mb-4 flex items-center justify-between">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-white truncate">{ytChannel?.handle || gmailUser?.name}</div>
-                  <div className="text-[11px] text-emerald-300 truncate">{gmailUser?.email}</div>
-                </div>
-                <button onClick={handleDisconnectAll} className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 text-xs font-semibold">Logout</button>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleConnectYouTubeOAuth}
-              className="w-full py-3 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-sky-500 to-blue-600 flex items-center justify-center gap-2 mb-4"
-            >
-              <Youtube className="w-4 h-4" /> Connect YouTube (OAuth Auto-Refresh)
-            </button>
-
-            <form onSubmit={handleQuickConnectYouTube} className="space-y-2.5">
-              <input
-                type="text"
-                value={ytHandleInput}
-                onChange={(e) => setYtHandleInput(e.target.value)}
-                placeholder="@YourChannelHandle"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 text-sm text-white outline-none"
-              />
-              {connectError && <p className="text-xs text-rose-400">{connectError}</p>}
-              <button type="submit" className="w-full py-2.5 rounded-xl font-semibold text-xs text-white bg-rose-600">Save Channel Handle</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isPricingOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md">
-          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-amber-400/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
-            <button onClick={() => setIsPricingOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
-
-            {upgradeReason && (
-              <div className="mb-3 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
-                ⚡ {upgradeReason}
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-[#0c1220] border border-slate-800 mb-4">
-              <button
-                type="button"
-                onClick={() => setSelectedBilling('monthly')}
-                className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${selectedBilling === 'monthly' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-                Monthly • ₹{globalConfig.monthlyPrice}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setSelectedBilling('yearly'); setAppliedCoupon(null); setCouponMsg(''); }}
-                className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
-                  selectedBilling === 'yearly' ? 'bg-gradient-to-r from-amber-500 to-pink-600 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Yearly VIP • ₹{globalConfig.yearlyPrice}
-              </button>
-            </div>
-
-            <div className="mb-4 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200 flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <div>
-                <strong>
-                  Included: Minimum {selectedBilling === 'yearly' ? `${globalConfig.yearlyGuaranteeViews} Views/Month + 5x Clips` : `${globalConfig.monthlyGuaranteeViews} Views in 30 Days`} Guarantee
-                </strong>
-                <button type="button" onClick={() => { setIsPricingOpen(false); setActiveInfoPage('terms'); }} className="underline text-amber-300 ml-1">
-                  (T&C Apply)
-                </button>
-              </div>
-            </div>
-
-            {selectedBilling === 'monthly' && (
-              <div className="mb-4 p-3 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-2">
-                <label className="text-[11px] text-slate-400 flex items-center gap-1"><Tag className="w-3.5 h-3.5 text-amber-400" /> Promo Code (SAVE200 Active)</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={couponInput}
-                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                    placeholder="SAVE200"
-                    className="flex-1 px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs font-mono text-white uppercase outline-none"
-                  />
-                  <button type="button" onClick={handleApplyCoupon} className="px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold">
-                    Apply
-                  </button>
-                </div>
-                {couponMsg && <p className={`text-[11px] ${appliedCoupon ? 'text-emerald-400' : 'text-rose-400'}`}>{couponMsg}</p>}
-              </div>
-            )}
-
-            <div className="mb-4 flex items-baseline justify-between">
-              <span className="text-xs text-slate-400">
-                {selectedBilling === 'yearly' ? `Offer Price (Save ₹${yearlySavings.toLocaleString()}):` : 'Total Payable Amount:'}
-              </span>
-              <div className="flex items-baseline gap-2">
-                {selectedBilling === 'yearly' && (
-                  <span className="text-sm text-slate-500 line-through">₹{Number(globalConfig.yearlyOriginalPrice || 5999).toLocaleString()}</span>
-                )}
-                <span className="text-2xl font-extrabold text-white">₹{getPayableAmount().toLocaleString()}</span>
-              </div>
-            </div>
-
-            <div className="mb-4 p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/35 space-y-2">
-              <div className="text-xs font-bold text-sky-300">⚡ Pay ₹{getPayableAmount().toLocaleString()} via UPI & Enter UTR Below:</div>
-              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#05070c] border border-slate-700">
-                <span className="text-xs font-mono text-emerald-300 truncate">{globalConfig.receiverUpi || '9767905729@paytm'}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(globalConfig.receiverUpi || '9767905729@paytm');
-                    alert('✅ UPI ID Copied! Pay ₹' + getPayableAmount() + ' on GPay/PhonePe/Paytm and enter 12-digit UTR below.');
-                  }}
-                  className="px-3 py-1 rounded-lg bg-sky-600 text-white text-[11px] font-bold shrink-0"
-                >
-                  Copy UPI ID
-                </button
+                  <div className="flex items-center gap-1.5 text-xs
