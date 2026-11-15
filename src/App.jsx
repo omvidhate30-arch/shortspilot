@@ -1,18 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Video, Upload, Calendar, Settings, Shield, Sparkles, 
-  CheckCircle2, AlertCircle, HelpCircle, RefreshCw, X, Send, 
-  Layers, Lock, Play, Zap, Terminal, Cpu, Users, ChevronDown, ChevronUp 
+  Video, Upload, Calendar, Sparkles, Terminal, 
+  Layers, Shield, CheckCircle2, HelpCircle, X, Send, Play 
 } from 'lucide-react';
 
 export default function App() {
   // --- States ---
   const [activeTab, setActiveTab] = useState('studio'); // studio, scheduler, pricing, admin
   const [videos, setVideos] = useState([]);
-  const [queue, setQueue] = useState([]);
-  const [isProcessing, setIsProcessing] = useState(false);
   
-  // Custom YouTube Client ID & Secret State (Dual Fallback System)
+  // Custom YouTube Client ID & Secret State
   const [youtubeClientId, setYoutubeClientId] = useState(localStorage.getItem('shorts_client_id') || '');
   const [youtubeClientSecret, setYoutubeClientSecret] = useState(localStorage.getItem('shorts_client_secret') || '');
   const [showConnectModal, setShowConnectModal] = useState(false);
@@ -34,7 +31,6 @@ export default function App() {
   const MASTER_PIN = '9767905729';
 
   // Pricing & Subscription State
-  const [selectedPlan, setSelectedPlan] = useState('yearly'); // monthly (499) or yearly (3999)
   const [utrNumber, setUtrNumber] = useState('');
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
@@ -42,7 +38,7 @@ export default function App() {
   useEffect(() => {
     const customerTimer = setInterval(() => {
       setLiveCustomers(prev => {
-        const delta = Math.floor(Math.random() * 9) - 4; // -4 से +4 के बीच बदलाव
+        const delta = Math.floor(Math.random() * 9) - 4;
         const updated = prev + delta;
         return updated < 130 ? 135 : updated > 250 ? 242 : updated;
       });
@@ -73,9 +69,9 @@ export default function App() {
       let aiReply = "I'm here to help! For YouTube upload limits, make sure your Google Client ID is added in the connection settings.";
       const lower = userMsg.toLowerCase();
       if (lower.includes('quota') || lower.includes('limit') || lower.includes('error')) {
-        aiReply = "If you hit the upload limit, you can add your own Google Client ID & Secret from the 'Connect YouTube' button, or our smart failover will switch to backup pools automatically!";
+        aiReply = "If you hit the upload limit, you can add your own Google Client ID & Secret from the 'Connect YouTube' button at the top right!";
       } else if (lower.includes('clip') || lower.includes('video')) {
-        aiReply = "You can drag and drop your long video into the editor, select your hook style, and our AI Engine will automatically render 9:16 vertical shorts.";
+        aiReply = "Drag and drop your long video into the studio box, select your hook style, and our AI Engine will automatically render 9:16 vertical shorts.";
       }
       setSupportMessages(prev => [...prev, { role: 'ai', text: aiReply }]);
     }, 800);
@@ -115,7 +111,7 @@ export default function App() {
       <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 border-b border-purple-500/20 px-4 py-2 text-xs flex justify-between items-center">
         <div className="flex items-center gap-2">
           <span className="bg-purple-500 text-white px-2 py-0.5 rounded-full font-bold animate-pulse">PRO v3.5</span>
-          <span>ShortsPilot AI Studio — Fully Automated YouTube Shorts Engine with Smart Quota Failover</span>
+          <span>ShortsPilot AI Studio — Fully Automated YouTube Shorts Engine</span>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full text-emerald-400 font-medium">
@@ -124,9 +120,9 @@ export default function App() {
           </div>
           <button 
             onClick={() => setShowConnectModal(true)}
-            className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded-lg font-semibold transition-all shadow-md shadow-purple-600/30"
+            className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded-lg font-semibold transition-all shadow-md shadow-purple-600/30 flex items-center gap-1.5"
           >
-            🔗 Connect YouTube
+            <span>🔗</span> Connect YouTube
           </button>
         </div>
       </div>
@@ -138,8 +134,8 @@ export default function App() {
             <Video className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-wider bg-gradient-to-r from-white via-purple-200 to-purple-400 bg-clip-text text-transparent">
-              SHORTSPILOT <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded border border-purple-500/30">AI STUDIO</span>
+            <h1 className="text-lg font-black tracking-wider bg-gradient-to-r from-white via-purple-200 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
+              SHORTSPILOT <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded border border-purple-500/30 font-normal">AI STUDIO</span>
             </h1>
             <p className="text-xs text-slate-400">Automated Long-to-Shorts & Auto-Scheduler</p>
           </div>
@@ -180,7 +176,7 @@ export default function App() {
                 onChange={(e) => setAdminPin(e.target.value)} 
                 className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs w-24 text-white focus:outline-none focus:border-purple-500"
               />
-              <button type="submit" className="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold">Login</button>
+              <button type="submit" className="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300">Login</button>
             </form>
           )}
         </div>
@@ -196,11 +192,11 @@ export default function App() {
             <div className="border-2 border-dashed border-slate-800 hover:border-purple-500/50 bg-slate-900/40 rounded-2xl p-8 text-center transition-all">
               <input type="file" multiple accept="video/*" onChange={handleFileUpload} className="hidden" id="video-upload-input" />
               <label htmlFor="video-upload-input" className="cursor-pointer flex flex-col items-center gap-3">
-                <div className="w-16 h-16 rounded-2xl bg-purple-600/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                <div className="w-16 h-16 rounded-2xl bg-purple-600/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-inner">
                   <Upload className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold">Drop your long-form videos here (Batch Upload)</h3>
+                  <h3 className="text-base font-bold text-slate-200">Drop your long-form videos here (Batch Upload)</h3>
                   <p className="text-xs text-slate-400 mt-1">Our AI Engine will automatically extract viral clips and schedule YouTube Shorts.</p>
                 </div>
                 <span className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-purple-600/30 transition-all">
@@ -215,7 +211,7 @@ export default function App() {
                 <h3 className="font-bold text-sm flex items-center gap-2">
                   <Terminal className="w-4 h-4 text-purple-400" /> Active Video Queue ({videos.length})
                 </h3>
-                <span className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg">
+                <span className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg font-medium">
                   Auto-Posting Enabled by Default 🚀
                 </span>
               </div>
@@ -348,7 +344,7 @@ export default function App() {
 
       </main>
 
-      {/* --- YouTube Connection & Custom Client ID Modal --- */}
+      {/* --- YouTube Connection & Custom Client ID Modal (with 4-Step Guide) --- */}
       {showConnectModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 text-white shadow-2xl my-8">
@@ -360,7 +356,7 @@ export default function App() {
             </div>
 
             <p className="text-slate-300 text-sm mb-4">
-              To avoid upload limits (`exceeded error`), enter your own Google Cloud Client ID & Secret below, or use the default system failover pool.
+              To avoid upload limits (`exceeded error`), enter your own Google Cloud Client ID & Secret below.
             </p>
 
             {/* Input Fields */}
@@ -407,35 +403,26 @@ export default function App() {
 
               {showClientGuideModal && (
                 <div className="mt-4 space-y-6 bg-slate-950/50 p-4 rounded-xl border border-slate-800 max-h-96 overflow-y-auto">
-                  
-                  {/* Step 1 */}
                   <div>
                     <span className="text-xs font-bold bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded">Step 1</span>
                     <p className="text-xs text-slate-300 mt-1">Go to Google Cloud Console and click <b>Create Project</b>[cite: 2].</p>
                     <img src="32044c42.png" alt="Step 1: Create Project" className="rounded-lg mt-2 border border-slate-800 w-full object-cover" />
                   </div>
-
-                  {/* Step 2 */}
                   <div>
                     <span className="text-xs font-bold bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded">Step 2</span>
                     <p className="text-xs text-slate-300 mt-1">Search for <b>YouTube Data API v3</b> in Library and click <b>Enable</b>[cite: 3].</p>
                     <img src="e1a30950.png" alt="Step 2: Enable API" className="rounded-lg mt-2 border border-slate-800 w-full object-cover" />
                   </div>
-
-                  {/* Step 3 */}
                   <div>
                     <span className="text-xs font-bold bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded">Step 3</span>
                     <p className="text-xs text-slate-300 mt-1">Go to Credentials -> Create Credentials -> <b>OAuth client ID</b> (Web application)[cite: 4].</p>
                     <img src="bec526d9.png" alt="Step 3: Create OAuth Client ID" className="rounded-lg mt-2 border border-slate-800 w-full object-cover" />
                   </div>
-
-                  {/* Step 4 */}
                   <div>
                     <span className="text-xs font-bold bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded">Step 4</span>
                     <p className="text-xs text-slate-300 mt-1">Copy your <b>Client ID</b> and <b>Client Secret</b> and paste them above[cite: 5]!</p>
                     <img src="4c658f97.png" alt="Step 4: Copy Credentials" className="rounded-lg mt-2 border border-slate-800 w-full object-cover" />
                   </div>
-
                 </div>
               )}
             </div>
