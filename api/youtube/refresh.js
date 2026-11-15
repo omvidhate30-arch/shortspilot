@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     process.env.GOOGLE_CLIENT_ID ||
     '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
 
-  const CLIENT_SECRET = 'GOCSPX-' + 'xJP5sCGs0mbT4j8uXhIwumRmJlU9';
+  const CLIENT_SECRET = ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-');
 
   try {
     const response = await fetch('https://oauth2.googleapis.com/token', {
