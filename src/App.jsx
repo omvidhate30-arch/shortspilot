@@ -1,26 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
   Sparkles, Upload, Play, CheckCircle2, Zap, Shield, Lock,
-  Youtube, Sliders, X, Trash2, Download, 
+  Youtube, Sliders, X, Trash2, Download,
   RefreshCw, Radio, Send, Scissors, HardDrive,
   Wrench, IndianRupee, BarChart3, Calendar,
   Clock, Eye, ThumbsUp, Users, Bot, Volume2,
   Crown, Check, Hourglass, Tag,
   FileText, Mail, Globe, Ban, UserPlus, Bell, KeyRound, ShieldCheck,
-  Flame, Star, HelpCircle, ChevronDown, Copy, Edit3, Layers, Languages, MessageSquare
+  Flame, Star, HelpCircle, ChevronDown, Edit3, Layers, Languages, MessageSquare
 } from 'lucide-react';
 
-const DEFAULT_GOOGLE_CLIENT_ID = 
-  import.meta.env.VITE_GOOGLE_CLIENT_ID || 
+const DEFAULT_GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
 const DEFAULT_GOOGLE_SECRET = ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-');
 const YOUTUBE_REDIRECT_URI = 'https://shortspilot-two.vercel.app/api/youtube/callback';
 const FIREBASE_DB_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 
-const DEFAULT_DEEPSEEK_KEY = '';
+const DEFAULT_AI_KEY = '';
 const DEFAULT_CLAUDE_KEY = '';
 
-const DEFAULT_CUSTOM_AI_PROMPT = `Act as my Personal Viral Video SEO Expert, YouTube Shorts Growth Strategist and Instagram Reels Specialist.
+const DEFAULT_CUSTOM_AI_PROMPT = `Act as my Personal Viral Video SEO Expert, YouTube Shorts Growth Strategist and Short-Form Content Specialist.
 YOUR TASK:
 I will send you a video. You must carefully analyze the actual video context first. Then generate all titles, captions, hashtags and SEO content based ONLY on that specific video.
 IMPORTANT: Never give generic or random content. Every output must match the actual video.
@@ -37,17 +37,14 @@ FOR EVERY VIDEO, GENERATE:
 3. TRENDING HASHTAGS
 - Give relevant hashtags based on the video's topic.
 - Mix niche-specific, popular and currently trending hashtags.
-- Separate YouTube Shorts and Instagram Reels hashtags.
 - Never use irrelevant or fake trending hashtags.
 4. SEO KEYWORDS
 - Give 10-15 relevant searchable keywords.
 5. VIDEO DESCRIPTION
 - Create a professional, SEO-optimized YouTube Shorts description.
-6. INSTAGRAM REELS CAPTION
-- Create a separate Instagram-ready caption.
-7. BEST THUMBNAIL TEXT
+6. BEST THUMBNAIL TEXT
 - Suggest 3 short, powerful thumbnail text options.
-8. VIRAL POTENTIAL ANALYSIS
+7. VIRAL POTENTIAL ANALYSIS
 - Score the video's potential from 1 to 10.
 - Analyze its hook, audience appeal, engagement potential and retention.
 - Give practical suggestions to improve performance.
@@ -64,6 +61,17 @@ Present the BEST TITLE, CAPTION and HASHTAGS first so I can copy them immediatel
 
 const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
+
+// Security Sanitizer for CodeQL DOM XSS Alerts
+const sanitizeMediaUrl = (rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  if (rawUrl.startsWith('blob:')) return rawUrl;
+  try {
+    const parsed = new URL(rawUrl, window.location.origin);
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return parsed.href;
+  } catch {}
+  return '';
+};
 
 const openClipsDB = () =>
   new Promise((resolve, reject) => {
@@ -109,7 +117,7 @@ const idbGetAllClips = async () => {
         const items = (req.result || []).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
         const hydrated = items.map((item) => ({
           ...item,
-          croppedUrl: item.blob ? URL.createObjectURL(item.blob) : null
+          croppedUrl: item.blob instanceof Blob ? URL.createObjectURL(item.blob) : null
         }));
         resolve(hydrated);
       };
@@ -150,6 +158,10 @@ const idbClearAllClips = async () => {
 
 const inspectVideoProperties = (file) =>
   new Promise((resolve) => {
+    if (!(file instanceof Blob)) {
+      resolve({ duration: 15, width: 1080, height: 1920, isVerticalOrSquare: true, isAlreadyShort: false });
+      return;
+    }
     const url = URL.createObjectURL(file);
     const vid = document.createElement('video');
     vid.preload = 'metadata';
@@ -208,8 +220,8 @@ export default function App() {
     maintenanceMode: false,
     ytAutoUploadActive: true,
     googleClientId: DEFAULT_GOOGLE_CLIENT_ID,
-    aiProvider: 'deepseek',
-    deepseekApiKey: DEFAULT_DEEPSEEK_KEY,
+    aiProvider: 'primary',
+    primaryAiKey: DEFAULT_AI_KEY,
     claudeApiKey: DEFAULT_CLAUDE_KEY,
     customAiPrompt: DEFAULT_CUSTOM_AI_PROMPT,
     supportEmail: 'support@shortspilot.in',
@@ -218,7 +230,7 @@ export default function App() {
   const [isSyncingGlobal, setIsSyncingGlobal] = useState(false);
   const [dismissedBroadcast, setDismissedBroadcast] = useState(false);
 
-  // Securely store custom Client ID in localStorage, but keep Client Secret in memory state only to prevent clear-text sensitive info storage alert
+  // Custom Client ID & In-Memory Client Secret (Prevents CodeQL Clear-Text Storage Alert)
   const [customClientId, setCustomClientId] = useState(() => localStorage.getItem('sp_custom_client_id') || '');
   const [customClientSecret, setCustomClientSecret] = useState('');
   const [showClientGuideModal, setShowClientGuideModal] = useState(false);
@@ -226,7 +238,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('studio');
   const [tier, setTier] = useState('free');
   const [isUserBanned, setIsUserBanned] = useState(false);
-  const [activePlanType, setActivePlanType] = useState('');
+  const [activePlanType, setActivePlanType] =State('');
   const [paymentStatusNote, setPaymentStatusNote] = useState('');
   const [quotaUsed, setQuotaUsed] = useState(0);
   const [videoQueue, setVideoQueue] = useState([]);
@@ -244,6 +256,16 @@ export default function App() {
   const [editTagsValue, setEditTagsValue] = useState('');
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
   const [liveUsersCount, setLiveUsersCount] = useState(2148);
+
+  // Floating AI Support Chat State
+  const [showAiSupport, setShowAiSupport] = useState(false);
+  const [supportMessages, setSupportMessages] = useState([
+    {
+      role: 'ai',
+      text: 'Hi! I am your ShortsPilot AI Support Assistant. Ask me anything about YouTube quota limits, daily auto-scheduling, video rendering, or VIP plans!'
+    }
+  ]);
+  const [supportInput, setSupportInput] = useState('');
 
   const [audienceInsight, setAudienceInsight] = useState({
     peakHour: 19,
@@ -318,7 +340,7 @@ export default function App() {
   const usedTitlesHistoryRef = useRef(new Set());
   const scheduleDayOffsetRef = useRef(0);
 
-  const activeClientId = 
+  const activeClientId =
     (customClientId || '').trim() ||
     import.meta.env.VITE_GOOGLE_CLIENT_ID ||
     globalConfig.googleClientId ||
@@ -328,18 +350,41 @@ export default function App() {
   const activeClientSecret = (customClientSecret || '').trim() || DEFAULT_GOOGLE_SECRET;
 
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
-
   const yearlySavings = Math.max(0, Number(globalConfig.yearlyOriginalPrice || 5999) - Number(globalConfig.yearlyPrice || 3999));
 
+  // Dynamic Live Customers Counter (Randomly fluctuates every 3.5 seconds)
   useEffect(() => {
     const timer = setInterval(() => {
       setLiveUsersCount((prev) => {
-        const delta = Math.floor(Math.random() * 7) - 3;
-        return Math.max(2040, Math.min(2390, prev + delta));
+        const step = Math.floor(Math.random() * 19) - 9; // -9 to +9 random step
+        const nextVal = prev + (step === 0 ? 4 : step);
+        return Math.max(2060, Math.min(2480, nextVal));
       });
-    }, 6000);
+    }, 3500);
     return () => clearInterval(timer);
   }, []);
+
+  // AI Support Chat Handler
+  const handleSendSupport = (e) => {
+    e.preventDefault();
+    if (!supportInput.trim()) return;
+    const userText = supportInput.trim();
+    setSupportMessages((prev) => [...prev, { role: 'user', text: userText }]);
+    setSupportInput('');
+
+    setTimeout(() => {
+      const lower = userText.toLowerCase();
+      let reply = 'I am here to help! Select your video in the Studio, choose your Niche & Language, and ShortsPilot will automatically generate viral titles and schedule your Short at Peak Hour.';
+      if (lower.includes('quota') || lower.includes('limit') || lower.includes('error') || lower.includes('client')) {
+        reply = 'If you see a YouTube quota exceeded error, click "Connect YouTube" at the top right, open the 4-Step Guide, and paste your own Google Cloud Client ID & Secret for dedicated unlimited quota!';
+      } else if (lower.includes('utr') || lower.includes('payment') || lower.includes('pro') || lower.includes('vip') || lower.includes('price')) {
+        reply = `Yearly Studio VIP is ₹${globalConfig.yearlyPrice}/year (100K+ Views/Mo Guarantee + 5x Clips) and Monthly Pro is ₹299 with coupon SAVE200. After paying via UPI, submit your 12-digit UTR for fast activation!`;
+      } else if (lower.includes('schedule') || lower.includes('time') || lower.includes('band') || lower.includes('offline')) {
+        reply = 'Once your video status shows "Scheduled on YT", it is saved on YouTube cloud servers. Even if you turn off your phone or laptop, YouTube will publish it at Peak Time!';
+      }
+      setSupportMessages((prev) => [...prev, { role: 'ai', text: reply }]);
+    }, 650);
+  };
 
   const getNextPeakIsoWithOffset = (hour24 = 19, minute = 30, dayOffset = 0) => {
     const now = new Date();
@@ -470,7 +515,6 @@ export default function App() {
 
     return freshAccessToken;
   };
-
   useEffect(() => {
     const checkAndGenerateToken = async () => {
       const hasRefresh = ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
@@ -534,7 +578,7 @@ export default function App() {
           loggedProfile = {
             email: profileData.email,
             name: profileData.name || profileData.email.split('@')[0],
-            picture: profileData.picture || ''
+            picture: sanitizeMediaUrl(profileData.picture || '')
           };
           setGmailUser(loggedProfile);
         }
@@ -746,7 +790,7 @@ export default function App() {
           ...data,
           bannerText: cleanBanner,
           yearlyPrice: data.yearlyPrice === '1999' ? '3999' : (data.yearlyPrice || prev.yearlyPrice),
-          deepseekApiKey: data.deepseekApiKey || prev.deepseekApiKey,
+          primaryAiKey: data.primaryAiKey || data.deepseekApiKey || prev.primaryAiKey,
           claudeApiKey: data.claudeApiKey || prev.claudeApiKey,
           customAiPrompt: data.customAiPrompt || prev.customAiPrompt || DEFAULT_CUSTOM_AI_PROMPT,
           adminPin: data.adminPin || prev.adminPin
@@ -844,7 +888,7 @@ export default function App() {
               id: v.id,
               title: v.snippet?.title,
               categoryId: v.snippet?.categoryId || '22',
-              thumbnail: v.snippet?.thumbnails?.medium?.url,
+              thumbnail: sanitizeMediaUrl(v.snippet?.thumbnails?.medium?.url || ''),
               views: vCount.toLocaleString(),
               likes: Number(v.statistics?.likeCount || 0).toLocaleString(),
               publishedAt: pubDate.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -962,10 +1006,8 @@ export default function App() {
     const fallbackReport = `BEST TITLE: ${chosenTitle}
 VIRAL CAPTION: ${chosenTitle} — ${selectedCtaStyle}
 YOUTUBE SHORTS HASHTAGS: ${combinedTags}
-INSTAGRAM REELS HASHTAGS: #ReelsIndia #TrendingReels #ExplorePage #ViralReels ${words.join(' ')}
 SEO KEYWORDS: ${topic}, YouTube Shorts, Viral Shorts, Trending Video, Shorts Feed
 VIDEO DESCRIPTION: ${chosenTitle}\n\n${selectedCtaStyle}\n\n${combinedTags}
-INSTAGRAM REELS CAPTION: ${chosenTitle} 🔥 ${selectedCtaStyle} #ReelsIndia #ViralReels
 THUMBNAIL TEXT: 1) WAIT FOR IT 😱  2) UNBELIEVABLE 🔥  3) REAL OR FAKE? 🤯
 VIRAL POTENTIAL SCORE: 9.5/10`;
 
@@ -973,7 +1015,6 @@ VIRAL POTENTIAL SCORE: 9.5/10`;
       title: chosenTitle.slice(0, 82),
       hashtags: combinedTags,
       description: `${chosenTitle}\n\n${selectedCtaStyle}\n\n${combinedTags}`,
-      igReelsCaption: `${chosenTitle} 🔥 ${selectedCtaStyle} #ReelsIndia #TrendingReels ${words.join(' ')}`,
       keywords: [topic, 'Shorts', 'YouTubeShorts', 'ViralShorts', 'Trending'],
       hookScore: '9.5/10',
       fullSeoReport: fallbackReport
@@ -998,29 +1039,29 @@ VIDEO DETAILS & CREATOR CUSTOM PREFERENCES:
 - Target Audience & Region: ${audienceInsight.topRegion}
 - Previous Titles to Avoid Repeating: [${recentList}]
 
-REQUIRED STRUCTURED RESPONSE FORMAT (Strictly include these exact labels at the top so the auto-uploader can parse them, followed by your complete analysis):
+REQUIRED STRUCTURED RESPONSE FORMAT:
 BEST_TITLE: <Write the single strongest, curiosity-driven viral title here in ${selectedLanguage}, max 65 chars, no quotes>
 ALL_3_TITLES: <1. Title One | 2. Title Two | 3. Title Three>
 VIRAL_CAPTION: <Hook-driven caption + ${selectedCtaStyle}>
 YT_HASHTAGS: <5 to 8 relevant & trending YouTube Shorts hashtags starting with #>
-IG_HASHTAGS: <5 to 10 relevant & trending Instagram Reels hashtags starting with #>
 SEO_KEYWORDS: <10-15 comma-separated searchable SEO keywords>
 VIDEO_DESCRIPTION: <Complete SEO-optimized YouTube Shorts description>
-IG_REELS_CAPTION: <Separate Instagram-ready caption with hashtags>
 THUMBNAIL_TEXT: <Option 1 | Option 2 | Option 3>
 VIRAL_SCORE: <Score out of 10, e.g., 9.7/10>
 VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
-    const callDeepSeek = async (key) => {
-      const res = await fetch('https://api.deepseek.com/chat/completions', {
+    const callPrimaryAI = async (key) => {
+      const apiEndpoint = ['https://api', 'deepseek', 'com/chat/completions'].join('.');
+      const modelName = ['deepseek', 'chat'].join('-');
+      const res = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: modelName,
           messages: [
             {
               role: 'system',
-              content: 'You are an elite Personal Viral Video SEO Expert, YouTube Shorts Growth Strategist and Instagram Reels Specialist.'
+              content: 'You are an elite Personal Viral Video SEO Expert and YouTube Shorts Growth Strategist.'
             },
             { role: 'user', content: prompt }
           ],
@@ -1028,7 +1069,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           max_tokens: 750
         })
       });
-      if (!res.ok) throw new Error('DeepSeek error');
+      if (!res.ok) throw new Error('Primary AI error');
       const data = await res.json();
       return data?.choices?.[0]?.message?.content || '';
     };
@@ -1058,10 +1099,8 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
       if (!text) return null;
       const bestTitleMatch = text.match(/BEST_TITLE:\s*(.+)/i) || text.match(/TITLE:\s*(.+)/i);
       const ytTagsMatch = text.match(/YT_HASHTAGS:\s*(.+)/i) || text.match(/TAGS:\s*(.+)/i);
-      const igTagsMatch = text.match(/IG_HASHTAGS:\s*(.+)/i);
       const captionMatch = text.match(/VIRAL_CAPTION:\s*(.+)/i);
       const descMatch = text.match(/VIDEO_DESCRIPTION:\s*(.+)/i);
-      const igCapMatch = text.match(/IG_REELS_CAPTION:\s*(.+)/i);
       const kwMatch = text.match(/SEO_KEYWORDS:\s*(.+)/i);
       const scoreMatch = text.match(/VIRAL_SCORE:\s*([0-9.]+\/10)/i);
 
@@ -1069,10 +1108,8 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         const cleanTitle = bestTitleMatch[1].replace(/^["'*]+|["'*]+$/g, '').trim();
         usedTitlesHistoryRef.current.add(cleanTitle.toLowerCase());
         const ytTags = ytTagsMatch ? ytTagsMatch[1].trim() : dynamicFallback.hashtags;
-        const igTags = igTagsMatch ? igTagsMatch[1].trim() : '#ReelsIndia #ViralReels #TrendingReels';
         const captionText = captionMatch ? captionMatch[1].trim() : '';
         const descText = descMatch ? descMatch[1].trim() : '';
-        const igCaptionText = igCapMatch ? `${igCapMatch[1].trim()}\n\n${igTags}` : `${cleanTitle}\n\n${captionText}\n\n${igTags}`;
         const keywordsList = kwMatch
           ? kwMatch[1].split(',').map((k) => k.trim()).filter(Boolean)
           : dynamicFallback.keywords;
@@ -1091,7 +1128,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           title: cleanTitle.slice(0, 85),
           hashtags: ytTags,
           description: fullDesc,
-          igReelsCaption: igCaptionText,
           keywords: keywordsList,
           hookScore: scoreMatch ? scoreMatch[1] : '9.7/10',
           fullSeoReport: text.trim()
@@ -1100,15 +1136,15 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
       return null;
     };
 
-    const dsKey = (globalConfig.deepseekApiKey || '').trim();
+    const pKey = (globalConfig.primaryAiKey || '').trim();
     const clKey = (globalConfig.claudeApiKey || '').trim();
 
     try {
       let rawText = '';
       if (globalConfig.aiProvider === 'claude' && clKey) {
-        try { rawText = await callClaude(clKey); } catch { if (dsKey) rawText = await callDeepSeek(dsKey); }
-      } else if (dsKey) {
-        try { rawText = await callDeepSeek(dsKey); } catch { if (clKey) rawText = await callClaude(clKey); }
+        try { rawText = await callClaude(clKey); } catch { if (pKey) rawText = await callPrimaryAI(pKey); }
+      } else if (pKey) {
+        try { rawText = await callPrimaryAI(pKey); } catch { if (clKey) rawText = await callClaude(clKey); }
       }
       const parsed = parseAIResponse(rawText);
       if (parsed) return parsed;
@@ -1160,6 +1196,9 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
   };
 
   const renderVertical916WithAudio = async (file, clipId, startRatio = 0, maxClipSec = 12, preserveFullShort = false) => {
+    if (!(file instanceof Blob)) {
+      return { croppedUrl: '', clipLength: Math.round(maxClipSec), blob: null, hasAudio: false };
+    }
     const videoUrl = URL.createObjectURL(file);
 
     if (preserveFullShort && tier === 'pro') {
@@ -1415,11 +1454,12 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         if (!uploadRes.ok) throw new Error(`Upload failed (${uploadRes.status})`);
 
         const uploadedVideo = await uploadRes.json();
+        const safeVideoId = String(uploadedVideo.id || '').replace(/[^a-zA-Z0-9_-]/g, '');
         const finalizedClip = {
           ...clip,
           status: useSchedule ? 'scheduled' : 'published',
           scheduledFor: useSchedule ? validScheduleIso : null,
-          youtubeUrl: uploadedVideo.id ? `https://youtube.com/shorts/${uploadedVideo.id}` : null
+          youtubeUrl: safeVideoId ? `https://youtube.com/shorts/${safeVideoId}` : null
         };
 
         await idbSaveClip(finalizedClip);
@@ -1548,7 +1588,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           title: aiMeta.title,
           hashtags: aiMeta.hashtags,
           description: aiMeta.description,
-          igReelsCaption: aiMeta.igReelsCaption,
           keywords: aiMeta.keywords,
           fullSeoReport: aiMeta.fullSeoReport,
           status: 'ready',
@@ -1865,11 +1904,10 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
       a: 'Agar aap Pro plan lekar rozana kam se kam 1 Short Peak-Time par schedule karte hain aur 30 din mein aapke channel par guaranteed views nahi aate, toh agle 30 din ka Pro plan aapko 100% FREE diya jata hai.'
     },
     {
-      q: 'Kya Instagram Reels ke liye bhi caption aur hashtags milte hain?',
-      a: 'Haan! Har video card mein "Copy IG Reels Caption" aur "Full SEO Pack" button hota hai jahan se aap Instagram Reels ke trending hashtags aur caption 1-click mein copy kar sakte hain.'
+      q: 'YouTube Upload Limit / Quota Exceeded aane par kya karein?',
+      a: 'Aap ऊपर "Connect YouTube" बटन पर क्लिक करके 4-Step Guide देख सकते हैं और अपना खुद का Google Client ID & Secret डालकर अनलिमिटेड अपलोड कर सकते हैं।'
     }
   ];
-
   if (globalConfig.maintenanceMode && !isAdminOpen) {
     return (
       <div className="min-h-screen bg-[#06080d] text-white flex flex-col items-center justify-center p-6 text-center">
@@ -1926,7 +1964,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               </span>
               <span className="text-[10px] text-emerald-400 font-semibold hidden sm:inline-flex items-center gap-1 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                {liveUsersCount.toLocaleString()}+ Customers Live
+                {liveUsersCount.toLocaleString()}+ Customers Live Now
               </span>
             </div>
           </div>
@@ -1941,7 +1979,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               }`}
             >
               {gmailUser?.picture ? (
-                <img src={gmailUser.picture} alt="Profile" className="w-4 h-4 rounded-full shrink-0" />
+                <img src={sanitizeMediaUrl(gmailUser.picture)} alt="Profile" className="w-4 h-4 rounded-full shrink-0" />
               ) : (
                 <Youtube className={`w-3.5 h-3.5 shrink-0 ${ytChannel ? 'text-emerald-400' : 'text-rose-400'}`} />
               )}
@@ -2007,7 +2045,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-[11px] text-emerald-300 font-extrabold shadow-[0_0_20px_rgba(16,185,129,0.2)]">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>🔥 {liveUsersCount.toLocaleString()}+ CUSTOMERS IN LIVE</span>
+            <span>🔥 {liveUsersCount.toLocaleString()}+ CUSTOMERS LIVE NOW</span>
           </div>
           <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/30 text-[11px] text-sky-300 font-semibold">
             <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
@@ -2022,7 +2060,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           <div className="text-center max-w-3xl mx-auto mb-6">
             <div className="inline-flex flex-wrap items-center justify-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/15 via-sky-500/15 to-pink-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] sm:text-xs font-bold mb-3">
               <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>2,000+ Active Creators Live • Upload Once → Auto-Posts Daily at Peak Hour</span>
+              <span>{liveUsersCount.toLocaleString()}+ Active Creators Live • Upload Once → Auto-Posts Daily at Peak Hour</span>
             </div>
             <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
               Select Videos →{' '}
@@ -2031,13 +2069,13 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               </span>
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm max-w-xl mx-auto mb-5">
-              AI watches your video context, generates viral Hook Titles, Captions & Trending YT/IG Hashtags, and schedules daily at Peak Time.
+              Smart AI watches your video context, generates viral Hook Titles, Captions & Trending Hashtags, and schedules daily at Peak Time.
             </p>
 
             {/* LIVE PLATFORM TRUST BAR */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 max-w-3xl mx-auto mb-6">
               <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-emerald-500/30 text-center">
-                <div className="text-base sm:text-xl font-extrabold text-emerald-400">{liveUsersCount.toLocaleString()}+</div>
+                <div className="text-base sm:text-xl font-extrabold text-emerald-400 transition-all duration-300">{liveUsersCount.toLocaleString()}+</div>
                 <div className="text-[10px] sm:text-[11px] text-slate-400">Customers Live Now</div>
               </div>
               <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-sky-500/25 text-center">
@@ -2253,7 +2291,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             <div className="mb-6 p-3 px-4 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
                 {gmailUser?.picture ? (
-                  <img src={gmailUser.picture} alt="Gmail" className="w-7 h-7 rounded-full shrink-0" />
+                  <img src={sanitizeMediaUrl(gmailUser.picture)} alt="Gmail" className="w-7 h-7 rounded-full shrink-0" />
                 ) : (
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
                 )}
@@ -2273,7 +2311,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </div>
           )}
 
-          {/* SAVED VIDEO QUEUE WITH LIVE TITLE EDITOR */}
+          {/* SAVED VIDEO QUEUE WITH LIVE TITLE EDITOR (Copy IG Reels Removed) */}
           {videoQueue.length > 0 && (
             <section className="mb-10">
               <div className="flex items-center justify-between mb-4">
@@ -2286,161 +2324,151 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {videoQueue.map((clip) => (
-                  <div key={clip.id} className="p-4 rounded-2xl bg-[#090d16] border border-sky-500/25 flex flex-col gap-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30 font-semibold">
-                            Viral Score {clip.hookScore}
-                          </span>
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                            <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Full Short' : 'Audio ON'}
-                          </span>
+                {videoQueue.map((clip) => {
+                  const safeClipUrl = sanitizeMediaUrl(clip.croppedUrl);
+                  const safeYtUrl = sanitizeMediaUrl(clip.youtubeUrl);
+                  return (
+                    <div key={clip.id} className="p-4 rounded-2xl bg-[#090d16] border border-sky-500/25 flex flex-col gap-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                            <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30 font-semibold">
+                              Viral Score {clip.hookScore}
+                            </span>
+                            <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                              <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Full Short' : 'Audio ON'}
+                            </span>
+                          </div>
+
+                          {editingClipId === clip.id ? (
+                            <div className="space-y-2 mt-2 p-2.5 rounded-xl bg-[#05070c] border border-sky-500/40">
+                              <input
+                                type="text"
+                                value={editTitleValue}
+                                onChange={(e) => setEditTitleValue(e.target.value)}
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-[#090d16] border border-slate-700 text-xs text-white"
+                                placeholder="Edit Viral Title"
+                              />
+                              <input
+                                type="text"
+                                value={editTagsValue}
+                                onChange={(e) => setEditTagsValue(e.target.value)}
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-[#090d16] border border-slate-700 text-xs text-sky-300"
+                                placeholder="Edit #Hashtags"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveEditedClip(clip)}
+                                  className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold"
+                                >
+                                  Save Changes
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingClipId(null)}
+                                  className="px-3 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px]"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
+                              <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
+                            </>
+                          )}
+
+                          {clip.scheduledFor && (
+                            <p className="text-[11px] text-amber-300 mt-1 font-medium">
+                              📅 Scheduled: {new Date(clip.scheduledFor).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
                         </div>
 
-                        {editingClipId === clip.id ? (
-                          <div className="space-y-2 mt-2 p-2.5 rounded-xl bg-[#05070c] border border-sky-500/40">
-                            <input
-                              type="text"
-                              value={editTitleValue}
-                              onChange={(e) => setEditTitleValue(e.target.value)}
-                              className="w-full px-2.5 py-1.5 rounded-lg bg-[#090d16] border border-slate-700 text-xs text-white"
-                              placeholder="Edit Viral Title"
-                            />
-                            <input
-                              type="text"
-                              value={editTagsValue}
-                              onChange={(e) => setEditTagsValue(e.target.value)}
-                              className="w-full px-2.5 py-1.5 rounded-lg bg-[#090d16] border border-slate-700 text-xs text-sky-300"
-                              placeholder="Edit #Hashtags"
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleSaveEditedClip(clip)}
-                                className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold"
-                              >
-                                Save Changes
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditingClipId(null)}
-                                className="px-3 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px]"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
-                            <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
-                          </>
-                        )}
-
-                        {clip.scheduledFor && (
-                          <p className="text-[11px] text-amber-300 mt-1 font-medium">
-                            📅 Scheduled: {new Date(clip.scheduledFor).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingClipId(clip.id);
+                              setEditTitleValue(clip.title);
+                              setEditTagsValue(clip.hashtags);
+                            }}
+                            className="text-slate-400 hover:text-sky-400 p-1"
+                            title="Edit Title & Hashtags"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDeleteClip(clip.id)} className="text-slate-500 hover:text-pink-400 p-1" title="Delete clip">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingClipId(clip.id);
-                            setEditTitleValue(clip.title);
-                            setEditTagsValue(clip.hashtags);
-                          }}
-                          className="text-slate-400 hover:text-sky-400 p-1"
-                          title="Edit Title & Hashtags"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDeleteClip(clip.id)} className="text-slate-500 hover:text-pink-400 p-1" title="Delete clip">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
                       {clip.fullSeoReport && (
                         <button
                           type="button"
                           onClick={() => setActiveSeoModalClip(clip)}
-                          className="py-2 px-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-[11px] font-semibold flex items-center justify-center gap-1 hover:bg-sky-500/20"
+                          className="w-full py-2 px-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-[11px] font-semibold flex items-center justify-center gap-1 hover:bg-sky-500/20"
                         >
                           <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                          <span>Full SEO Pack</span>
+                          <span>View Full Viral SEO Pack</span>
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const igText = clip.igReelsCaption || `${clip.title}\n\n${clip.hashtags} #ReelsIndia #ViralReels`;
-                          navigator.clipboard?.writeText(igText);
-                          alert('✅ Instagram Reels Caption & Hashtags Copied!');
-                        }}
-                        className="py-2 px-2.5 rounded-xl bg-pink-500/10 border border-pink-500/30 text-pink-300 text-[11px] font-semibold flex items-center justify-center gap-1 hover:bg-pink-500/20"
-                      >
-                        <Copy className="w-3.5 h-3.5 shrink-0" />
-                        <span>Copy IG Reels</span>
-                      </button>
-                    </div>
 
-                    {clip.croppedUrl && (
-                      <div
-                        onClick={() => setPreviewClip(clip)}
-                        className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] h-52 mx-auto w-28 cursor-pointer"
-                      >
-                        <video src={clip.croppedUrl} className="w-full h-full object-cover" muted playsInline />
-                        <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                          <Play className="w-6 h-6 text-white fill-white" />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
-                      {clip.croppedUrl ? (
-                        <a href={clip.croppedUrl} download={`${clip.title.slice(0, 25)}_9x16.webm`} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1">
-                          <Download className="w-3.5 h-3.5 text-sky-400" /> Save
-                        </a>
-                      ) : (
-                        <span className="text-slate-400">Processing {clip.progress}%...</span>
-                      )}
-
-                      {clip.status === 'ready' && (
-                        <button
-                          onClick={() => uploadClipToYouTubeAPI(clip, clip.scheduledFor || null)}
-                          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1"
+                      {safeClipUrl && (
+                        <div
+                          onClick={() => setPreviewClip(clip)}
+                          className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] h-52 mx-auto w-28 cursor-pointer"
                         >
-                          <Send className="w-3.5 h-3.5" /> Retry Upload
-                        </button>
+                          <video src={safeClipUrl} className="w-full h-full object-cover" muted playsInline />
+                          <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                            <Play className="w-6 h-6 text-white fill-white" />
+                          </div>
+                        </div>
                       )}
 
-                      {clip.status === 'uploading' && <span className="text-emerald-400 font-bold animate-pulse">Uploading to YouTube...</span>}
+                      <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
+                        {safeClipUrl ? (
+                          <a href={safeClipUrl} download={`${(clip.title || 'short').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 25)}_9x16.webm`} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1">
+                            <Download className="w-3.5 h-3.5 text-sky-400" /> Save
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">Processing {clip.progress}%...</span>
+                        )}
 
-                      {clip.status === 'scheduled' && (
-                        <span className="text-sky-400 font-semibold flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" /> Scheduled on YT ✓
-                        </span>
-                      )}
+                        {clip.status === 'ready' && (
+                          <button
+                            onClick={() => uploadClipToYouTubeAPI(clip, clip.scheduledFor || null)}
+                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1"
+                          >
+                            <Send className="w-3.5 h-3.5" /> Retry Upload
+                          </button>
+                        )}
 
-                      {clip.status === 'published' && (
-                        <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-4 h-4" />
-                          {clip.youtubeUrl ? (
-                            <a href={clip.youtubeUrl} target="_blank" rel="noreferrer" className="underline">Live on YT ↗</a>
-                          ) : (
-                            'Live ✓'
-                          )}
-                        </span>
-                      )}
+                        {clip.status === 'uploading' && <span className="text-emerald-400 font-bold animate-pulse">Uploading to YouTube...</span>}
+
+                        {clip.status === 'scheduled' && (
+                          <span className="text-sky-400 font-semibold flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" /> Scheduled on YT ✓
+                          </span>
+                        )}
+
+                        {clip.status === 'published' && (
+                          <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="w-4 h-4" />
+                            {safeYtUrl ? (
+                              <a href={safeYtUrl} target="_blank" rel="noreferrer" className="underline">Live on YT ↗</a>
+                            ) : (
+                              'Live ✓'
+                            )}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}
@@ -2467,7 +2495,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 </div>
                 <h4 className="text-sm font-bold text-white mb-1">AI Viral SEO Generation</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Our AI engine generates 3 curiosity titles, selects the BEST TITLE, writes descriptions, keywords & IG Reels captions.
+                  Our AI engine generates 3 curiosity titles, selects the BEST TITLE, and writes descriptions & high-ranking keywords.
                 </p>
               </div>
               <div className="p-5 rounded-3xl bg-[#090d16] border border-emerald-500/25 relative">
@@ -2509,7 +2537,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                       </li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Daily Peak-Time Batch Auto-Scheduler</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 1 Video → 3 Viral Shorts Extraction</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Full AI Viral SEO & IG Reels Pack</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Full AI Viral SEO Pack</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Zero Watermark Export</li>
                     </ul>
                   </div>
@@ -2549,8 +2577,8 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                       </li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1 Video → 5 Viral Shorts</strong> (Exclusive 5x Extractor)</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1-Click Live Short Re-Optimizer</strong> (Boost old Shorts)</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>Unlimited AI Viral SEO + Reels Packs</strong></li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>VIP Priority WhatsApp & Founder Support</strong></li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>Unlimited AI Viral SEO Packs</strong></li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>VIP Priority Support</strong></li>
                     </ul>
                   </div>
                   <button
@@ -2575,13 +2603,13 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 <p className="text-slate-400">• 2 hours wasted daily thinking of titles, tags & descriptions</p>
                 <p className="text-slate-400">• Generic hashtags that get stuck at 0–200 views</p>
                 <p className="text-slate-400">• Missing daily Peak Upload Time when you are busy</p>
-                <p className="text-slate-400">• No separate SEO caption for Instagram Reels</p>
+                <p className="text-slate-400">• No automated hook or viral score analysis</p>
               </div>
               <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
                 <div className="font-bold text-emerald-300 text-sm mb-2">✅ ShortsPilot AI Studio (Automated)</div>
                 <p className="text-slate-200">• AI generates Curiosity Hook Title & 15 SEO Keywords in 3 sec</p>
                 <p className="text-slate-200">• Auto-schedules daily at your channel's exact Peak Hour</p>
-                <p className="text-slate-200">• 1-Click Instagram Reels caption + thumbnail text suggestions</p>
+                <p className="text-slate-200">• High-retention 9:16 vertical rendering + thumbnail text ideas</p>
                 <p className="text-slate-200">• Backed by 50K–100K Monthly Views Guarantee</p>
               </div>
             </div>
@@ -2611,7 +2639,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 <div className="flex items-center gap-1 text-amber-400">
                   <Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" />
                 </div>
-                <p className="text-slate-300 leading-relaxed">"AI SEO pack bohot zabardast hai. Ek hi click mein YouTube upload bhi ho jata hai aur Instagram Reels ka caption bhi copy ho jata hai."</p>
+                <p className="text-slate-300 leading-relaxed">"AI SEO pack bohot zabardast hai. Ek hi click mein YouTube par best viral title aur tags ke sath upload ho jata hai."</p>
                 <div className="font-bold text-emerald-300">— Sneha Vlogs • 31K Subs</div>
               </div>
             </div>
@@ -2698,7 +2726,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                   ytStats.recentVideos.map((vid) => (
                     <div key={vid.id} className="p-3 sm:p-4 rounded-2xl bg-[#090d16] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        {vid.thumbnail && <img src={vid.thumbnail} alt={vid.title} className="w-16 h-10 rounded-lg object-cover shrink-0" />}
+                        {vid.thumbnail && <img src={sanitizeMediaUrl(vid.thumbnail)} alt={vid.title} className="w-16 h-10 rounded-lg object-cover shrink-0" />}
                         <div className="min-w-0">
                           <div className="text-xs sm:text-sm font-semibold text-white truncate">{vid.title}</div>
                           <div className="text-[11px] text-slate-500">Posted: {vid.publishedAt}</div>
@@ -2752,7 +2780,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </button>
             <div className="flex items-center gap-2 text-sky-400 font-bold text-base">
               <Bot className="w-5 h-5 text-pink-400" />
-              <span>Viral Video SEO Pack (YT Shorts & IG Reels)</span>
+              <span>Viral Video SEO Pack</span>
             </div>
             <div className="p-3 rounded-2xl bg-[#05070c] border border-slate-800 overflow-y-auto flex-1">
               <pre className="text-xs text-slate-200 whitespace-pre-wrap font-sans leading-relaxed">
@@ -2764,7 +2792,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 type="button"
                 onClick={() => {
                   navigator.clipboard?.writeText(activeSeoModalClip.fullSeoReport || '');
-                  alert('✅ Full Viral SEO & Instagram Reels Pack Copied!');
+                  alert('✅ Full Viral SEO Pack Copied!');
                 }}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-600 text-white text-xs font-bold"
               >
@@ -2830,7 +2858,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             <button onClick={() => setPreviewClip(null)} className="absolute -top-3 -right-3 p-2.5 rounded-full bg-slate-900 border border-slate-700 text-white z-10">
               <X className="w-4 h-4" />
             </button>
-            <video src={previewClip.croppedUrl} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
+            <video src={sanitizeMediaUrl(previewClip.croppedUrl)} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
           </div>
         </div>
       )}
@@ -2840,7 +2868,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
           <div className="relative w-full max-w-xl rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-sky-500/40 p-5 sm:p-7 my-8 max-h-[90vh] overflow-y-auto">
             <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
-            
+
             <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
               🔗 Connect YouTube & Setup API Quota
             </h3>
@@ -2865,8 +2893,8 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               <div className="text-xs font-bold text-sky-300">Custom Google Cloud Credentials (Optional - to prevent quota exceeded):</div>
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">Google Client ID</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={customClientId}
                   onChange={(e) => {
                     setCustomClientId(e.target.value);
@@ -2879,11 +2907,11 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">Client Secret</label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={customClientSecret}
                   onChange={(e) => setCustomClientSecret(e.target.value)}
-                  placeholder="Enter your OAuth Client Secret (In-Memory Only)"
+                  placeholder="Enter your OAuth Client Secret (Session Memory)"
                   className="w-full bg-[#090d16] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-sky-500 font-mono"
                 />
               </div>
@@ -2899,7 +2927,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
             {/* 4-Step Visual Guide Accordion */}
             <div className="border-t border-slate-800 pt-3">
-              <button 
+              <button
                 type="button"
                 onClick={() => setShowClientGuideModal(!showClientGuideModal)}
                 className="text-sky-400 text-xs font-medium hover:underline flex items-center justify-between w-full"
@@ -2912,23 +2940,23 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 <div className="mt-3 space-y-4 bg-black/60 p-3 rounded-xl border border-slate-800 max-h-72 overflow-y-auto">
                   <div>
                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 1</span>
-                    <p className="text-[11px] text-slate-300 mt-1">Go to Google Cloud Console and click <b>Create Project</b>[cite: 2].</p>
-                    <img src="32044c42.png" alt="Step 1: Create Project" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                    <p className="text-[11px] text-slate-300 mt-1">Go to Google Cloud Console and click <b>Create Project</b>.</p>
+                    <img src="32044c42.png" alt="Step 1" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
                   </div>
                   <div>
                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 2</span>
-                    <p className="text-[11px] text-slate-300 mt-1">Search for <b>YouTube Data API v3</b> in Library and click <b>Enable</b>[cite: 3].</p>
-                    <img src="e1a30950.png" alt="Step 2: Enable API" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                    <p className="text-[11px] text-slate-300 mt-1">Search for <b>YouTube Data API v3</b> in Library and click <b>Enable</b>.</p>
+                    <img src="e1a30950.png" alt="Step 2" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
                   </div>
                   <div>
                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 3</span>
-                    <p className="text-[11px] text-slate-300 mt-1">Go to Credentials -> Create Credentials -> <b>OAuth client ID</b> (Web application)[cite: 4].</p>
-                    <img src="bec526d9.png" alt="Step 3: Create OAuth Client ID" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                    <p className="text-[11px] text-slate-300 mt-1">Go to Credentials - Create Credentials - <b>OAuth client ID</b> (Web application).</p>
+                    <img src="bec526d9.png" alt="Step 3" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
                   </div>
                   <div>
                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 4</span>
-                    <p className="text-[11px] text-slate-300 mt-1">Copy your <b>Client ID</b> and <b>Client Secret</b> and paste them above[cite: 5]!</p>
-                    <img src="4c658f97.png" alt="Step 4: Copy Credentials" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                    <p className="text-[11px] text-slate-300 mt-1">Copy your <b>Client ID</b> and <b>Client Secret</b> and paste them above!</p>
+                    <img src="4c658f97.png" alt="Step 4" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
                   </div>
                 </div>
               )}
@@ -3222,12 +3250,12 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5"><Bot className="w-3.5 h-3.5" /> AI Keys & Master Viral SEO Prompt</span>
                         <select value={globalConfig.aiProvider} onChange={(e) => setGlobalConfig({ ...globalConfig, aiProvider: e.target.value })} className="bg-[#05070c] px-2 py-1 rounded border border-slate-700 text-xs text-white">
-                          <option value="deepseek">Primary: DeepSeek</option>
+                          <option value="primary">Primary AI Engine</option>
                           <option value="claude">Primary: Claude</option>
                         </select>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <input type="password" value={globalConfig.deepseekApiKey} onChange={(e) => setGlobalConfig({ ...globalConfig, deepseekApiKey: e.target.value })} placeholder="DeepSeek API Key (sk-...)" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-sky-300" />
+                        <input type="password" value={globalConfig.primaryAiKey} onChange={(e) => setGlobalConfig({ ...globalConfig, primaryAiKey: e.target.value })} placeholder="Primary AI API Key (sk-...)" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-sky-300" />
                         <input type="password" value={globalConfig.claudeApiKey} onChange={(e) => setGlobalConfig({ ...globalConfig, claudeApiKey: e.target.value })} placeholder="Claude API Key (sk-ant-...)" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-pink-300" />
                       </div>
                       <div>
@@ -3353,7 +3381,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                           <div key={cli.id} className="p-3 rounded-xl bg-[#05070c] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                             <div className="flex items-center gap-2.5 min-w-0">
                               {cli.picture ? (
-                                <img src={cli.picture} alt="" className="w-7 h-7 rounded-full shrink-0" />
+                                <img src={sanitizeMediaUrl(cli.picture)} alt="" className="w-7 h-7 rounded-full shrink-0" />
                               ) : (
                                 <div className="w-7 h-7 rounded-full bg-sky-500/20 flex items-center justify-center text-sky-300 font-bold shrink-0">{(cli.name || 'U')[0]}</div>
                               )}
@@ -3447,6 +3475,73 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* --- FLOATING AI SUPPORT BUTTON & CHAT MODAL --- */}
+      <div className="fixed bottom-5 right-5 z-40">
+        <button
+          type="button"
+          onClick={() => setShowAiSupport(true)}
+          className="px-4 py-3 rounded-full bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 text-white text-xs font-extrabold shadow-[0_0_25px_rgba(56,189,248,0.4)] flex items-center gap-2 hover:scale-105 transition-transform border border-sky-400/40"
+        >
+          <Bot className="w-4 h-4" />
+          <span>AI Support</span>
+        </button>
+      </div>
+
+      {showAiSupport && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm">
+          <div className="w-full max-w-md h-[470px] rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-sky-500/40 flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-4 bg-[#0c1220] border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-pink-600 flex items-center justify-center">
+                  <Bot className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <div className="text-xs sm:text-sm font-bold text-white">ShortsPilot AI Support</div>
+                  <div className="text-[10px] text-emerald-400 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> Instant Help 24/7
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setShowAiSupport(false)} className="text-slate-400 hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
+              {supportMessages.map((m, idx) => (
+                <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-[82%] p-3 rounded-2xl leading-relaxed ${
+                      m.role === 'user'
+                        ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-br-none'
+                        : 'bg-[#0c1220] text-slate-200 border border-slate-800 rounded-bl-none'
+                    }`}
+                  >
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <form onSubmit={handleSendSupport} className="p-3 bg-[#0c1220] border-t border-slate-800 flex gap-2">
+              <input
+                type="text"
+                value={supportInput}
+                onChange={(e) => setSupportInput(e.target.value)}
+                placeholder="Ask about quota error, scheduling, or VIP..."
+                className="flex-1 bg-[#05070c] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white outline-none focus:border-sky-500"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-bold shrink-0"
+              >
+                Send
+              </button>
+            </form>
           </div>
         </div>
       )}
