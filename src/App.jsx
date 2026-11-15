@@ -231,15 +231,12 @@ export default function App() {
   const [dismissedBroadcast, setDismissedBroadcast] = useState(false);
 
   // Custom Client ID & In-Memory Client Secret (Prevents CodeQL Clear-Text Storage Alert)
-  const [customClientId, setCustomClientId] = useState(() => localStorage.getItem('sp_custom_client_id') || '');
-  const [customClientSecret, setCustomClientSecret] = useState('');
-  const [showClientGuideModal, setShowClientGuideModal] = useState(false);
-
-  const [activeTab, setActiveTab] = useState('studio');
+const [activeTab, setActiveTab] = useState('studio');
   const [tier, setTier] = useState('free');
   const [isUserBanned, setIsUserBanned] = useState(false);
-  const [activePlanType, setActivePlanType] =State('');
+  const [activePlanType, setActivePlanType] = useState('');
   const [paymentStatusNote, setPaymentStatusNote] = useState('');
+  const [quotaUsed, setQuotaUsed] = useState(0);
   const [quotaUsed, setQuotaUsed] = useState(0);
   const [videoQueue, setVideoQueue] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
