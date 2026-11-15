@@ -370,7 +370,6 @@ export default function App() {
     }
   };
 
-  // Continuous background token generator (every 45 mins)
   useEffect(() => {
     const checkAndGenerateToken = async () => {
       const hasRefresh = ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
@@ -636,9 +635,16 @@ export default function App() {
       ]);
       const data = await cfgRes.json();
       if (data && typeof data === 'object') {
+        const cleanBanner =
+          data.bannerText && !data.bannerText.includes('₹2') && !data.bannerText.includes('Trial')
+            ? data.bannerText
+            : '🔥 COUPON OFFER: Use code "SAVE200" at checkout & get Flat ₹200 OFF on Monthly Pro! (Pay only ₹299)';
+
         setGlobalConfig((prev) => ({
           ...prev,
           ...data,
+          bannerText: cleanBanner,
+          yearlyPrice: data.yearlyPrice === '1999' ? '3999' : (data.yearlyPrice || prev.yearlyPrice),
           deepseekApiKey: data.deepseekApiKey || prev.deepseekApiKey,
           claudeApiKey: data.claudeApiKey || prev.claudeApiKey,
           adminPin: data.adminPin || prev.adminPin
@@ -1578,7 +1584,7 @@ TAGS: <5 specific hashtags>`;
         body: JSON.stringify(globalConfig)
       });
       if (!res.ok) throw new Error('Firebase permission error');
-      alert('✅ Live Updated! All website controls & AI keys are now live.');
+      alert('✅ Live Updated! All website controls & Banner Headline are now live.');
     } catch {
       alert('Check Firebase Realtime Database Rules (.read: true, .write: true).');
     } finally {
@@ -2407,7 +2413,7 @@ TAGS: <5 specific hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v10.5</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v10.6</div>
           </div>
         </div>
       )}
@@ -2541,6 +2547,29 @@ TAGS: <5 specific hashtags>`;
 
                 {adminSubTab === 'site' && (
                   <div className="space-y-3.5">
+                    {/* TOP OFFER BANNER HEADLINE EDITOR */}
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-amber-500/40 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                          <Tag className="w-3.5 h-3.5" /> Top Offer Banner Headline
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setGlobalConfig({ ...globalConfig, bannerActive: !globalConfig.bannerActive })}
+                          className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-amber-300 font-semibold"
+                        >
+                          Banner: {globalConfig.bannerActive ? 'ON' : 'OFF'}
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={globalConfig.bannerText}
+                        onChange={(e) => setGlobalConfig({ ...globalConfig, bannerText: e.target.value })}
+                        placeholder="🔥 COUPON OFFER: Use code SAVE200..."
+                        className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-amber-500/40 text-xs text-white"
+                      />
+                    </div>
+
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/35 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5"><ShieldCheck className="w-4 h-4" /> 30-Day Minimum Views Guarantee</span>
