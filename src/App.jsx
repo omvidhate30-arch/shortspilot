@@ -218,9 +218,9 @@ export default function App() {
   const [isSyncingGlobal, setIsSyncingGlobal] = useState(false);
   const [dismissedBroadcast, setDismissedBroadcast] = useState(false);
 
-  // Custom Client ID & Secret State for BYOC (Bring Your Own Client ID)
+  // Securely store custom Client ID in localStorage, but keep Client Secret in memory state only to prevent clear-text sensitive info storage alert
   const [customClientId, setCustomClientId] = useState(() => localStorage.getItem('sp_custom_client_id') || '');
-  const [customClientSecret, setCustomClientSecret] = useState(() => localStorage.getItem('sp_custom_client_secret') || '');
+  const [customClientSecret, setCustomClientSecret] = useState('');
   const [showClientGuideModal, setShowClientGuideModal] = useState(false);
 
   const [activeTab, setActiveTab] = useState('studio');
@@ -318,7 +318,6 @@ export default function App() {
   const usedTitlesHistoryRef = useRef(new Set());
   const scheduleDayOffsetRef = useRef(0);
 
-  // Active Client ID (Uses user custom ID if provided to avoid quota exceeded, else fallback to default)
   const activeClientId = 
     (customClientId || '').trim() ||
     import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -2836,7 +2835,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         </div>
       )}
 
-      {/* --- CONNECT YOUTUBE MODAL WITH BYOC (CLIENT ID & SECRET) & 4-STEP GUIDE --- */}
+      {/* --- CONNECT YOUTUBE MODAL WITH BYOC & 4-STEP GUIDE --- */}
       {isConnectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
           <div className="relative w-full max-w-xl rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-sky-500/40 p-5 sm:p-7 my-8 max-h-[90vh] overflow-y-auto">
@@ -2861,7 +2860,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
             {connectError && <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl mb-3">{connectError}</p>}
 
-            {/* Custom Client ID & Secret Input Fields */}
+            {/* Secure Custom Client ID & Secret Input Fields */}
             <div className="space-y-3 mb-4 p-3.5 rounded-2xl bg-[#05070c] border border-slate-800">
               <div className="text-xs font-bold text-sky-300">Custom Google Cloud Credentials (Optional - to prevent quota exceeded):</div>
               <div>
@@ -2883,11 +2882,8 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 <input 
                   type="password" 
                   value={customClientSecret}
-                  onChange={(e) => {
-                    setCustomClientSecret(e.target.value);
-                    localStorage.setItem('sp_custom_client_secret', e.target.value);
-                  }}
-                  placeholder="Enter your OAuth Client Secret"
+                  onChange={(e) => setCustomClientSecret(e.target.value)}
+                  placeholder="Enter your OAuth Client Secret (In-Memory Only)"
                   className="w-full bg-[#090d16] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-sky-500 font-mono"
                 />
               </div>
@@ -2917,22 +2913,22 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                   <div>
                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 1</span>
                     <p className="text-[11px] text-slate-300 mt-1">Go to Google Cloud Console and click <b>Create Project</b>[cite: 2].</p>
-                    <img src="32044c42.png" alt="Step 1" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                    <img src="32044c42.png" alt="Step 1: Create Project" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
                   </div>
                   <div>
                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 2</span>
                     <p className="text-[11px] text-slate-300 mt-1">Search for <b>YouTube Data API v3</b> in Library and click <b>Enable</b>[cite: 3].</p>
-                    <img src="e1a30950.png" alt="Step 2" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                    <img src="e1a30950.png" alt="Step 2: Enable API" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
                   </div>
                   <div>
                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 3</span>
                     <p className="text-[11px] text-slate-300 mt-1">Go to Credentials -> Create Credentials -> <b>OAuth client ID</b> (Web application)[cite: 4].</p>
-                    <img src="bec526d9.png" alt="Step 3" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                    <img src="bec526d9.png" alt="Step 3: Create OAuth Client ID" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
                   </div>
                   <div>
                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 4</span>
                     <p className="text-[11px] text-slate-300 mt-1">Copy your <b>Client ID</b> and <b>Client Secret</b> and paste them above[cite: 5]!</p>
-                    <img src="4c658f97.png" alt="Step 4" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                    <img src="4c658f97.png" alt="Step 4: Copy Credentials" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
                   </div>
                 </div>
               )}
