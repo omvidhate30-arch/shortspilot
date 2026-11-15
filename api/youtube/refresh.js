@@ -6,8 +6,15 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { refresh_token } = req.body || {};
-  if (!refresh_token) return res.status(400).json({ error: 'Missing refresh_token' });
+  let bodyObj = req.body;
+  if (typeof bodyObj === 'string') {
+    try { bodyObj = JSON.parse(bodyObj); } catch { bodyObj = {}; }
+  }
+
+  const refresh_token = bodyObj?.refresh_token || req.query?.refresh_token;
+  if (!refresh_token) {
+    return res.status(400).json({ error: 'Missing refresh_token' });
+  }
 
   const CLIENT_ID =
     process.env.VITE_GOOGLE_CLIENT_ID ||
@@ -23,7 +30,7 @@ export default async function handler(req, res) {
       body: new URLSearchParams({
         client_id: CLIENT_ID.trim(),
         client_secret: CLIENT_SECRET.trim(),
-        refresh_token,
+        refresh_token: String(refresh_token).trim(),
         grant_type: 'refresh_token',
       }),
     });
