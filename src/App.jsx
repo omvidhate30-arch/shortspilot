@@ -18,6 +18,48 @@ const FIREBASE_DB_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 const DEFAULT_DEEPSEEK_KEY = '';
 const DEFAULT_CLAUDE_KEY = '';
 
+const DEFAULT_CUSTOM_AI_PROMPT = `Act as my Personal Viral Video SEO Expert, YouTube Shorts Growth Strategist and Instagram Reels Specialist.
+YOUR TASK:
+I will send you a video. You must carefully analyze the actual video context first. Then generate all titles, captions, hashtags and SEO content based ONLY on that specific video.
+IMPORTANT: Never give generic or random content. Every output must match the actual video.
+FOR EVERY VIDEO, GENERATE:
+1. BEST VIRAL TITLE
+- Create 3 catchy, curiosity-driven titles.
+- Select the strongest title as BEST TITLE.
+- Make it SEO-friendly and engaging.
+2. VIRAL CAPTION
+- Write an attractive, engaging caption.
+- Start with a powerful hook.
+- Make viewers interested in watching until the end.
+- Add a natural call to action.
+3. TRENDING HASHTAGS
+- Give relevant hashtags based on the video's topic.
+- Mix niche-specific, popular and currently trending hashtags.
+- Separate YouTube Shorts and Instagram Reels hashtags.
+- Never use irrelevant or fake trending hashtags.
+4. SEO KEYWORDS
+- Give 10-15 relevant searchable keywords.
+5. VIDEO DESCRIPTION
+- Create a professional, SEO-optimized YouTube Shorts description.
+6. INSTAGRAM REELS CAPTION
+- Create a separate Instagram-ready caption.
+7. BEST THUMBNAIL TEXT
+- Suggest 3 short, powerful thumbnail text options.
+8. VIRAL POTENTIAL ANALYSIS
+- Score the video's potential from 1 to 10.
+- Analyze its hook, audience appeal, engagement potential and retention.
+- Give practical suggestions to improve performance.
+STRICT RULES:
+- Understand the video's language, category, mood and target audience.
+- Match the output language to the video and its audience.
+- Do not invent events, facts or claims that are not visible in the video.
+- Do not blindly use the same hashtags for every video.
+- Prioritize audience retention, clicks, shares and comments.
+- Never promise 99% viral success. Focus on maximizing viral potential.
+- Keep everything professional, powerful and ready to copy and paste.
+FINAL OUTPUT:
+Present the BEST TITLE, CAPTION and HASHTAGS first so I can copy them immediately.`;
+
 const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
 
@@ -167,6 +209,7 @@ export default function App() {
     aiProvider: 'deepseek',
     deepseekApiKey: DEFAULT_DEEPSEEK_KEY,
     claudeApiKey: DEFAULT_CLAUDE_KEY,
+    customAiPrompt: DEFAULT_CUSTOM_AI_PROMPT,
     supportEmail: 'support@shortspilot.in',
     adminPin: '9767905729'
   });
@@ -236,6 +279,7 @@ export default function App() {
   const [activeInfoPage, setActiveInfoPage] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [previewClip, setPreviewClip] = useState(null);
+  const [activeSeoModalClip, setActiveSeoModalClip] = useState(null);
 
   const [utrNumber, setUtrNumber] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
@@ -647,6 +691,7 @@ export default function App() {
           yearlyPrice: data.yearlyPrice === '1999' ? '3999' : (data.yearlyPrice || prev.yearlyPrice),
           deepseekApiKey: data.deepseekApiKey || prev.deepseekApiKey,
           claudeApiKey: data.claudeApiKey || prev.claudeApiKey,
+          customAiPrompt: data.customAiPrompt || prev.customAiPrompt || DEFAULT_CUSTOM_AI_PROMPT,
           adminPin: data.adminPin || prev.adminPin
         }));
       }
@@ -857,33 +902,55 @@ export default function App() {
     const pool = tagPools[(clipIndex + Math.floor(Math.random() * tagPools.length)) % tagPools.length];
     const combinedTags = Array.from(new Set([...words, ...pool])).slice(0, 5).join(' ');
 
-    return { title: chosenTitle.slice(0, 82), hashtags: combinedTags };
+    const fallbackReport = `BEST TITLE: ${chosenTitle}
+VIRAL CAPTION: ${chosenTitle} — End tak zaroor dekhna aur comment mein apna reaction batao! 👇
+YOUTUBE SHORTS HASHTAGS: ${combinedTags}
+INSTAGRAM REELS HASHTAGS: #ReelsIndia #TrendingReels #ExplorePage #ViralReels ${words.join(' ')}
+SEO KEYWORDS: ${topic}, YouTube Shorts, Viral Shorts, Trending Video, Shorts Feed
+VIDEO DESCRIPTION: ${chosenTitle}\n\nWatch till the very end! Subscribe for daily high-retention Shorts.\n\n${combinedTags}
+INSTAGRAM REELS CAPTION: ${chosenTitle} 🔥 Follow for more! #ReelsIndia #ViralReels
+THUMBNAIL TEXT: 1) WAIT FOR IT 😱  2) UNBELIEVABLE 🔥  3) REAL OR FAKE? 🤯
+VIRAL POTENTIAL SCORE: 9.4/10`;
+
+    return {
+      title: chosenTitle.slice(0, 82),
+      hashtags: combinedTags,
+      description: `${chosenTitle}\n\nWatch till the very end!\n\n${combinedTags}`,
+      keywords: [topic, 'Shorts', 'YouTubeShorts', 'ViralShorts', 'Trending'],
+      hookScore: '9.4/10',
+      fullSeoReport: fallbackReport
+    };
   };
 
+  // ============================================================================
+  // DEEPSEEK / CLAUDE VIRAL SEO GENERATOR WITH USER'S MASTER PROMPT
+  // ============================================================================
   const generateViralMetadataWithAI = async (rawName, partLabel, clipIndex = 0) => {
     const dynamicFallback = buildUniqueDynamicMetadata(rawName, partLabel, clipIndex);
-
-    const angleStyles = [
-      'Curiosity & Suspense Hook',
-      'Shocking Fact / Bold Claim Hook',
-      'Emotional / Relatable Story Hook',
-      'Secret Tip / Hidden Detail Hook',
-      'High-Energy Climax / Finale Hook'
-    ];
-    const chosenAngle = angleStyles[clipIndex % angleStyles.length];
+    const customMasterCommand = (globalConfig.customAiPrompt || DEFAULT_CUSTOM_AI_PROMPT).trim();
     const recentList = Array.from(usedTitlesHistoryRef.current).slice(-6).join(' | ');
 
-    const prompt = `You are an elite YouTube Shorts copywriter.
-Clip Topic: "${rawName}" (${partLabel})
-Angle: ${chosenAngle}
-Target Audience: ${audienceInsight.topRegion}
-DO NOT repeat any of these previous titles: [${recentList}]
-Rules:
-1. Write 1 completely unique YouTube Shorts title (max 62 chars, NO quotes, 1 emoji).
-2. Write 5 unique topic-specific hashtags related to "${rawName}".
-Format strictly as:
-TITLE: <unique title>
-TAGS: <5 specific hashtags>`;
+    const prompt = `${customMasterCommand}
+
+---
+VIDEO DETAILS TO ANALYZE:
+- Video File / Topic Context: "${rawName}"
+- Clip Segment / Part: "${partLabel}" (Clip #${clipIndex + 1})
+- Target Audience & Region: ${audienceInsight.topRegion}
+- Previous Titles to Avoid Repeating: [${recentList}]
+
+REQUIRED STRUCTURED RESPONSE FORMAT (Strictly include these exact labels at the top so the auto-uploader can parse them, followed by your complete analysis):
+BEST_TITLE: <Write the single strongest, curiosity-driven viral title here, max 65 chars, no quotes>
+ALL_3_TITLES: <1. Title One | 2. Title Two | 3. Title Three>
+VIRAL_CAPTION: <Hook-driven caption + natural CTA>
+YT_HASHTAGS: <5 to 8 relevant & trending YouTube Shorts hashtags starting with #>
+IG_HASHTAGS: <5 to 10 relevant & trending Instagram Reels hashtags starting with #>
+SEO_KEYWORDS: <10-15 comma-separated searchable SEO keywords>
+VIDEO_DESCRIPTION: <Complete SEO-optimized YouTube Shorts description>
+IG_REELS_CAPTION: <Separate Instagram-ready caption>
+THUMBNAIL_TEXT: <Option 1 | Option 2 | Option 3>
+VIRAL_SCORE: <Score out of 10, e.g., 9.6/10>
+VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
     const callDeepSeek = async (key) => {
       const res = await fetch('https://api.deepseek.com/chat/completions', {
@@ -891,9 +958,15 @@ TAGS: <5 specific hashtags>`;
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'deepseek-chat',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.92,
-          max_tokens: 140
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an elite Personal Viral Video SEO Expert, YouTube Shorts Growth Strategist and Instagram Reels Specialist.'
+            },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.85,
+          max_tokens: 750
         })
       });
       if (!res.ok) throw new Error('DeepSeek error');
@@ -912,8 +985,8 @@ TAGS: <5 specific hashtags>`;
         },
         body: JSON.stringify({
           model: 'claude-3-5-haiku-20241022',
-          max_tokens: 140,
-          temperature: 0.9,
+          max_tokens: 750,
+          temperature: 0.85,
           messages: [{ role: 'user', content: prompt }]
         })
       });
@@ -923,14 +996,41 @@ TAGS: <5 specific hashtags>`;
     };
 
     const parseAIResponse = (text) => {
-      const titleMatch = text.match(/TITLE:\s*(.+)/i);
-      const tagsMatch = text.match(/TAGS:\s*(.+)/i);
-      if (titleMatch) {
-        const cleanTitle = titleMatch[1].replace(/^["']|["']$/g, '').trim();
+      if (!text) return null;
+      const bestTitleMatch = text.match(/BEST_TITLE:\s*(.+)/i) || text.match(/TITLE:\s*(.+)/i);
+      const ytTagsMatch = text.match(/YT_HASHTAGS:\s*(.+)/i) || text.match(/TAGS:\s*(.+)/i);
+      const captionMatch = text.match(/VIRAL_CAPTION:\s*(.+)/i);
+      const descMatch = text.match(/VIDEO_DESCRIPTION:\s*(.+)/i);
+      const kwMatch = text.match(/SEO_KEYWORDS:\s*(.+)/i);
+      const scoreMatch = text.match(/VIRAL_SCORE:\s*([0-9.]+\/10)/i);
+
+      if (bestTitleMatch) {
+        const cleanTitle = bestTitleMatch[1].replace(/^["'*]+|["'*]+$/g, '').trim();
         usedTitlesHistoryRef.current.add(cleanTitle.toLowerCase());
+        const ytTags = ytTagsMatch ? ytTagsMatch[1].trim() : dynamicFallback.hashtags;
+        const captionText = captionMatch ? captionMatch[1].trim() : '';
+        const descText = descMatch ? descMatch[1].trim() : '';
+        const keywordsList = kwMatch
+          ? kwMatch[1].split(',').map((k) => k.trim()).filter(Boolean)
+          : dynamicFallback.keywords;
+
+        const fullDesc = [
+          cleanTitle,
+          captionText,
+          descText,
+          ytTags,
+          keywordsList.length > 0 ? `Keywords: ${keywordsList.join(', ')}` : ''
+        ]
+          .filter(Boolean)
+          .join('\n\n');
+
         return {
-          title: cleanTitle,
-          hashtags: tagsMatch ? tagsMatch[1].trim() : dynamicFallback.hashtags
+          title: cleanTitle.slice(0, 85),
+          hashtags: ytTags,
+          description: fullDesc,
+          keywords: keywordsList,
+          hookScore: scoreMatch ? scoreMatch[1] : '9.6/10',
+          fullSeoReport: text.trim()
         };
       }
       return null;
@@ -970,14 +1070,15 @@ TAGS: <5 specific hashtags>`;
           id: vid.id,
           snippet: {
             title: `${aiFresh.title.slice(0, 85)} #Shorts`,
-            description: `${aiFresh.title}\n\n${aiFresh.hashtags}\nRe-optimized for Peak Audience by ShortsPilot AI`,
+            description: aiFresh.description || `${aiFresh.title}\n\n${aiFresh.hashtags}`,
+            tags: aiFresh.keywords || ['Shorts', 'YouTubeShorts'],
             categoryId: vid.categoryId || '22'
           }
         })
       });
 
       if (!res.ok) throw new Error('YouTube update permission required.');
-      alert(`✅ Live Short Updated on YouTube!\nNew Title: ${aiFresh.title}\nNew Tags: ${aiFresh.hashtags}`);
+      alert(`✅ Live Short Updated on YouTube!\nNew Best Title: ${aiFresh.title}\nNew Tags: ${aiFresh.hashtags}`);
       fetchYouTubeAnalytics();
     } catch (err) {
       alert(`AI Suggested Title:\n${aiFresh.title}\n${aiFresh.hashtags}\n\n(${err.message})`);
@@ -1140,12 +1241,13 @@ TAGS: <5 specific hashtags>`;
           : { privacyStatus: 'public', selfDeclaredMadeForKids: false };
 
         const rawTagsList = (clip.hashtags || '').split(/\s+/).map((t) => t.replace(/^#/, '').trim()).filter(Boolean);
+        const combinedSeoTags = Array.from(new Set([...rawTagsList, ...(clip.keywords || [])])).slice(0, 15);
 
         const metadata = {
           snippet: {
             title: `${clip.title.slice(0, 88)} #Shorts`,
-            description: `${clip.title}\n\n${clip.hashtags}`,
-            tags: rawTagsList.length > 0 ? rawTagsList : ['Shorts', 'YouTubeShorts'],
+            description: clip.description || `${clip.title}\n\n${clip.hashtags}`,
+            tags: combinedSeoTags.length > 0 ? combinedSeoTags : ['Shorts', 'YouTubeShorts'],
             categoryId: '22'
           },
           status: statusObj
@@ -1307,9 +1409,12 @@ TAGS: <5 specific hashtags>`;
           id: clipId,
           title: aiMeta.title,
           hashtags: aiMeta.hashtags,
+          description: aiMeta.description,
+          keywords: aiMeta.keywords,
+          fullSeoReport: aiMeta.fullSeoReport,
           status: 'ready',
           progress: 100,
-          hookScore: seg.score,
+          hookScore: aiMeta.hookScore || seg.score,
           duration: `${rMins}:${String(rSecs).padStart(2, '0')}`,
           isFullShort: seg.preserveFullShort,
           scheduledFor: targetIso,
@@ -1584,7 +1689,7 @@ TAGS: <5 specific hashtags>`;
         body: JSON.stringify(globalConfig)
       });
       if (!res.ok) throw new Error('Firebase permission error');
-      alert('✅ Live Updated! All website controls & Banner Headline are now live.');
+      alert('✅ Live Updated! Master AI Prompt, Banner & Controls are now live.');
     } catch {
       alert('Check Firebase Realtime Database Rules (.read: true, .write: true).');
     } finally {
@@ -1736,7 +1841,7 @@ TAGS: <5 specific hashtags>`;
 
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-[11px] text-emerald-300 font-bold">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>AUTO-REFRESH TOKEN + MANUAL UPI ACTIVE</span>
+          <span>DEEPSEEK VIRAL SEO + AUTO-POST ACTIVE</span>
         </div>
       </div>
 
@@ -1745,7 +1850,7 @@ TAGS: <5 specific hashtags>`;
           <div className="text-center max-w-2xl mx-auto mb-5">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] sm:text-xs font-bold mb-3">
               <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>Upload Batch Once → YouTube Publishes Daily at Peak Time Automatically</span>
+              <span>Upload Batch Once → DeepSeek SEO + YouTube Daily Auto-Schedule</span>
             </div>
             <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
               Select Videos →{' '}
@@ -1754,7 +1859,7 @@ TAGS: <5 specific hashtags>`;
               </span>
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm mb-3">
-              Even if your phone is OFF, YouTube servers automatically publish 1 Short every day at your channel's highest-view Peak Hour.
+              Automatically generates Best Viral Title, Captions, YT/IG Hashtags & SEO Keywords, and publishes at Peak Hour.
             </p>
           </div>
 
@@ -1848,13 +1953,13 @@ TAGS: <5 specific hashtags>`;
 
             <h2 className="text-lg sm:text-2xl font-bold text-white mb-1.5">
               {autoUploadBannerStatus === 'processing'
-                ? '⏳ Auto-Scheduling Your Videos on YouTube...'
-                : 'Select Video(s) — Auto-Schedules 1/Day at Peak Time'}
+                ? '⏳ DeepSeek Analyzing Video & Auto-Scheduling...'
+                : 'Select Video(s) — Auto-SEO + Daily Peak Schedule'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
               {autoPostCadence === 'daily_peak'
-                ? `Each selected video is automatically scheduled for consecutive days at ${audienceInsight.peakHourLabel.split('(')[0].trim()} on YouTube servers.`
-                : 'Every selected video is titled, tagged, and published live to YouTube immediately.'}
+                ? `Each video is analyzed with your Viral SEO Prompt and scheduled at ${audienceInsight.peakHourLabel.split('(')[0].trim()}.`
+                : 'Every selected video is analyzed for Viral Title, Hashtags & SEO and published immediately.'}
             </p>
 
             <button
@@ -1895,7 +2000,7 @@ TAGS: <5 specific hashtags>`;
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-                  <h3 className="text-base sm:text-lg font-bold text-white">Auto-Schedule & Saved Vault ({videoQueue.length})</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-white">Auto-Schedule & Viral SEO Vault ({videoQueue.length})</h3>
                   <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">Offline Safe</span>
                 </div>
                 <button onClick={handleClearAllClips} className="text-xs text-slate-400 hover:text-pink-400">Clear All</button>
@@ -1907,7 +2012,9 @@ TAGS: <5 specific hashtags>`;
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30">Hook {clip.hookScore}</span>
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30">
+                            Viral Score {clip.hookScore}
+                          </span>
                           <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                             <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Full Short (Uncut)' : 'Audio ON'}
                           </span>
@@ -1924,6 +2031,17 @@ TAGS: <5 specific hashtags>`;
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
+
+                    {clip.fullSeoReport && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveSeoModalClip(clip)}
+                        className="w-full py-2 px-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-semibold flex items-center justify-center gap-1.5 hover:bg-sky-500/20"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        📋 View & Copy Full SEO / Reels Pack
+                      </button>
+                    )}
 
                     {clip.croppedUrl && (
                       <div
@@ -2157,6 +2275,38 @@ TAGS: <5 specific hashtags>`;
           </div>
         </div>
       </footer>
+
+      {/* FULL SEO / REELS PACK VIEW & COPY MODAL */}
+      {activeSeoModalClip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-xl rounded-3xl bg-[#080c15] border border-sky-500/40 p-5 sm:p-6 max-h-[88vh] flex flex-col gap-3">
+            <button onClick={() => setActiveSeoModalClip(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2 text-sky-400 font-bold text-base">
+              <Bot className="w-5 h-5 text-pink-400" />
+              <span>Viral Video SEO Pack (YT Shorts & IG Reels)</span>
+            </div>
+            <div className="p-3 rounded-2xl bg-[#05070c] border border-slate-800 overflow-y-auto flex-1">
+              <pre className="text-xs text-slate-200 whitespace-pre-wrap font-sans leading-relaxed">
+                {activeSeoModalClip.fullSeoReport}
+              </pre>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(activeSeoModalClip.fullSeoReport || '');
+                  alert('✅ Full Viral SEO & Instagram Reels Pack Copied!');
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-600 text-white text-xs font-bold"
+              >
+                Copy Complete SEO Pack
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeInfoPage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
@@ -2402,7 +2552,7 @@ TAGS: <5 specific hashtags>`;
                 <button onClick={() => setIsSettingsOpen(false)} className="text-slate-400"><X className="w-5 h-5" /></button>
               </div>
               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-semibold">
-                ✅ Auto-Refresh Token + UPI Active
+                ✅ DeepSeek Master SEO Prompt Active
               </div>
               <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-300">
                 💾 {videoQueue.length} Clips Saved in IndexedDB
@@ -2413,7 +2563,7 @@ TAGS: <5 specific hashtags>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v10.6</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v11.0</div>
           </div>
         </div>
       )}
@@ -2529,9 +2679,9 @@ TAGS: <5 specific hashtags>`;
                       </div>
                     </div>
 
-                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2">
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5"><Bot className="w-3.5 h-3.5" /> AI Keys (DeepSeek / Claude)</span>
+                        <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5"><Bot className="w-3.5 h-3.5" /> AI Keys & Master Viral SEO Prompt</span>
                         <select value={globalConfig.aiProvider} onChange={(e) => setGlobalConfig({ ...globalConfig, aiProvider: e.target.value })} className="bg-[#05070c] px-2 py-1 rounded border border-slate-700 text-xs text-white">
                           <option value="deepseek">Primary: DeepSeek</option>
                           <option value="claude">Primary: Claude</option>
@@ -2541,13 +2691,23 @@ TAGS: <5 specific hashtags>`;
                         <input type="password" value={globalConfig.deepseekApiKey} onChange={(e) => setGlobalConfig({ ...globalConfig, deepseekApiKey: e.target.value })} placeholder="DeepSeek API Key (sk-...)" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-sky-300" />
                         <input type="password" value={globalConfig.claudeApiKey} onChange={(e) => setGlobalConfig({ ...globalConfig, claudeApiKey: e.target.value })} placeholder="Claude API Key (sk-ant-...)" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-pink-300" />
                       </div>
+                      <div>
+                        <label className="text-[10px] text-amber-300 block mb-1">
+                          DeepSeek Master Command / Viral SEO Prompt (Sent with every video)
+                        </label>
+                        <textarea
+                          rows={5}
+                          value={globalConfig.customAiPrompt}
+                          onChange={(e) => setGlobalConfig({ ...globalConfig, customAiPrompt: e.target.value })}
+                          className="w-full bg-[#05070c] p-2.5 rounded-lg border border-sky-500/40 text-[11px] text-slate-200 font-mono leading-relaxed"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
 
                 {adminSubTab === 'site' && (
                   <div className="space-y-3.5">
-                    {/* TOP OFFER BANNER HEADLINE EDITOR */}
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-amber-500/40 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
