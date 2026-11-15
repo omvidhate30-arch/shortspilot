@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
+import { 
   Sparkles, Upload, Play, CheckCircle2, Zap, Shield, Lock,
-  Youtube, Sliders, X, Trash2, Download,
+  Youtube, Sliders, X, Trash2, Download, 
   RefreshCw, Radio, Send, Scissors, HardDrive,
   Wrench, IndianRupee, BarChart3, Calendar,
   Clock, Eye, ThumbsUp, Users, Bot, Volume2,
@@ -10,8 +10,8 @@ import {
   Flame, Star, HelpCircle, ChevronDown, Copy, Edit3, Layers, Languages, MessageSquare
 } from 'lucide-react';
 
-const DEFAULT_GOOGLE_CLIENT_ID =
-  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+const DEFAULT_GOOGLE_CLIENT_ID = 
+  import.meta.env.VITE_GOOGLE_CLIENT_ID || 
   '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
 const DEFAULT_GOOGLE_SECRET = ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-');
 const YOUTUBE_REDIRECT_URI = 'https://shortspilot-two.vercel.app/api/youtube/callback';
@@ -218,6 +218,11 @@ export default function App() {
   const [isSyncingGlobal, setIsSyncingGlobal] = useState(false);
   const [dismissedBroadcast, setDismissedBroadcast] = useState(false);
 
+  // Custom Client ID & Secret State for BYOC (Bring Your Own Client ID)
+  const [customClientId, setCustomClientId] = useState(() => localStorage.getItem('sp_custom_client_id') || '');
+  const [customClientSecret, setCustomClientSecret] = useState(() => localStorage.getItem('sp_custom_client_secret') || '');
+  const [showClientGuideModal, setShowClientGuideModal] = useState(false);
+
   const [activeTab, setActiveTab] = useState('studio');
   const [tier, setTier] = useState('free');
   const [isUserBanned, setIsUserBanned] = useState(false);
@@ -313,16 +318,20 @@ export default function App() {
   const usedTitlesHistoryRef = useRef(new Set());
   const scheduleDayOffsetRef = useRef(0);
 
-  const activeClientId =
+  // Active Client ID (Uses user custom ID if provided to avoid quota exceeded, else fallback to default)
+  const activeClientId = 
+    (customClientId || '').trim() ||
     import.meta.env.VITE_GOOGLE_CLIENT_ID ||
     globalConfig.googleClientId ||
     localStorage.getItem('sp_google_client_id') ||
     DEFAULT_GOOGLE_CLIENT_ID;
+
+  const activeClientSecret = (customClientSecret || '').trim() || DEFAULT_GOOGLE_SECRET;
+
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
 
   const yearlySavings = Math.max(0, Number(globalConfig.yearlyOriginalPrice || 5999) - Number(globalConfig.yearlyPrice || 3999));
 
-  // Subtle live customer counter fluctuation (2,100+ live customers)
   useEffect(() => {
     const timer = setInterval(() => {
       setLiveUsersCount((prev) => {
@@ -414,8 +423,8 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
-          client_id: (activeClientId || DEFAULT_GOOGLE_CLIENT_ID).trim(),
-          client_secret: DEFAULT_GOOGLE_SECRET.trim(),
+          client_id: activeClientId.trim(),
+          client_secret: activeClientSecret.trim(),
           refresh_token: String(storedRefresh).trim(),
           grant_type: 'refresh_token'
         })
@@ -588,9 +597,9 @@ export default function App() {
 
   const handleConnectYouTubeOAuth = () => {
     setConnectError('');
-    const clientId = (activeClientId || '').trim();
+    const clientId = activeClientId.trim();
     if (!clientId) {
-      setConnectError('VITE_GOOGLE_CLIENT_ID is missing.');
+      setConnectError('Google Client ID is missing.');
       return;
     }
 
@@ -1975,7 +1984,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         </div>
       </header>
 
-      {/* TOP NAVIGATION & 2000+ LIVE CUSTOMERS PILL */}
+      {/* TOP NAVIGATION & LIVE CUSTOMERS PILL */}
       <div className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex p-1 rounded-2xl bg-[#090d16] border border-slate-800 w-full sm:w-auto">
           <button
@@ -2023,7 +2032,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               </span>
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm max-w-xl mx-auto mb-5">
-              DeepSeek AI watches your video context, generates viral Hook Titles, Captions & Trending YT/IG Hashtags, and schedules daily at Peak Time.
+              AI watches your video context, generates viral Hook Titles, Captions & Trending YT/IG Hashtags, and schedules daily at Peak Time.
             </p>
 
             {/* LIVE PLATFORM TRUST BAR */}
@@ -2055,7 +2064,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 <h3 className="text-xs sm:text-sm font-bold text-white">Customize Your Viral AI SEO Settings (Before Upload)</h3>
               </div>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 font-semibold">
-                DeepSeek AI Powered
+                AI Powered Engine
               </span>
             </div>
 
@@ -2223,7 +2232,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
             <h2 className="text-lg sm:text-2xl font-bold text-white mb-1.5">
               {autoUploadBannerStatus === 'processing'
-                ? '⏳ DeepSeek Analyzing Video & Auto-Scheduling...'
+                ? '⏳ AI Analyzing Video & Auto-Scheduling...'
                 : 'Select Video(s) — Auto-SEO + Daily Peak Schedule'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
@@ -2265,7 +2274,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </div>
           )}
 
-          {/* SAVED VIDEO QUEUE WITH LIVE TITLE EDITOR & IG REELS COPY */}
+          {/* SAVED VIDEO QUEUE WITH LIVE TITLE EDITOR */}
           {videoQueue.length > 0 && (
             <section className="mb-10">
               <div className="flex items-center justify-between mb-4">
@@ -2457,7 +2466,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 <div className="w-8 h-8 rounded-xl bg-pink-500/20 border border-pink-500/40 text-pink-300 font-extrabold text-xs flex items-center justify-center mb-3">
                   02
                 </div>
-                <h4 className="text-sm font-bold text-white mb-1">DeepSeek Viral SEO Generation</h4>
+                <h4 className="text-sm font-bold text-white mb-1">AI Viral SEO Generation</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
                   Our AI engine generates 3 curiosity titles, selects the BEST TITLE, writes descriptions, keywords & IG Reels captions.
                 </p>
@@ -2501,7 +2510,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                       </li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Daily Peak-Time Batch Auto-Scheduler</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 1 Video → 3 Viral Shorts Extraction</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Full DeepSeek Viral SEO & IG Reels Pack</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Full AI Viral SEO & IG Reels Pack</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Zero Watermark Export</li>
                     </ul>
                   </div>
@@ -2541,7 +2550,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                       </li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1 Video → 5 Viral Shorts</strong> (Exclusive 5x Extractor)</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1-Click Live Short Re-Optimizer</strong> (Boost old Shorts)</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>Unlimited DeepSeek Viral SEO + Reels Packs</strong></li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>Unlimited AI Viral SEO + Reels Packs</strong></li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>VIP Priority WhatsApp & Founder Support</strong></li>
                     </ul>
                   </div>
@@ -2571,7 +2580,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               </div>
               <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
                 <div className="font-bold text-emerald-300 text-sm mb-2">✅ ShortsPilot AI Studio (Automated)</div>
-                <p className="text-slate-200">• DeepSeek generates Curiosity Hook Title & 15 SEO Keywords in 3 sec</p>
+                <p className="text-slate-200">• AI generates Curiosity Hook Title & 15 SEO Keywords in 3 sec</p>
                 <p className="text-slate-200">• Auto-schedules daily at your channel's exact Peak Hour</p>
                 <p className="text-slate-200">• 1-Click Instagram Reels caption + thumbnail text suggestions</p>
                 <p className="text-slate-200">• Backed by 50K–100K Monthly Views Guarantee</p>
@@ -2603,7 +2612,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 <div className="flex items-center gap-1 text-amber-400">
                   <Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" />
                 </div>
-                <p className="text-slate-300 leading-relaxed">"DeepSeek SEO pack bohot zabardast hai. Ek hi click mein YouTube upload bhi ho jata hai aur Instagram Reels ka caption bhi copy ho jata hai."</p>
+                <p className="text-slate-300 leading-relaxed">"AI SEO pack bohot zabardast hai. Ek hi click mein YouTube upload bhi ho jata hai aur Instagram Reels ka caption bhi copy ho jata hai."</p>
                 <div className="font-bold text-emerald-300">— Sneha Vlogs • 31K Subs</div>
               </div>
             </div>
@@ -2827,12 +2836,18 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         </div>
       )}
 
+      {/* --- CONNECT YOUTUBE MODAL WITH BYOC (CLIENT ID & SECRET) & 4-STEP GUIDE --- */}
       {isConnectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
-          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-rose-500/35 p-5 sm:p-7">
-            <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
-            <h3 className="text-lg font-bold text-white mb-1">Connect YouTube Account</h3>
-            <p className="text-xs text-slate-400 mb-4">Uses offline OAuth refresh tokens so your YouTube auto-uploading stays connected automatically.</p>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-xl rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-sky-500/40 p-5 sm:p-7 my-8 max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+            
+            <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+              🔗 Connect YouTube & Setup API Quota
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              To avoid upload limits (`exceeded error`), you can enter your own Google Cloud Client ID & Secret below, or use the default system setup.
+            </p>
 
             {(gmailUser || ytChannel) && (
               <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 mb-4 flex items-center justify-between">
@@ -2846,6 +2861,38 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
             {connectError && <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl mb-3">{connectError}</p>}
 
+            {/* Custom Client ID & Secret Input Fields */}
+            <div className="space-y-3 mb-4 p-3.5 rounded-2xl bg-[#05070c] border border-slate-800">
+              <div className="text-xs font-bold text-sky-300">Custom Google Cloud Credentials (Optional - to prevent quota exceeded):</div>
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1">Google Client ID</label>
+                <input 
+                  type="text" 
+                  value={customClientId}
+                  onChange={(e) => {
+                    setCustomClientId(e.target.value);
+                    localStorage.setItem('sp_custom_client_id', e.target.value);
+                  }}
+                  placeholder="e.g. 10839218...apps.googleusercontent.com"
+                  className="w-full bg-[#090d16] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-sky-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1">Client Secret</label>
+                <input 
+                  type="password" 
+                  value={customClientSecret}
+                  onChange={(e) => {
+                    setCustomClientSecret(e.target.value);
+                    localStorage.setItem('sp_custom_client_secret', e.target.value);
+                  }}
+                  placeholder="Enter your OAuth Client Secret"
+                  className="w-full bg-[#090d16] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-sky-500 font-mono"
+                />
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={handleConnectYouTubeOAuth}
@@ -2854,14 +2901,51 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               <Youtube className="w-4 h-4" /> Connect YouTube (OAuth Auto-Refresh)
             </button>
 
-            <form onSubmit={handleQuickConnectYouTube} className="space-y-2.5 border-t border-slate-800 pt-3">
+            {/* 4-Step Visual Guide Accordion */}
+            <div className="border-t border-slate-800 pt-3">
+              <button 
+                type="button"
+                onClick={() => setShowClientGuideModal(!showClientGuideModal)}
+                className="text-sky-400 text-xs font-medium hover:underline flex items-center justify-between w-full"
+              >
+                <span>❓ Need help getting your Client ID & Secret? (View 4-Step Guide)</span>
+                <span>{showClientGuideModal ? '▲' : '▼'}</span>
+              </button>
+
+              {showClientGuideModal && (
+                <div className="mt-3 space-y-4 bg-black/60 p-3 rounded-xl border border-slate-800 max-h-72 overflow-y-auto">
+                  <div>
+                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 1</span>
+                    <p className="text-[11px] text-slate-300 mt-1">Go to Google Cloud Console and click <b>Create Project</b>[cite: 2].</p>
+                    <img src="32044c42.png" alt="Step 1" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 2</span>
+                    <p className="text-[11px] text-slate-300 mt-1">Search for <b>YouTube Data API v3</b> in Library and click <b>Enable</b>[cite: 3].</p>
+                    <img src="e1a30950.png" alt="Step 2" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 3</span>
+                    <p className="text-[11px] text-slate-300 mt-1">Go to Credentials -> Create Credentials -> <b>OAuth client ID</b> (Web application)[cite: 4].</p>
+                    <img src="bec526d9.png" alt="Step 3" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 4</span>
+                    <p className="text-[11px] text-slate-300 mt-1">Copy your <b>Client ID</b> and <b>Client Secret</b> and paste them above[cite: 5]!</p>
+                    <img src="4c658f97.png" alt="Step 4" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleQuickConnectYouTube} className="space-y-2 border-t border-slate-800 pt-3 mt-4">
               <div className="text-[11px] text-slate-400">Display Handle Only (Does not enable auto-upload):</div>
               <input
                 type="text"
                 value={ytHandleInput}
                 onChange={(e) => setYtHandleInput(e.target.value)}
                 placeholder="@YourChannelHandle"
-                className="w-full px-3.5 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none"
+                className="w-full px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none"
               />
               <button type="submit" className="w-full py-2 rounded-xl font-semibold text-xs text-slate-300 bg-slate-800">Save Handle Only</button>
             </form>
@@ -3152,7 +3236,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                       </div>
                       <div>
                         <label className="text-[10px] text-amber-300 block mb-1">
-                          DeepSeek Master Command / Viral SEO Prompt (Sent with every video)
+                          Master Viral SEO Prompt (Sent with every video)
                         </label>
                         <textarea
                           rows={5}
@@ -3216,7 +3300,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                           <input type="text" value={globalConfig.heroHeadline} onChange={(e) => setGlobalConfig({ ...globalConfig, heroHeadline: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
                         </div>
                         <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Free Video Watermark Text</label>
+                          <label className="text-[10px] text-slate-400 block mb-1">Free Plan Video Watermark Text</label>
                           <input type="text" value={globalConfig.watermarkText} onChange={(e) => setGlobalConfig({ ...globalConfig, watermarkText: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
                         </div>
                         <div>
