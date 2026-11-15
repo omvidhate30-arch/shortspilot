@@ -362,13 +362,70 @@ export default function App() {
         return updated;
       });
 
+  const refreshYouTubeAccessToken = async () => {
+    const storedRefresh =
+      ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
+    if (!storedRefresh) return null;
+
+    try {
+      const res = await fetch('/api/youtube/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: storedRefresh })
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const freshAccessToken = data?.access_token;
+      if (!freshAccessToken) return null;
+
+      localStorage.setItem('sp_yt_access_token', freshAccessToken);
+      localStorage.setItem('sp_yt_token_time', String(Date.now()));
+      if (data?.refresh_token) {
+        localStorage.setItem('sp_yt_refresh_token', data.refresh_token);
+      }
+
+      setYtChannel((prev) => {
+        const updated = {
+          ...(prev || { handle: '@YouTubeCreator', isRealOAuth: true }),
+          accessToken: freshAccessToken,
+          refreshToken: data?.refresh_token || storedRefresh
+        };
+        ytChannelRef.current = updated;
+        return updated;
+      });
+
       return freshAccessToken;
     } catch {
       return null;
     }
   };
 
+  // 🔄 CONTINUOUS AUTO-TOKEN GENERATOR: Har 45 minute mein aur page khulte hi naya token banayega
+  useEffect(() => {
+    const checkAndGenerateToken = async () => {
+      const hasRefresh = ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
+      if (!hasRefresh) return;
+
+      const lastTime = Number(localStorage.getItem('sp_yt_token_time') || 0);
+      const fortyFiveMins = 45 * 60 * 1000;
+
+      if (Date.now() - lastTime > fortyFiveMins) {
+        await refreshYouTubeAccessToken();
+      }
+    };
+
+    checkAndGenerateToken();
+    const tokenTimer = setInterval(checkAndGenerateToken, 10 * 60 * 1000); // Har 10 min mein check karega
+    return () => clearInterval(tokenTimer);
+  }, []);
+
   const fetchWithAuth = async (url, options = {}) => {
+    // Agar token 45 minute se purana hai, toh request bhejne se pehle hi naya token generate karo
+    const lastTime = Number(localStorage.getItem('sp_yt_token_time') || 0);
+    if (Date.now() - lastTime > 45 * 60 * 1000) {
+      await refreshYouTubeAccessToken();
+    }
+
     let token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
 
     const getHeaders = (t) => ({
@@ -378,56 +435,15 @@ export default function App() {
 
     let res = await fetch(url, { ...options, headers: getHeaders(token) });
 
+    // Agar phir bhi 401 aaye, toh turant naya token generate karke retry karo
     if (res.status === 401) {
       const freshToken = await refreshYouTubeAccessToken();
       if (freshToken) {
         res = await fetch(url, { ...options, headers: getHeaders(freshToken) });
-      } else {
-        localStorage.removeItem('sp_yt_access_token');
-        localStorage.removeItem('sp_yt_refresh_token');
-        setYtChannel(null);
       }
     }
     return res;
   };
-
-  const hydrateGoogleAndYouTubeProfile = async (accessToken, refreshToken = null) => {
-    if (!accessToken) return;
-    let loggedProfile = gmailUser;
-
-    try {
-      const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-      if (profileRes.ok) {
-        const profileData = await profileRes.json();
-        if (profileData?.email) {
-          loggedProfile = {
-            email: profileData.email,
-            name: profileData.name || profileData.email.split('@')[0],
-            picture: profileData.picture || ''
-          };
-          setGmailUser(loggedProfile);
-        }
-      }
-    } catch {}
-
-    try {
-      const res = await fetch(
-        'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true',
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const ch = data?.items?.[0];
-        const rawName = ch?.snippet?.customUrl || ch?.snippet?.title || '@ConnectedCreator';
-        const chObj = {
-          handle: rawName.startsWith('@') ? rawName : `@${rawName}`,
-          channelId: ch?.id || null,
-          country: ch?.snippet?.country || 'IN',
-          uploadsPlaylistId: ch?.contentDetails?.relatedPlaylists?.uploads || null,
-          accessToken,
-          refreshToken: refreshToken || localStorage.getItem('sp_yt_refresh_token') || null,
           isRealOAuth: true
         };
         setYtChannel(chObj);
