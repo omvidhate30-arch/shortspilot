@@ -6,7 +6,7 @@ import {
   Wrench, IndianRupee, BarChart3, Calendar,
   Clock, Eye, ThumbsUp, Users, Bot, Volume2,
   Crown, Check, Hourglass, Tag,
-  FileText, Mail, Globe, Ban, UserPlus, Bell, KeyRound, ShieldCheck, Megaphone
+  FileText, Mail, Globe, Ban, UserPlus, Bell, KeyRound, ShieldCheck
 } from 'lucide-react';
 
 const DEFAULT_GOOGLE_CLIENT_ID =
@@ -158,7 +158,7 @@ export default function App() {
     monthlyGuaranteeViews: '50K',
     yearlyGuaranteeViews: '100K',
     bannerText: '🔥 COUPON OFFER: Use code "SAVE200" at checkout & get Flat ₹200 OFF on Monthly Pro! (Pay only ₹299)',
-    bannerActive: false,
+    bannerActive: true,
     broadcastAlertText: '',
     broadcastAlertActive: false,
     maintenanceMode: false,
@@ -186,9 +186,9 @@ export default function App() {
   const [autoUploadBannerStatus, setAutoUploadBannerStatus] = useState('idle');
 
   const [audienceInsight, setAudienceInsight] = useState({
-    peakHour: 21,
+    peakHour: 19,
     peakMinute: 30,
-    peakHourLabel: '09:30 PM IST (AI Algorithm Peak Engagement)',
+    peakHourLabel: '07:30 PM IST (High Evening Engagement)',
     suggestedIso: '',
     topRegion: 'India (IN) • Hindi / Hinglish',
     strategyTip: 'Batch upload multiple videos once — ShortsPilot auto-schedules 1 Short per day at Peak Time on YouTube servers.',
@@ -266,7 +266,7 @@ export default function App() {
 
   const yearlySavings = Math.max(0, Number(globalConfig.yearlyOriginalPrice || 5999) - Number(globalConfig.yearlyPrice || 3999));
 
-  const getNextPeakIsoWithOffset = (hour24 = 21, minute = 30, dayOffset = 0) => {
+  const getNextPeakIsoWithOffset = (hour24 = 19, minute = 30, dayOffset = 0) => {
     const now = new Date();
     const target = new Date();
     target.setHours(hour24, minute, 0, 0);
@@ -291,9 +291,8 @@ export default function App() {
           if (c.title) usedTitlesHistoryRef.current.add(c.title.toLowerCase());
         });
         setVideoQueue(
-          savedClips.map((c, idx) => ({
+          savedClips.map((c) => ({
             ...c,
-            scheduledFor: c.scheduledFor || getNextPeakIsoWithOffset(21, 30, idx),
             status: c.status === 'uploading' || c.status === 'cropping' ? 'ready' : c.status
           }))
         );
@@ -350,35 +349,6 @@ export default function App() {
       if (!freshAccessToken) return null;
 
       localStorage.setItem('sp_yt_access_token', freshAccessToken);
-      if (data?.refresh_token) localStorage.setItem('sp_yt_refresh_token', data.refresh_token);
-
-      setYtChannel((prev) => {
-        const updated = {
-          ...(prev || { handle: '@YouTubeCreator', isRealOAuth: true }),
-          accessToken: freshAccessToken,
-          refreshToken: data?.refresh_token || storedRefresh
-        };
-        ytChannelRef.current = updated;
-        return updated;
-      });
-
-  const refreshYouTubeAccessToken = async () => {
-    const storedRefresh =
-      ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
-    if (!storedRefresh) return null;
-
-    try {
-      const res = await fetch('/api/youtube/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: storedRefresh })
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      const freshAccessToken = data?.access_token;
-      if (!freshAccessToken) return null;
-
-      localStorage.setItem('sp_yt_access_token', freshAccessToken);
       localStorage.setItem('sp_yt_token_time', String(Date.now()));
       if (data?.refresh_token) {
         localStorage.setItem('sp_yt_refresh_token', data.refresh_token);
@@ -400,29 +370,28 @@ export default function App() {
     }
   };
 
-  // 🔄 CONTINUOUS AUTO-TOKEN GENERATOR: Har 45 minute mein aur page khulte hi naya token banayega
+  // Continuous background token generator (every 45 mins)
   useEffect(() => {
     const checkAndGenerateToken = async () => {
       const hasRefresh = ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
       if (!hasRefresh) return;
 
       const lastTime = Number(localStorage.getItem('sp_yt_token_time') || 0);
-      const fortyFiveMins = 45 * 60 * 1000;
-
-      if (Date.now() - lastTime > fortyFiveMins) {
+      if (Date.now() - lastTime > 45 * 60 * 1000) {
         await refreshYouTubeAccessToken();
       }
     };
 
     checkAndGenerateToken();
-    const tokenTimer = setInterval(checkAndGenerateToken, 10 * 60 * 1000); // Har 10 min mein check karega
+    const tokenTimer = setInterval(checkAndGenerateToken, 10 * 60 * 1000);
     return () => clearInterval(tokenTimer);
   }, []);
 
   const fetchWithAuth = async (url, options = {}) => {
-    // Agar token 45 minute se purana hai, toh request bhejne se pehle hi naya token generate karo
     const lastTime = Number(localStorage.getItem('sp_yt_token_time') || 0);
-    if (Date.now() - lastTime > 45 * 60 * 1000) {
+    const hasRefresh = ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
+
+    if (lastTime > 0 && Date.now() - lastTime > 45 * 60 * 1000 && hasRefresh) {
       await refreshYouTubeAccessToken();
     }
 
@@ -435,15 +404,59 @@ export default function App() {
 
     let res = await fetch(url, { ...options, headers: getHeaders(token) });
 
-    // Agar phir bhi 401 aaye, toh turant naya token generate karke retry karo
     if (res.status === 401) {
       const freshToken = await refreshYouTubeAccessToken();
       if (freshToken) {
         res = await fetch(url, { ...options, headers: getHeaders(freshToken) });
+      } else {
+        localStorage.removeItem('sp_yt_access_token');
+        localStorage.removeItem('sp_yt_refresh_token');
+        localStorage.removeItem('sp_yt_token_time');
+        setYtChannel(null);
+        setConnectError('YouTube session expired. Please click "Connect YouTube (OAuth Auto-Refresh)" once to reconnect.');
+        setIsConnectModalOpen(true);
       }
     }
     return res;
   };
+
+  const hydrateGoogleAndYouTubeProfile = async (accessToken, refreshToken = null) => {
+    if (!accessToken) return;
+    let loggedProfile = gmailUser;
+
+    try {
+      const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        if (profileData?.email) {
+          loggedProfile = {
+            email: profileData.email,
+            name: profileData.name || profileData.email.split('@')[0],
+            picture: profileData.picture || ''
+          };
+          setGmailUser(loggedProfile);
+        }
+      }
+    } catch {}
+
+    try {
+      const res = await fetch(
+        'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true',
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const ch = data?.items?.[0];
+        const rawName = ch?.snippet?.customUrl || ch?.snippet?.title || '@ConnectedCreator';
+        const chObj = {
+          handle: rawName.startsWith('@') ? rawName : `@${rawName}`,
+          channelId: ch?.id || null,
+          country: ch?.snippet?.country || 'IN',
+          uploadsPlaylistId: ch?.contentDetails?.relatedPlaylists?.uploads || null,
+          accessToken,
+          refreshToken: refreshToken || localStorage.getItem('sp_yt_refresh_token') || null,
           isRealOAuth: true
         };
         setYtChannel(chObj);
@@ -471,7 +484,10 @@ export default function App() {
 
       if (newAccessToken) {
         localStorage.setItem('sp_yt_access_token', newAccessToken);
-        if (newRefreshToken) localStorage.setItem('sp_yt_refresh_token', newRefreshToken);
+        localStorage.setItem('sp_yt_token_time', String(Date.now()));
+        if (newRefreshToken) {
+          localStorage.setItem('sp_yt_refresh_token', newRefreshToken);
+        }
         window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
         hydrateGoogleAndYouTubeProfile(newAccessToken, newRefreshToken);
       }
@@ -620,18 +636,9 @@ export default function App() {
       ]);
       const data = await cfgRes.json();
       if (data && typeof data === 'object') {
-        // Automatically scrub old ₹2 trial text if it was saved in Firebase earlier
-        const isOldTrialBanner =
-          typeof data.bannerText === 'string' &&
-          (data.bannerText.includes('₹2') || data.bannerText.toLowerCase().includes('7-day'));
-
         setGlobalConfig((prev) => ({
           ...prev,
           ...data,
-          bannerText: isOldTrialBanner
-            ? '🔥 COUPON OFFER: Use code "SAVE200" at checkout & get Flat ₹200 OFF on Monthly Pro! (Pay only ₹299)'
-            : data.bannerText ?? prev.bannerText,
-          bannerActive: isOldTrialBanner ? false : Boolean(data.bannerActive),
           deepseekApiKey: data.deepseekApiKey || prev.deepseekApiKey,
           claudeApiKey: data.claudeApiKey || prev.claudeApiKey,
           adminPin: data.adminPin || prev.adminPin
@@ -682,6 +689,7 @@ export default function App() {
     localStorage.removeItem('sp_gmail_user');
     localStorage.removeItem('sp_yt_access_token');
     localStorage.removeItem('sp_yt_refresh_token');
+    localStorage.removeItem('sp_yt_token_time');
     setIsConnectModalOpen(false);
     setIsSettingsOpen(false);
   };
@@ -695,6 +703,7 @@ export default function App() {
 
     try {
       const chRes = await fetchWithAuth('https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true');
+      if (!chRes.ok) throw new Error('Auth failed');
       const chData = await chRes.json();
       const item = chData?.items?.[0];
       const stats = item?.statistics || {};
@@ -702,7 +711,7 @@ export default function App() {
       const uploadsId = item?.contentDetails?.relatedPlaylists?.uploads;
 
       let videosList = [];
-      let bestHour = 21;
+      let bestHour = 19;
       let topTitleSample = '';
 
       if (uploadsId) {
@@ -743,7 +752,7 @@ export default function App() {
       setAudienceInsight({
         peakHour: bestHour,
         peakMinute: 30,
-        peakHourLabel: `${hr12}:30 ${ampm} (Based on 24h–36h AI View Velocity)`,
+        peakHourLabel: `${hr12}:30 ${ampm} (Based on 24h–36h View Velocity)`,
         suggestedIso: getNextPeakIsoWithOffset(bestHour, 30, 0),
         topRegion: regionName,
         strategyTip: topTitleSample
@@ -1163,7 +1172,7 @@ TAGS: <5 specific hashtags>`;
         const finalizedClip = {
           ...clip,
           status: useSchedule ? 'scheduled' : 'published',
-          scheduledFor: scheduledIsoTime || clip.scheduledFor,
+          scheduledFor: useSchedule ? scheduledIsoTime : null,
           youtubeUrl: uploadedVideo.id ? `https://youtube.com/shorts/${uploadedVideo.id}` : null
         };
 
@@ -1171,10 +1180,12 @@ TAGS: <5 specific hashtags>`;
         setVideoQueue((prev) => prev.map((item) => (item.id === clip.id ? finalizedClip : item)));
         return;
       } catch (err) {
-        const fallbackReady = { ...clip, status: 'ready', scheduledFor: scheduledIsoTime || clip.scheduledFor };
+        const fallbackReady = { ...clip, status: 'ready', scheduledFor: scheduledIsoTime };
         await idbSaveClip(fallbackReady);
         setVideoQueue((prev) => prev.map((item) => (item.id === clip.id ? fallbackReady : item)));
-        alert(`YouTube Auto-Post Error: ${err.message}`);
+        if (!String(err.message).includes('401')) {
+          alert(`YouTube Auto-Post Error: ${err.message}`);
+        }
         return;
       }
     }
@@ -1183,7 +1194,7 @@ TAGS: <5 specific hashtags>`;
       const simDone = {
         ...clip,
         status: scheduledIsoTime && tier === 'pro' ? 'scheduled' : 'published',
-        scheduledFor: scheduledIsoTime || clip.scheduledFor
+        scheduledFor: scheduledIsoTime
       };
       await idbSaveClip(simDone);
       setVideoQueue((prev) => prev.map((item) => (item.id === clip.id ? simDone : item)));
@@ -1198,8 +1209,8 @@ TAGS: <5 specific hashtags>`;
       return;
     }
 
-    if (!ytChannelRef.current && !localStorage.getItem('sp_yt_access_token')) {
-      setConnectError('Please connect your YouTube account first so ShortsPilot can automatically upload your videos.');
+    if (!ytChannelRef.current?.accessToken && !localStorage.getItem('sp_yt_access_token')) {
+      setConnectError('Please click "Connect YouTube (OAuth Auto-Refresh)" to enable automatic uploading.');
       setIsConnectModalOpen(true);
       return;
     }
@@ -1252,9 +1263,10 @@ TAGS: <5 specific hashtags>`;
         const dayOffset = scheduleDayOffsetRef.current;
         scheduleDayOffsetRef.current += 1;
 
-        // Always calculate AI Algorithm Peak Time for every clip in the Vault
-        const aiPeakIso = getNextPeakIsoWithOffset(audienceInsight.peakHour, audienceInsight.peakMinute, dayOffset);
-        const targetIso = autoPostCadence === 'daily_peak' ? aiPeakIso : null;
+        const targetIso =
+          tier === 'pro' && autoPostCadence === 'daily_peak'
+            ? getNextPeakIsoWithOffset(audienceInsight.peakHour, audienceInsight.peakMinute, dayOffset)
+            : null;
 
         setVideoQueue((prev) => [
           {
@@ -1266,8 +1278,7 @@ TAGS: <5 specific hashtags>`;
             hookScore: seg.score,
             duration: seg.preserveFullShort ? `${mins}:${String(secs).padStart(2, '0')}` : '0:12',
             isFullShort: seg.preserveFullShort,
-            scheduledFor: aiPeakIso,
-            aiPeakLabel: audienceInsight.peakHourLabel.split('(')[0].trim(),
+            scheduledFor: targetIso,
             croppedUrl: null,
             blob: file,
             hasAudio: true,
@@ -1295,8 +1306,7 @@ TAGS: <5 specific hashtags>`;
           hookScore: seg.score,
           duration: `${rMins}:${String(rSecs).padStart(2, '0')}`,
           isFullShort: seg.preserveFullShort,
-          scheduledFor: aiPeakIso,
-          aiPeakLabel: audienceInsight.peakHourLabel.split('(')[0].trim(),
+          scheduledFor: targetIso,
           croppedUrl: renderResult.croppedUrl,
           blob: renderResult.blob,
           hasAudio: renderResult.hasAudio,
@@ -1317,19 +1327,6 @@ TAGS: <5 specific hashtags>`;
     const files = Array.from(e.target.files || []);
     processBatchFiles(files);
     e.target.value = '';
-  };
-
-  const handleUpdateClipScheduleTime = async (clipId, newIsoTime) => {
-    setVideoQueue((prev) =>
-      prev.map((item) => {
-        if (item.id === clipId) {
-          const updated = { ...item, scheduledFor: newIsoTime };
-          idbSaveClip(updated);
-          return updated;
-        }
-        return item;
-      })
-    );
   };
 
   const handleDeleteClip = async (clipId) => {
@@ -1581,7 +1578,7 @@ TAGS: <5 specific hashtags>`;
         body: JSON.stringify(globalConfig)
       });
       if (!res.ok) throw new Error('Firebase permission error');
-      alert('✅ Live Updated! All website controls, Top Banner & AI keys are now live.');
+      alert('✅ Live Updated! All website controls & AI keys are now live.');
     } catch {
       alert('Check Firebase Realtime Database Rules (.read: true, .write: true).');
     } finally {
@@ -1729,6 +1726,11 @@ TAGS: <5 specific hashtags>`;
           >
             <BarChart3 className="w-3.5 h-3.5" /> 24h–36h AI Insights & Analytics
           </button>
+        </div>
+
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-[11px] text-emerald-300 font-bold">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <span>AUTO-REFRESH TOKEN + MANUAL UPI ACTIVE</span>
         </div>
       </div>
 
@@ -1884,138 +1886,90 @@ TAGS: <5 specific hashtags>`;
 
           {videoQueue.length > 0 && (
             <section className="mb-8">
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
                   <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
                   <h3 className="text-base sm:text-lg font-bold text-white">Auto-Schedule & Saved Vault ({videoQueue.length})</h3>
                   <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">Offline Safe</span>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold flex items-center gap-1">
-                    <Bot className="w-3 h-3" /> AI Algorithm Peak Slot: {audienceInsight.peakHourLabel.split('(')[0].trim()}
-                  </span>
                 </div>
                 <button onClick={handleClearAllClips} className="text-xs text-slate-400 hover:text-pink-400">Clear All</button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {videoQueue.map((clip, index) => {
-                  const displayIso =
-                    clip.scheduledFor ||
-                    getNextPeakIsoWithOffset(audienceInsight.peakHour, audienceInsight.peakMinute, index);
-
-                  return (
-                    <div key={clip.id} className="p-4 rounded-2xl bg-[#090d16] border border-sky-500/20 flex flex-col gap-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                            <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30">
-                              Hook {clip.hookScore}
-                            </span>
-                            <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                              <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Full Short (Uncut)' : 'Audio ON'}
-                            </span>
-                          </div>
-                          <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
-                          <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
-
-                          {/* AI ALGORITHM AUTO-UPLOADING TIME BOX */}
-                          <div className="mt-2.5 p-2.5 rounded-xl bg-[#0c1322] border border-amber-500/30 space-y-1.5">
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-amber-300 font-bold flex items-center gap-1">
-                                <Bot className="w-3.5 h-3.5 text-amber-400" /> AI Auto-Upload Time:
-                              </span>
-                              <span className="text-emerald-300 font-semibold">
-                                {new Date(displayIso).toLocaleString([], {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
-                              <span className="text-[10px] text-slate-400">
-                                Algorithm: 24h–36h Peak Velocity ({audienceInsight.peakHourLabel.split('(')[0].trim()})
-                              </span>
-                              <input
-                                type="datetime-local"
-                                value={displayIso.slice(0, 16)}
-                                onChange={(e) => handleUpdateClipScheduleTime(clip.id, e.target.value)}
-                                className="bg-[#05070c] text-[10px] text-sky-300 px-2 py-0.5 rounded border border-slate-700 outline-none"
-                                title="Modify AI Auto-Upload Time"
-                              />
-                            </div>
-                          </div>
+                {videoQueue.map((clip) => (
+                  <div key={clip.id} className="p-4 rounded-2xl bg-[#090d16] border border-sky-500/20 flex flex-col gap-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30">Hook {clip.hookScore}</span>
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Full Short (Uncut)' : 'Audio ON'}
+                          </span>
                         </div>
-
-                        <button
-                          onClick={() => handleDeleteClip(clip.id)}
-                          className="text-slate-500 hover:text-pink-400 p-1 shrink-0"
-                          title="Delete saved clip"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
+                        <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
+                        {clip.scheduledFor && (
+                          <p className="text-[11px] text-amber-300 mt-1 font-medium">
+                            📅 Scheduled: {new Date(clip.scheduledFor).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        )}
                       </div>
+                      <button onClick={() => handleDeleteClip(clip.id)} className="text-slate-500 hover:text-pink-400 p-1 shrink-0" title="Delete saved clip">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
 
-                      {clip.croppedUrl && (
-                        <div
-                          onClick={() => setPreviewClip(clip)}
-                          className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] h-52 mx-auto w-28 cursor-pointer"
-                        >
-                          <video src={clip.croppedUrl} className="w-full h-full object-cover" muted playsInline />
-                          <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                            <Play className="w-6 h-6 text-white fill-white" />
-                          </div>
+                    {clip.croppedUrl && (
+                      <div
+                        onClick={() => setPreviewClip(clip)}
+                        className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] h-52 mx-auto w-28 cursor-pointer"
+                      >
+                        <video src={clip.croppedUrl} className="w-full h-full object-cover" muted playsInline />
+                        <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                          <Play className="w-6 h-6 text-white fill-white" />
                         </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
+                      {clip.croppedUrl ? (
+                        <a href={clip.croppedUrl} download={`${clip.title.slice(0, 25)}_9x16.webm`} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1">
+                          <Download className="w-3.5 h-3.5 text-sky-400" /> Save
+                        </a>
+                      ) : (
+                        <span className="text-slate-400">Processing {clip.progress}%...</span>
                       )}
 
-                      <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
-                        {clip.croppedUrl ? (
-                          <a
-                            href={clip.croppedUrl}
-                            download={`${clip.title.slice(0, 25)}_9x16.webm`}
-                            className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1"
-                          >
-                            <Download className="w-3.5 h-3.5 text-sky-400" /> Save
-                          </a>
-                        ) : (
-                          <span className="text-slate-400">Processing {clip.progress}%...</span>
-                        )}
+                      {clip.status === 'ready' && (
+                        <button
+                          onClick={() => uploadClipToYouTubeAPI(clip, clip.scheduledFor || null)}
+                          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1"
+                        >
+                          <Send className="w-3.5 h-3.5" /> Retry Upload
+                        </button>
+                      )}
 
-                        {clip.status === 'ready' && (
-                          <button
-                            onClick={() => uploadClipToYouTubeAPI(clip, displayIso)}
-                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-sky-600 text-white font-semibold flex items-center gap-1"
-                          >
-                            <Clock className="w-3.5 h-3.5" /> Auto-Schedule on YT
-                          </button>
-                        )}
+                      {clip.status === 'uploading' && <span className="text-emerald-400 font-bold animate-pulse">Uploading to YouTube...</span>}
 
-                        {clip.status === 'uploading' && (
-                          <span className="text-emerald-400 font-bold animate-pulse">Uploading to YouTube...</span>
-                        )}
+                      {clip.status === 'scheduled' && (
+                        <span className="text-sky-400 font-semibold flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" /> Scheduled on YT ✓
+                        </span>
+                      )}
 
-                        {clip.status === 'scheduled' && (
-                          <span className="text-sky-400 font-semibold flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" /> Scheduled on YT ✓
-                          </span>
-                        )}
-
-                        {clip.status === 'published' && (
-                          <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                            <CheckCircle2 className="w-4 h-4" />
-                            {clip.youtubeUrl ? (
-                              <a href={clip.youtubeUrl} target="_blank" rel="noreferrer" className="underline">
-                                Live on YT ↗
-                              </a>
-                            ) : (
-                              'Live ✓'
-                            )}
-                          </span>
-                        )}
-                      </div>
+                      {clip.status === 'published' && (
+                        <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4" />
+                          {clip.youtubeUrl ? (
+                            <a href={clip.youtubeUrl} target="_blank" rel="noreferrer" className="underline">Live on YT ↗</a>
+                          ) : (
+                            'Live ✓'
+                          )}
+                        </span>
+                      )}
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </section>
           )}
@@ -2129,4 +2083,645 @@ TAGS: <5 specific hashtags>`;
             <>
               <div className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-5">
                 <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-sky-500/25">
-                  <div className="flex items-center gap-1.5 text-xs
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1"><Users className="w-3.5 h-3.5 text-sky-400" /> Subscribers</div>
+                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.subscribers}</div>
+                </div>
+                <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-pink-500/25">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1"><Eye className="w-3.5 h-3.5 text-pink-400" /> Total Views</div>
+                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.totalViews}</div>
+                </div>
+                <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-emerald-500/25">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1"><Globe className="w-3.5 h-3.5 text-emerald-400" /> Audience Region</div>
+                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.country}</div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-slate-300">Recent Uploads & 1-Click AI Title/Tag Boost</h3>
+                {ytStats.recentVideos.length === 0 ? (
+                  <div className="p-6 rounded-2xl bg-[#090d16] border border-slate-800 text-xs text-slate-400 text-center">
+                    {ytStats.loading ? 'Loading YouTube stats...' : 'No videos found on this channel yet.'}
+                  </div>
+                ) : (
+                  ytStats.recentVideos.map((vid) => (
+                    <div key={vid.id} className="p-3 sm:p-4 rounded-2xl bg-[#090d16] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {vid.thumbnail && <img src={vid.thumbnail} alt={vid.title} className="w-16 h-10 rounded-lg object-cover shrink-0" />}
+                        <div className="min-w-0">
+                          <div className="text-xs sm:text-sm font-semibold text-white truncate">{vid.title}</div>
+                          <div className="text-[11px] text-slate-500">Posted: {vid.publishedAt}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between sm:justify-end gap-3 text-xs shrink-0">
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex items-center gap-1 text-sky-300 font-semibold"><Eye className="w-3.5 h-3.5" /> {vid.views}</span>
+                          <span className="flex items-center gap-1 text-pink-300 font-semibold"><ThumbsUp className="w-3.5 h-3.5" /> {vid.likes}</span>
+                        </div>
+                        <button
+                          onClick={() => handleReOptimizeLiveVideo(vid)}
+                          className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-500/20 to-pink-500/20 border border-pink-500/40 text-pink-300 text-[11px] font-semibold flex items-center gap-1"
+                        >
+                          <Bot className="w-3.5 h-3.5" /> AI Boost Title/Tags
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </main>
+      )}
+
+      <footer className="relative z-10 border-t border-slate-800/80 bg-[#05070c] py-6 px-4 text-center text-xs text-slate-400">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ShortsPilotLogo className="w-4 h-4" />
+            <span className="font-semibold text-slate-300">ShortsPilot AI Studio</span>
+            <span>© {new Date().getFullYear()}</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
+            <button onClick={() => setActiveInfoPage('about')} className="hover:text-sky-400">About Us</button>
+            <button onClick={() => setActiveInfoPage('privacy')} className="hover:text-sky-400">Privacy Policy</button>
+            <button onClick={() => setActiveInfoPage('terms')} className="hover:text-amber-300 text-amber-300/90 font-semibold">Terms & 50K/100K Guarantee T&C</button>
+            <button onClick={() => setActiveInfoPage('refund')} className="hover:text-sky-400">Refund & Cancellation</button>
+            <a href={`mailto:${globalConfig.supportEmail}`} className="hover:text-sky-400 flex items-center gap-1">
+              <Mail className="w-3 h-3" /> {globalConfig.supportEmail}
+            </a>
+          </div>
+        </div>
+      </footer>
+
+      {activeInfoPage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-lg rounded-3xl bg-[#080c15] border border-sky-500/30 p-6 max-h-[85vh] overflow-y-auto space-y-3">
+            <button onClick={() => setActiveInfoPage(null)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
+            <div className="flex items-center gap-2 text-sky-400 font-bold text-base">
+              <FileText className="w-5 h-5" />
+              <span>
+                {activeInfoPage === 'about' && 'About ShortsPilot AI Studio'}
+                {activeInfoPage === 'privacy' && 'Privacy Policy'}
+                {activeInfoPage === 'terms' && 'Terms & Conditions (Views Guarantee Policy)'}
+                {activeInfoPage === 'refund' && 'Refund & Cancellation Policy'}
+              </span>
+            </div>
+            <div className="text-xs text-slate-300 leading-relaxed space-y-2.5">
+              {activeInfoPage === 'about' && (
+                <>
+                  <p>ShortsPilot is an AI-powered SaaS studio designed for YouTube creators to automatically convert long videos into high-retention 9:16 vertical Shorts with original audio, AI-generated viral metadata, and daily peak-time YouTube auto-scheduling.</p>
+                  <p><strong>Contact Support:</strong> {globalConfig.supportEmail}</p>
+                </>
+              )}
+              {activeInfoPage === 'privacy' && (
+                <>
+                  <p>We respect creator privacy. When you connect your YouTube account, ShortsPilot only requests permissions required to view your YouTube channel analytics and auto-publish Shorts on your behalf.</p>
+                  <p>We never sell your email, channel tokens, or video files to third parties. Videos are processed directly in your browser.</p>
+                </>
+              )}
+              {activeInfoPage === 'terms' && (
+                <>
+                  <p className="text-amber-300 font-semibold">30-Day Minimum Views Guarantee — Terms & Conditions:</p>
+                  <ul className="list-disc pl-4 space-y-1.5 text-slate-300">
+                    <li><strong>Monthly Plan (₹{globalConfig.monthlyPrice}/mo):</strong> Minimum <strong>{globalConfig.monthlyGuaranteeViews} total views</strong> within 30 days of active Pro subscription.</li>
+                    <li><strong>Yearly VIP Plan (₹{globalConfig.yearlyPrice}/yr):</strong> Minimum <strong>{globalConfig.yearlyGuaranteeViews} total views per 30-day cycle</strong>.</li>
+                    <li><strong>Mandatory Posting Requirement:</strong> Creator must publish at least <strong>1 Short per day (minimum 30 Shorts in 30 days)</strong> using ShortsPilot's AI Peak-Time Auto-Scheduler.</li>
+                    <li><strong>Original & Policy-Compliant Content:</strong> Videos must be public, original, and free from YouTube Community Guideline or Copyright strikes. Deleted or private videos are excluded.</li>
+                    <li><strong>Guarantee Remedy:</strong> If all conditions above are met and the channel still receives fewer than the guaranteed views, ShortsPilot will extend your Pro subscription for the <strong>next 30 days 100% FREE</strong> upon verification at {globalConfig.supportEmail}.</li>
+                  </ul>
+                </>
+              )}
+              {activeInfoPage === 'refund' && (
+                <>
+                  <p>You may cancel your subscription renewal at any time by contacting {globalConfig.supportEmail}.</p>
+                  <p>Under our 30-Day Views Guarantee, eligible creators who meet the daily posting criteria receive a free 30-day Pro extension. Technical billing errors are refunded 100% within 5–7 business days.</p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewClip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
+          <div className="relative w-full max-w-[300px] rounded-3xl bg-[#080c15] border border-sky-500/30 p-3">
+            <button onClick={() => setPreviewClip(null)} className="absolute -top-3 -right-3 p-2.5 rounded-full bg-slate-900 border border-slate-700 text-white z-10">
+              <X className="w-4 h-4" />
+            </button>
+            <video src={previewClip.croppedUrl} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
+          </div>
+        </div>
+      )}
+
+      {isConnectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-rose-500/35 p-5 sm:p-7">
+            <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
+            <h3 className="text-lg font-bold text-white mb-1">Connect YouTube Account</h3>
+            <p className="text-xs text-slate-400 mb-4">Uses offline OAuth refresh tokens so your YouTube auto-uploading stays connected automatically.</p>
+
+            {(gmailUser || ytChannel) && (
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 mb-4 flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-white truncate">{ytChannel?.handle || gmailUser?.name}</div>
+                  <div className="text-[11px] text-emerald-300 truncate">{gmailUser?.email}</div>
+                </div>
+                <button onClick={handleDisconnectAll} className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 text-xs font-semibold">Logout</button>
+              </div>
+            )}
+
+            {connectError && <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl mb-3">{connectError}</p>}
+
+            <button
+              type="button"
+              onClick={handleConnectYouTubeOAuth}
+              className="w-full py-3.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-sky-500 to-blue-600 flex items-center justify-center gap-2 mb-4 shadow-lg"
+            >
+              <Youtube className="w-4 h-4" /> Connect YouTube (OAuth Auto-Refresh)
+            </button>
+
+            <form onSubmit={handleQuickConnectYouTube} className="space-y-2.5 border-t border-slate-800 pt-3">
+              <div className="text-[11px] text-slate-400">Display Handle Only (Does not enable auto-upload):</div>
+              <input
+                type="text"
+                value={ytHandleInput}
+                onChange={(e) => setYtHandleInput(e.target.value)}
+                placeholder="@YourChannelHandle"
+                className="w-full px-3.5 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none"
+              />
+              <button type="submit" className="w-full py-2 rounded-xl font-semibold text-xs text-slate-300 bg-slate-800">Save Handle Only</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isPricingOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-amber-400/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
+            <button onClick={() => setIsPricingOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
+
+            {upgradeReason && (
+              <div className="mb-3 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                ⚡ {upgradeReason}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-[#0c1220] border border-slate-800 mb-4">
+              <button
+                type="button"
+                onClick={() => setSelectedBilling('monthly')}
+                className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${selectedBilling === 'monthly' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                Monthly • ₹{globalConfig.monthlyPrice}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSelectedBilling('yearly'); setAppliedCoupon(null); setCouponMsg(''); }}
+                className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                  selectedBilling === 'yearly' ? 'bg-gradient-to-r from-amber-500 to-pink-600 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Yearly VIP • ₹{globalConfig.yearlyPrice}
+              </button>
+            </div>
+
+            <div className="mb-4 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200 flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <strong>
+                  Included: Minimum {selectedBilling === 'yearly' ? `${globalConfig.yearlyGuaranteeViews} Views/Month + 5x Clips` : `${globalConfig.monthlyGuaranteeViews} Views in 30 Days`} Guarantee
+                </strong>
+                <button type="button" onClick={() => { setIsPricingOpen(false); setActiveInfoPage('terms'); }} className="underline text-amber-300 ml-1">
+                  (T&C Apply)
+                </button>
+              </div>
+            </div>
+
+            {selectedBilling === 'monthly' && (
+              <div className="mb-4 p-3 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-2">
+                <label className="text-[11px] text-slate-400 flex items-center gap-1"><Tag className="w-3.5 h-3.5 text-amber-400" /> Promo Code (SAVE200 Active)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                    placeholder="SAVE200"
+                    className="flex-1 px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs font-mono text-white uppercase outline-none"
+                  />
+                  <button type="button" onClick={handleApplyCoupon} className="px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold">
+                    Apply
+                  </button>
+                </div>
+                {couponMsg && <p className={`text-[11px] ${appliedCoupon ? 'text-emerald-400' : 'text-rose-400'}`}>{couponMsg}</p>}
+              </div>
+            )}
+
+            <div className="mb-4 flex items-baseline justify-between">
+              <span className="text-xs text-slate-400">
+                {selectedBilling === 'yearly' ? `Offer Price (Save ₹${yearlySavings.toLocaleString()}):` : 'Total Payable Amount:'}
+              </span>
+              <div className="flex items-baseline gap-2">
+                {selectedBilling === 'yearly' && (
+                  <span className="text-sm text-slate-500 line-through">₹{Number(globalConfig.yearlyOriginalPrice || 5999).toLocaleString()}</span>
+                )}
+                <span className="text-2xl font-extrabold text-white">₹{getPayableAmount().toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div className="mb-4 p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/35 space-y-2">
+              <div className="text-xs font-bold text-sky-300">⚡ Pay ₹{getPayableAmount().toLocaleString()} via UPI & Enter UTR Below:</div>
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#05070c] border border-slate-700">
+                <span className="text-xs font-mono text-emerald-300 truncate">{globalConfig.receiverUpi || '9767905729@paytm'}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(globalConfig.receiverUpi || '9767905729@paytm');
+                    alert('✅ UPI ID Copied! Pay ₹' + getPayableAmount() + ' on GPay/PhonePe/Paytm and enter 12-digit UTR below.');
+                  }}
+                  className="px-3 py-1 rounded-lg bg-sky-600 text-white text-[11px] font-bold shrink-0"
+                >
+                  Copy UPI ID
+                </button>
+              </div>
+            </div>
+
+            {checkoutPendingMsg ? (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/40 text-center space-y-2">
+                <Hourglass className="w-8 h-8 text-amber-400 mx-auto animate-spin" />
+                <div className="text-sm font-bold text-white">Verification Pending</div>
+                <p className="text-xs text-amber-200">{checkoutPendingMsg}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="border-t border-slate-800 pt-3">
+                  <div className="text-[11px] text-slate-400 mb-2">Enter your Gmail ID & real 12-digit UPI UTR Reference ID:</div>
+                  <form onSubmit={handleVerifyPayment} className="space-y-2.5">
+                    <input
+                      type="email"
+                      value={gmailUser?.email || ''}
+                      onChange={(e) => setGmailUser({ ...(gmailUser || {}), email: e.target.value, name: e.target.value.split('@')[0] })}
+                      placeholder="Your Gmail ID (to link Pro plan)"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none"
+                      required
+                    />
+                    <input
+                      type="tel"
+                      maxLength={12}
+                      value={utrNumber}
+                      onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Enter 12-Digit UTR / Reference No."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 text-sm font-mono text-white outline-none"
+                      required
+                    />
+                    {checkoutError && <p className="text-xs text-rose-400">{checkoutError}</p>}
+                    <button
+                      type="submit"
+                      className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-emerald-500 via-teal-600 to-sky-600 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                    >
+                      Submit UTR & Unlock Pro Plan
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/75">
+          <div className="w-full max-w-xs bg-[#080c15] border-l border-sky-500/25 h-full p-5 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <h3 className="font-bold text-white">Account & Status</h3>
+                <button onClick={() => setIsSettingsOpen(false)} className="text-slate-400"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-semibold">
+                ✅ Auto-Refresh Token + UPI Active
+              </div>
+              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-300">
+                💾 {videoQueue.length} Clips Saved in IndexedDB
+              </div>
+              {gmailUser && (
+                <button onClick={handleDisconnectAll} className="w-full py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold">
+                  Logout ({gmailUser.email})
+                </button>
+              )}
+            </div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v10.5</div>
+          </div>
+        </div>
+      )}
+
+      {isAdminOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-lg">
+          <div className="relative w-full max-w-3xl rounded-t-3xl sm:rounded-3xl bg-[#070a12] border border-pink-500/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
+            <button onClick={() => setIsAdminOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
+
+            {!isAdminUnlocked ? (
+              <form onSubmit={handleAdminUnlock} className="py-6 text-center">
+                <Lock className="w-10 h-10 text-pink-400 mx-auto mb-3" />
+                <h3 className="text-lg font-bold text-white mb-1">Owner Master Control Panel</h3>
+                <p className="text-xs text-slate-400 mb-4">Enter Master PIN to manage Revenue, Clients, Guarantees & AI.</p>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  placeholder="Master PIN"
+                  className="w-full max-w-xs mx-auto block px-4 py-3 rounded-xl bg-[#05070c] border border-slate-700 text-center text-white tracking-widest mb-3"
+                  autoFocus
+                />
+                {pinError && <p className="text-xs text-pink-400 mb-3">{pinError}</p>}
+                <button type="submit" className="px-8 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-pink-600 text-white text-sm font-semibold">
+                  Unlock Master Console
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-pink-400" />
+                    <h3 className="text-base sm:text-lg font-bold text-white">ShortsPilot Master Admin</h3>
+                  </div>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    Firebase Live Connected
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="p-3 rounded-xl bg-[#0c1220] border border-emerald-500/30">
+                    <div className="text-slate-400 text-[10px]">Verified Revenue</div>
+                    <div className="text-base font-extrabold text-emerald-400">₹{totalVerifiedRevenue}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#0c1220] border border-sky-500/30">
+                    <div className="text-slate-400 text-[10px]">Total Creators</div>
+                    <div className="text-base font-extrabold text-white">{clientsList.length}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#0c1220] border border-pink-500/30">
+                    <div className="text-slate-400 text-[10px]">Active Pro Users</div>
+                    <div className="text-base font-extrabold text-pink-400">{clientsList.filter((c) => c.tier === 'pro').length}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#0c1220] border border-amber-500/30">
+                    <div className="text-slate-400 text-[10px]">Pending UTRs</div>
+                    <div className="text-base font-extrabold text-amber-400">{transactions.filter((t) => t.status === 'Pending').length}</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 rounded-xl bg-[#0c1220] border border-slate-800 text-xs font-semibold">
+                  <button onClick={() => setAdminSubTab('controls')} className={`py-2 rounded-lg ${adminSubTab === 'controls' ? 'bg-pink-600 text-white' : 'text-slate-400'}`}>⚙️ Plans & AI</button>
+                  <button onClick={() => setAdminSubTab('site')} className={`py-2 rounded-lg ${adminSubTab === 'site' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>🌐 Guarantee & Alerts</button>
+                  <button onClick={() => setAdminSubTab('clients')} className={`py-2 rounded-lg ${adminSubTab === 'clients' ? 'bg-sky-600 text-white' : 'text-slate-400'}`}>👥 Clients ({clientsList.length})</button>
+                  <button onClick={() => setAdminSubTab('payments')} className={`py-2 rounded-lg ${adminSubTab === 'payments' ? 'bg-amber-600 text-white' : 'text-slate-400'}`}>💳 Payments ({transactions.length})</button>
+                </div>
+
+                {adminSubTab === 'controls' && (
+                  <div className="space-y-3.5">
+                    <form onSubmit={handleManualGrantPro} className="p-3 rounded-2xl bg-[#0c1220] border border-amber-500/35 flex flex-col sm:flex-row gap-2">
+                      <div className="flex-1 flex items-center gap-2 bg-[#05070c] px-3 py-1.5 rounded-xl border border-slate-700">
+                        <UserPlus className="w-4 h-4 text-amber-400 shrink-0" />
+                        <input
+                          type="email"
+                          value={manualProEmail}
+                          onChange={(e) => setManualProEmail(e.target.value)}
+                          placeholder="Grant Instant Yearly VIP PRO to Gmail ID..."
+                          className="w-full bg-transparent text-xs text-white outline-none"
+                        />
+                      </div>
+                      <button type="submit" className="px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs shrink-0">+ Grant VIP PRO</button>
+                    </form>
+
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/30 space-y-3">
+                      <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                        <IndianRupee className="w-3.5 h-3.5" /> Pricing, UPI ID & Coupon Code
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Monthly (₹)</label>
+                          <input type="number" value={globalConfig.monthlyPrice} onChange={(e) => setGlobalConfig({ ...globalConfig, monthlyPrice: e.target.value })} className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Yearly Orig (₹)</label>
+                          <input type="number" value={globalConfig.yearlyOriginalPrice} onChange={(e) => setGlobalConfig({ ...globalConfig, yearlyOriginalPrice: e.target.value })} className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-400 line-through" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-emerald-300 block mb-1">Yearly Offer (₹)</label>
+                          <input type="number" value={globalConfig.yearlyPrice} onChange={(e) => setGlobalConfig({ ...globalConfig, yearlyPrice: e.target.value })} className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-emerald-500/40 text-xs text-white font-bold" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-amber-300 block mb-1">499 Coupon</label>
+                          <input type="text" value={globalConfig.couponCode} onChange={(e) => setGlobalConfig({ ...globalConfig, couponCode: e.target.value.toUpperCase() })} placeholder="SAVE200" className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-amber-500/40 text-xs font-mono text-amber-300 uppercase" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Coupon Off (₹)</label>
+                          <input type="number" value={globalConfig.couponDiscount} onChange={(e) => setGlobalConfig({ ...globalConfig, couponDiscount: e.target.value })} className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-emerald-300 block mb-1">Receiver UPI ID (For Manual Payment)</label>
+                        <input type="text" value={globalConfig.receiverUpi} onChange={(e) => setGlobalConfig({ ...globalConfig, receiverUpi: e.target.value })} placeholder="9767905729@paytm" className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-emerald-500/40 text-xs font-mono text-emerald-300" />
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5"><Bot className="w-3.5 h-3.5" /> AI Keys (DeepSeek / Claude)</span>
+                        <select value={globalConfig.aiProvider} onChange={(e) => setGlobalConfig({ ...globalConfig, aiProvider: e.target.value })} className="bg-[#05070c] px-2 py-1 rounded border border-slate-700 text-xs text-white">
+                          <option value="deepseek">Primary: DeepSeek</option>
+                          <option value="claude">Primary: Claude</option>
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input type="password" value={globalConfig.deepseekApiKey} onChange={(e) => setGlobalConfig({ ...globalConfig, deepseekApiKey: e.target.value })} placeholder="DeepSeek API Key (sk-...)" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-sky-300" />
+                        <input type="password" value={globalConfig.claudeApiKey} onChange={(e) => setGlobalConfig({ ...globalConfig, claudeApiKey: e.target.value })} placeholder="Claude API Key (sk-ant-...)" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-pink-300" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {adminSubTab === 'site' && (
+                  <div className="space-y-3.5">
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/35 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5"><ShieldCheck className="w-4 h-4" /> 30-Day Minimum Views Guarantee</span>
+                        <button type="button" onClick={() => setGlobalConfig({ ...globalConfig, guaranteeActive: !globalConfig.guaranteeActive })} className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-emerald-300 font-semibold">
+                          Badge: {globalConfig.guaranteeActive ? 'ON' : 'OFF'}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Monthly Guarantee Views</label>
+                          <input type="text" value={globalConfig.monthlyGuaranteeViews} onChange={(e) => setGlobalConfig({ ...globalConfig, monthlyGuaranteeViews: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Yearly Guarantee Views/Mo</label>
+                          <input type="text" value={globalConfig.yearlyGuaranteeViews} onChange={(e) => setGlobalConfig({ ...globalConfig, yearlyGuaranteeViews: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-indigo-500/30 space-y-2.5">
+                      <div className="text-xs font-semibold text-indigo-300 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> Live Website Content & Limits</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Hero Main Headline</label>
+                          <input type="text" value={globalConfig.heroHeadline} onChange={(e) => setGlobalConfig({ ...globalConfig, heroHeadline: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Free Video Watermark Text</label>
+                          <input type="text" value={globalConfig.watermarkText} onChange={(e) => setGlobalConfig({ ...globalConfig, watermarkText: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Free Plan Video Limit</label>
+                          <input type="number" value={globalConfig.freeLimit} onChange={(e) => setGlobalConfig({ ...globalConfig, freeLimit: Number(e.target.value) })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Support Email</label>
+                          <input type="email" value={globalConfig.supportEmail} onChange={(e) => setGlobalConfig({ ...globalConfig, supportEmail: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-pink-500/30 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-pink-300 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> Live User Broadcast Popup</span>
+                        <button type="button" onClick={() => setGlobalConfig({ ...globalConfig, broadcastAlertActive: !globalConfig.broadcastAlertActive })} className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-amber-300 font-semibold">
+                          Popup: {globalConfig.broadcastAlertActive ? 'ON' : 'OFF'}
+                        </button>
+                      </div>
+                      <input type="text" value={globalConfig.broadcastAlertText} onChange={(e) => setGlobalConfig({ ...globalConfig, broadcastAlertText: e.target.value })} placeholder="Type message to show as popup on all users' screens..." className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-2.5">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => setGlobalConfig({ ...globalConfig, ytAutoUploadActive: !globalConfig.ytAutoUploadActive })} className="p-2 rounded-xl border border-slate-700 text-xs font-semibold text-emerald-300 flex justify-between">
+                          <span>YT Auto-Post</span>
+                          <span>{globalConfig.ytAutoUploadActive ? 'ON' : 'OFF'}</span>
+                        </button>
+                        <button type="button" onClick={() => setGlobalConfig({ ...globalConfig, maintenanceMode: !globalConfig.maintenanceMode })} className="p-2 rounded-xl border border-slate-700 text-xs font-semibold text-amber-300 flex justify-between">
+                          <span className="flex items-center gap-1"><Wrench className="w-3 h-3" /> Maintenance</span>
+                          <span>{globalConfig.maintenanceMode ? 'ON' : 'OFF'}</span>
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <KeyRound className="w-4 h-4 text-slate-400 shrink-0" />
+                        <input type="text" value={globalConfig.adminPin} onChange={(e) => setGlobalConfig({ ...globalConfig, adminPin: e.target.value })} placeholder="Master Admin PIN" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-slate-300" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {adminSubTab === 'clients' && (
+                  <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-sky-300">Manage Creators & Subscriptions ({clientsList.length})</span>
+                      <button onClick={fetchFirebaseAll} className="text-[11px] text-sky-400">Refresh</button>
+                    </div>
+                    {clientsList.length === 0 ? (
+                      <div className="text-xs text-slate-500 py-4 text-center">No clients logged in yet.</div>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto">
+                        {clientsList.map((cli) => (
+                          <div key={cli.id} className="p-3 rounded-xl bg-[#05070c] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {cli.picture ? (
+                                <img src={cli.picture} alt="" className="w-7 h-7 rounded-full shrink-0" />
+                              ) : (
+                                <div className="w-7 h-7 rounded-full bg-sky-500/20 flex items-center justify-center text-sky-300 font-bold shrink-0">{(cli.name || 'U')[0]}</div>
+                              )}
+                              <div className="min-w-0">
+                                <div className="font-semibold text-white truncate">
+                                  {cli.name} <span className="text-pink-400">({cli.youtubeHandle})</span>
+                                  {cli.banned && <span className="ml-1.5 text-[10px] text-rose-400 font-bold">[BANNED]</span>}
+                                </div>
+                                <div className="text-[11px] text-slate-400 truncate">{cli.email}</div>
+                                <div className="text-[10px] text-slate-500">Last seen: {cli.lastActive}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {cli.tier === 'pro' ? (
+                                <button onClick={() => handleAdminSetClientTier(cli, 'free')} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-semibold">Set Free</button>
+                              ) : (
+                                <>
+                                  <button onClick={() => handleAdminSetClientTier(cli, 'pro', 'monthly')} className="px-2 py-1 rounded bg-sky-600 text-white text-[10px] font-bold">Monthly Pro</button>
+                                  <button onClick={() => handleAdminSetClientTier(cli, 'pro', 'yearly')} className="px-2 py-1 rounded bg-emerald-600 text-white text-[10px] font-bold">Yearly VIP</button>
+                                </>
+                              )}
+                              <button onClick={() => handleAdminToggleBanClient(cli)} className={`px-2 py-1 rounded text-[10px] font-semibold flex items-center gap-0.5 ${cli.banned ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                                <Ban className="w-3 h-3" /> {cli.banned ? 'Unban' : 'Ban'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {adminSubTab === 'payments' && (
+                  <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-amber-500/35 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-300">UTR Payment Approvals ({transactions.length})</span>
+                      <button onClick={fetchFirebaseAll} className="text-[11px] text-sky-400">Refresh</button>
+                    </div>
+                    {transactions.length === 0 ? (
+                      <div className="text-xs text-slate-500 py-4 text-center">No payment UTRs submitted yet.</div>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto">
+                        {transactions.map((txn, idx) => (
+                          <div key={idx} className="p-2.5 rounded-xl bg-[#05070c] border border-slate-800 flex items-center justify-between gap-2 text-xs">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-white truncate">{txn.user}</div>
+                              <div className="font-mono text-[11px] text-sky-400">UTR: {txn.utr} • {txn.amount}</div>
+                              <div className="text-[10px] text-slate-500">Coupon: {txn.couponUsed || 'None'} • {txn.time}</div>
+                            </div>
+                            {txn.status === 'Pending' ? (
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button onClick={() => handleAdminApproveTxn(txn)} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-semibold">Approve</button>
+                                <button onClick={() => handleAdminRejectTxn(txn)} className="px-2.5 py-1 rounded-lg bg-rose-600/30 text-rose-300">Reject</button>
+                              </div>
+                            ) : (
+                              <span className={`text-[11px] font-bold ${txn.status === 'Verified' ? 'text-emerald-400' : 'text-rose-400'}`}>{txn.status}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {(adminSubTab === 'controls' || adminSubTab === 'site') && (
+                  <button
+                    type="button"
+                    onClick={handlePublishGlobalConfig}
+                    disabled={isSyncingGlobal}
+                    className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 shadow-[0_0_25px_rgba(255,16,110,0.3)]"
+                  >
+                    {isSyncingGlobal ? 'Publishing to Live Site...' : '🚀 Publish All Live Website Changes'}
+                  </button>
+                )}
+
+                <div className="flex items-center justify-between pt-1 text-xs">
+                  <button
+                    onClick={() => {
+                      const nextTier = tier === 'pro' ? 'free' : 'pro';
+                      setTier(nextTier);
+                      setActivePlanType('yearly');
+                      setQuotaUsed(0);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Local Test: {tier.toUpperCase()}
+                  </button>
+                  <span className="text-slate-500 font-mono">
+                    <HardDrive className="w-3.5 h-3.5 inline mr-1" /> {storageUsedGB} / 5,120 GB
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
