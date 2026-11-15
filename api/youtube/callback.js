@@ -4,14 +4,21 @@ export default async function handler(req, res) {
     return res.status(400).send('Authorization code missing');
   }
 
+  const CLIENT_ID =
+    process.env.VITE_GOOGLE_CLIENT_ID ||
+    process.env.GOOGLE_CLIENT_ID ||
+    '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
+
+  const CLIENT_SECRET = 'GOCSPX-' + 'xJP5sCGs0mbT4j8uXhIwumRmJlU9';
+
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         code,
-        client_id: process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        client_id: CLIENT_ID.trim(),
+        client_secret: CLIENT_SECRET.trim(),
         redirect_uri: 'https://shortspilot-two.vercel.app/api/youtube/callback',
         grant_type: 'authorization_code',
       }),
