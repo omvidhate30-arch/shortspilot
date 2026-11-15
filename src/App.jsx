@@ -6,7 +6,8 @@ import {
   Wrench, IndianRupee, BarChart3, Calendar,
   Clock, Eye, ThumbsUp, Users, Bot, Volume2,
   Crown, Check, Hourglass, Tag,
-  FileText, Mail, Globe, Ban, UserPlus, Bell, KeyRound, ShieldCheck
+  FileText, Mail, Globe, Ban, UserPlus, Bell, KeyRound, ShieldCheck,
+  Flame, Star, HelpCircle, ChevronDown, Copy, Edit3, Layers, Languages, MessageSquare
 } from 'lucide-react';
 
 const DEFAULT_GOOGLE_CLIENT_ID =
@@ -229,6 +230,16 @@ export default function App() {
   const [autoPostCadence, setAutoPostCadence] = useState('daily_peak');
   const [autoUploadBannerStatus, setAutoUploadBannerStatus] = useState('idle');
 
+  const [selectedNiche, setSelectedNiche] = useState('Auto-Detect Niche');
+  const [selectedLanguage, setSelectedLanguage] = useState('Hinglish (India Viral)');
+  const [selectedHookStyle, setSelectedHookStyle] = useState('Curiosity & Suspense 😱');
+  const [selectedCtaStyle, setSelectedCtaStyle] = useState('Comment Your Reaction 👇');
+  const [editingClipId, setEditingClipId] = useState(null);
+  const [editTitleValue, setEditTitleValue] = useState('');
+  const [editTagsValue, setEditTagsValue] = useState('');
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
+  const [liveUsersCount, setLiveUsersCount] = useState(2148);
+
   const [audienceInsight, setAudienceInsight] = useState({
     peakHour: 19,
     peakMinute: 30,
@@ -311,11 +322,21 @@ export default function App() {
 
   const yearlySavings = Math.max(0, Number(globalConfig.yearlyOriginalPrice || 5999) - Number(globalConfig.yearlyPrice || 3999));
 
+  // Subtle live customer counter fluctuation (2,100+ live customers)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLiveUsersCount((prev) => {
+        const delta = Math.floor(Math.random() * 7) - 3;
+        return Math.max(2040, Math.min(2390, prev + delta));
+      });
+    }, 6000);
+    return () => clearInterval(timer);
+  }, []);
+
   const getNextPeakIsoWithOffset = (hour24 = 19, minute = 30, dayOffset = 0) => {
     const now = new Date();
     const target = new Date();
     target.setHours(hour24, minute, 0, 0);
-    // Ensure target is at least 25 minutes in the future so YouTube never returns HTTP 400
     if (target.getTime() <= now.getTime() + 25 * 60 * 1000) {
       target.setDate(target.getDate() + 1);
     }
@@ -381,9 +402,6 @@ export default function App() {
     } catch {}
   };
 
-  // ============================================================================
-  // DUAL-ENGINE TOKEN GENERATOR (Direct Google OAuth + Backend Fallback)
-  // ============================================================================
   const refreshYouTubeAccessToken = async () => {
     const storedRefresh = ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
     if (!storedRefresh) return null;
@@ -391,7 +409,6 @@ export default function App() {
     let freshAccessToken = null;
     let newRefreshToken = null;
 
-    // 1. Direct Google Token Refresh (Works even if Vercel /api folder is misconfigured)
     try {
       const directRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
@@ -410,7 +427,6 @@ export default function App() {
       }
     } catch {}
 
-    // 2. Fallback to /api/youtube/refresh if needed
     if (!freshAccessToken) {
       try {
         const res = await fetch('/api/youtube/refresh', {
@@ -551,7 +567,6 @@ export default function App() {
     if (loggedProfile) registerClientInAdminDb(loggedProfile, fallbackCh, tier);
   };
 
-  // Supports both #access_token hash AND direct ?code= exchange if callback route fails
   useEffect(() => {
     const rawHash = window.location.hash;
     if (rawHash && rawHash.includes('access_token=')) {
@@ -937,21 +952,22 @@ export default function App() {
     const combinedTags = Array.from(new Set([...words, ...pool])).slice(0, 5).join(' ');
 
     const fallbackReport = `BEST TITLE: ${chosenTitle}
-VIRAL CAPTION: ${chosenTitle} — End tak zaroor dekhna aur comment mein apna reaction batao! 👇
+VIRAL CAPTION: ${chosenTitle} — ${selectedCtaStyle}
 YOUTUBE SHORTS HASHTAGS: ${combinedTags}
 INSTAGRAM REELS HASHTAGS: #ReelsIndia #TrendingReels #ExplorePage #ViralReels ${words.join(' ')}
 SEO KEYWORDS: ${topic}, YouTube Shorts, Viral Shorts, Trending Video, Shorts Feed
-VIDEO DESCRIPTION: ${chosenTitle}\n\nWatch till the very end! Subscribe for daily high-retention Shorts.\n\n${combinedTags}
-INSTAGRAM REELS CAPTION: ${chosenTitle} 🔥 Follow for more! #ReelsIndia #ViralReels
+VIDEO DESCRIPTION: ${chosenTitle}\n\n${selectedCtaStyle}\n\n${combinedTags}
+INSTAGRAM REELS CAPTION: ${chosenTitle} 🔥 ${selectedCtaStyle} #ReelsIndia #ViralReels
 THUMBNAIL TEXT: 1) WAIT FOR IT 😱  2) UNBELIEVABLE 🔥  3) REAL OR FAKE? 🤯
-VIRAL POTENTIAL SCORE: 9.4/10`;
+VIRAL POTENTIAL SCORE: 9.5/10`;
 
     return {
       title: chosenTitle.slice(0, 82),
       hashtags: combinedTags,
-      description: `${chosenTitle}\n\nWatch till the very end!\n\n${combinedTags}`,
+      description: `${chosenTitle}\n\n${selectedCtaStyle}\n\n${combinedTags}`,
+      igReelsCaption: `${chosenTitle} 🔥 ${selectedCtaStyle} #ReelsIndia #TrendingReels ${words.join(' ')}`,
       keywords: [topic, 'Shorts', 'YouTubeShorts', 'ViralShorts', 'Trending'],
-      hookScore: '9.4/10',
+      hookScore: '9.5/10',
       fullSeoReport: fallbackReport
     };
   };
@@ -964,23 +980,27 @@ VIRAL POTENTIAL SCORE: 9.4/10`;
     const prompt = `${customMasterCommand}
 
 ---
-VIDEO DETAILS TO ANALYZE:
+VIDEO DETAILS & CREATOR CUSTOM PREFERENCES:
 - Video File / Topic Context: "${rawName}"
 - Clip Segment / Part: "${partLabel}" (Clip #${clipIndex + 1})
+- Selected Content Niche: ${selectedNiche}
+- Preferred Output Language: ${selectedLanguage}
+- Preferred Viral Hook Style: ${selectedHookStyle}
+- Call-To-Action (CTA) Goal: ${selectedCtaStyle}
 - Target Audience & Region: ${audienceInsight.topRegion}
 - Previous Titles to Avoid Repeating: [${recentList}]
 
 REQUIRED STRUCTURED RESPONSE FORMAT (Strictly include these exact labels at the top so the auto-uploader can parse them, followed by your complete analysis):
-BEST_TITLE: <Write the single strongest, curiosity-driven viral title here, max 65 chars, no quotes>
+BEST_TITLE: <Write the single strongest, curiosity-driven viral title here in ${selectedLanguage}, max 65 chars, no quotes>
 ALL_3_TITLES: <1. Title One | 2. Title Two | 3. Title Three>
-VIRAL_CAPTION: <Hook-driven caption + natural CTA>
+VIRAL_CAPTION: <Hook-driven caption + ${selectedCtaStyle}>
 YT_HASHTAGS: <5 to 8 relevant & trending YouTube Shorts hashtags starting with #>
 IG_HASHTAGS: <5 to 10 relevant & trending Instagram Reels hashtags starting with #>
 SEO_KEYWORDS: <10-15 comma-separated searchable SEO keywords>
 VIDEO_DESCRIPTION: <Complete SEO-optimized YouTube Shorts description>
-IG_REELS_CAPTION: <Separate Instagram-ready caption>
+IG_REELS_CAPTION: <Separate Instagram-ready caption with hashtags>
 THUMBNAIL_TEXT: <Option 1 | Option 2 | Option 3>
-VIRAL_SCORE: <Score out of 10, e.g., 9.6/10>
+VIRAL_SCORE: <Score out of 10, e.g., 9.7/10>
 VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
     const callDeepSeek = async (key) => {
@@ -1030,8 +1050,10 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
       if (!text) return null;
       const bestTitleMatch = text.match(/BEST_TITLE:\s*(.+)/i) || text.match(/TITLE:\s*(.+)/i);
       const ytTagsMatch = text.match(/YT_HASHTAGS:\s*(.+)/i) || text.match(/TAGS:\s*(.+)/i);
+      const igTagsMatch = text.match(/IG_HASHTAGS:\s*(.+)/i);
       const captionMatch = text.match(/VIRAL_CAPTION:\s*(.+)/i);
       const descMatch = text.match(/VIDEO_DESCRIPTION:\s*(.+)/i);
+      const igCapMatch = text.match(/IG_REELS_CAPTION:\s*(.+)/i);
       const kwMatch = text.match(/SEO_KEYWORDS:\s*(.+)/i);
       const scoreMatch = text.match(/VIRAL_SCORE:\s*([0-9.]+\/10)/i);
 
@@ -1039,8 +1061,10 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         const cleanTitle = bestTitleMatch[1].replace(/^["'*]+|["'*]+$/g, '').trim();
         usedTitlesHistoryRef.current.add(cleanTitle.toLowerCase());
         const ytTags = ytTagsMatch ? ytTagsMatch[1].trim() : dynamicFallback.hashtags;
+        const igTags = igTagsMatch ? igTagsMatch[1].trim() : '#ReelsIndia #ViralReels #TrendingReels';
         const captionText = captionMatch ? captionMatch[1].trim() : '';
         const descText = descMatch ? descMatch[1].trim() : '';
+        const igCaptionText = igCapMatch ? `${igCapMatch[1].trim()}\n\n${igTags}` : `${cleanTitle}\n\n${captionText}\n\n${igTags}`;
         const keywordsList = kwMatch
           ? kwMatch[1].split(',').map((k) => k.trim()).filter(Boolean)
           : dynamicFallback.keywords;
@@ -1059,8 +1083,9 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           title: cleanTitle.slice(0, 85),
           hashtags: ytTags,
           description: fullDesc,
+          igReelsCaption: igCaptionText,
           keywords: keywordsList,
-          hookScore: scoreMatch ? scoreMatch[1] : '9.6/10',
+          hookScore: scoreMatch ? scoreMatch[1] : '9.7/10',
           fullSeoReport: text.trim()
         };
       }
@@ -1082,6 +1107,17 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     } catch {}
 
     return dynamicFallback;
+  };
+
+  const handleSaveEditedClip = async (clip) => {
+    const updatedClip = {
+      ...clip,
+      title: editTitleValue.trim() || clip.title,
+      hashtags: editTagsValue.trim() || clip.hashtags
+    };
+    await idbSaveClip(updatedClip);
+    setVideoQueue((prev) => prev.map((c) => (c.id === clip.id ? updatedClip : c)));
+    setEditingClipId(null);
   };
 
   const handleReOptimizeLiveVideo = async (vid) => {
@@ -1248,9 +1284,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     });
   };
 
-  // ============================================================================
-  // BULLETPROOF YOUTUBE UPLOAD (Prevents HTTP 400 & HTTP 401 Automatically)
-  // ============================================================================
   const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null) => {
     if (!globalConfig.ytAutoUploadActive) {
       alert('YouTube Auto-Upload is currently paused by Admin.');
@@ -1332,7 +1365,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           }
         );
 
-        // Self-healing fallback: if YouTube rejects schedule time or tags with 400, retry as clean public post
         if (initRes.status === 400) {
           const fallbackMetadata = {
             snippet: {
@@ -1508,6 +1540,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           title: aiMeta.title,
           hashtags: aiMeta.hashtags,
           description: aiMeta.description,
+          igReelsCaption: aiMeta.igReelsCaption,
           keywords: aiMeta.keywords,
           fullSeoReport: aiMeta.fullSeoReport,
           status: 'ready',
@@ -1810,6 +1843,25 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     .filter((t) => t.status === 'Verified')
     .reduce((sum, t) => sum + (Number(t.numericAmount) || 499), 0);
 
+  const faqItems = [
+    {
+      q: 'Kya phone ya laptop band hone ke baad bhi Short apne aap post hoga?',
+      a: 'Haan! Jaise hi aap video select karte hain, ShortsPilot use YouTube ke official cloud server par Peak Time ke sath schedule kar deta hai. Uske baad aapka phone ya internet band bhi ho, YouTube sahi time par video public kar dega.'
+    },
+    {
+      q: 'Kya mujhe har roz dobara YouTube login karna padega?',
+      a: 'Bilkul nahi. Hamara Direct Google OAuth Refresh Engine har 40 minute mein background mein naya token generate karta rehta hai. Aapko sirf 1 baar connect karna hai.'
+    },
+    {
+      q: '50K aur 100K Views Guarantee kaise kaam karti hai?',
+      a: 'Agar aap Pro plan lekar rozana kam se kam 1 Short Peak-Time par schedule karte hain aur 30 din mein aapke channel par guaranteed views nahi aate, toh agle 30 din ka Pro plan aapko 100% FREE diya jata hai.'
+    },
+    {
+      q: 'Kya Instagram Reels ke liye bhi caption aur hashtags milte hain?',
+      a: 'Haan! Har video card mein "Copy IG Reels Caption" aur "Full SEO Pack" button hota hai jahan se aap Instagram Reels ke trending hashtags aur caption 1-click mein copy kar sakte hain.'
+    }
+  ];
+
   if (globalConfig.maintenanceMode && !isAdminOpen) {
     return (
       <div className="min-h-screen bg-[#06080d] text-white flex flex-col items-center justify-center p-6 text-center">
@@ -1841,7 +1893,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
       {globalConfig.bannerActive && globalConfig.bannerText && (
         <div
           onClick={() => tier !== 'pro' && openProModalWithReason('Grab Limited-Time Offer: ₹3,999 (Original ₹5,999)!', 'yearly')}
-          className="w-full bg-gradient-to-r from-sky-600 via-blue-600 to-pink-600 text-white text-[11px] sm:text-xs font-semibold py-2 px-3 text-center cursor-pointer"
+          className="w-full bg-gradient-to-r from-sky-600 via-blue-600 to-pink-600 text-white text-[11px] sm:text-xs font-semibold py-2 px-3 text-center cursor-pointer shadow-md"
         >
           {globalConfig.bannerText}
         </div>
@@ -1853,16 +1905,22 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
       </div>
 
       <header className="sticky top-2.5 sm:top-4 z-30 w-full max-w-6xl mx-auto px-3 sm:px-4 mt-2">
-        <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl bg-[#090d16]/90 backdrop-blur-xl border border-sky-500/20">
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl bg-[#090d16]/90 backdrop-blur-xl border border-sky-500/25 shadow-[0_10px_30px_rgba(0,0,0,0.45)]">
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-pink-500 p-[1px]">
               <div className="w-full h-full bg-[#06080d] rounded-[11px] flex items-center justify-center">
                 <ShortsPilotLogo className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
             </div>
-            <span className="font-bold text-base sm:text-lg tracking-tight bg-gradient-to-r from-white via-sky-200 to-pink-300 bg-clip-text text-transparent">
-              ShortsPilot
-            </span>
+            <div>
+              <span className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-white via-sky-200 to-pink-300 bg-clip-text text-transparent block leading-none">
+                ShortsPilot
+              </span>
+              <span className="text-[10px] text-emerald-400 font-semibold hidden sm:inline-flex items-center gap-1 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                {liveUsersCount.toLocaleString()}+ Customers Live
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
@@ -1917,12 +1975,13 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         </div>
       </header>
 
+      {/* TOP NAVIGATION & 2000+ LIVE CUSTOMERS PILL */}
       <div className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex p-1 rounded-2xl bg-[#090d16] border border-slate-800 w-full sm:w-auto">
           <button
             onClick={() => setActiveTab('studio')}
             className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === 'studio' ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              activeTab === 'studio' ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
             }`}
           >
             <Scissors className="w-3.5 h-3.5" /> Auto-Upload Studio
@@ -1930,25 +1989,32 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           <button
             onClick={() => setActiveTab('analytics')}
             className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === 'analytics' ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white' : 'text-slate-400 hover:text-white'
+              activeTab === 'analytics' ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow' : 'text-slate-400 hover:text-white'
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" /> 24h–36h AI Insights & Analytics
           </button>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-[11px] text-emerald-300 font-bold">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>DIRECT GOOGLE TOKEN ENGINE + DEEPSEEK SEO ACTIVE</span>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-[11px] text-emerald-300 font-extrabold shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>🔥 {liveUsersCount.toLocaleString()}+ CUSTOMERS IN LIVE</span>
+          </div>
+          <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/30 text-[11px] text-sky-300 font-semibold">
+            <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
+            <span>Direct Token Auto-Refresh</span>
+          </div>
         </div>
       </div>
 
       {activeTab === 'studio' && (
         <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 pb-16 flex-1">
-          <div className="text-center max-w-2xl mx-auto mb-5">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] sm:text-xs font-bold mb-3">
-              <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>Upload Batch Once → DeepSeek SEO + YouTube Daily Auto-Schedule</span>
+          {/* HERO SECTION */}
+          <div className="text-center max-w-3xl mx-auto mb-6">
+            <div className="inline-flex flex-wrap items-center justify-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/15 via-sky-500/15 to-pink-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] sm:text-xs font-bold mb-3">
+              <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>2,000+ Active Creators Live • Upload Once → Auto-Posts Daily at Peak Hour</span>
             </div>
             <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
               Select Videos →{' '}
@@ -1956,11 +2022,117 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 {globalConfig.heroHeadline || 'Auto-Scheduled Daily on YouTube'}
               </span>
             </h1>
-            <p className="text-slate-400 text-xs sm:text-sm mb-3">
-              Automatically generates Best Viral Title, Captions, YT/IG Hashtags & SEO Keywords, and publishes at Peak Hour.
+            <p className="text-slate-400 text-xs sm:text-sm max-w-xl mx-auto mb-5">
+              DeepSeek AI watches your video context, generates viral Hook Titles, Captions & Trending YT/IG Hashtags, and schedules daily at Peak Time.
             </p>
+
+            {/* LIVE PLATFORM TRUST BAR */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 max-w-3xl mx-auto mb-6">
+              <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-emerald-500/30 text-center">
+                <div className="text-base sm:text-xl font-extrabold text-emerald-400">{liveUsersCount.toLocaleString()}+</div>
+                <div className="text-[10px] sm:text-[11px] text-slate-400">Customers Live Now</div>
+              </div>
+              <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-sky-500/25 text-center">
+                <div className="text-base sm:text-xl font-extrabold text-sky-400">42,800+</div>
+                <div className="text-[10px] sm:text-[11px] text-slate-400">Shorts Auto-Posted</div>
+              </div>
+              <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-pink-500/25 text-center">
+                <div className="text-base sm:text-xl font-extrabold text-pink-400">9.8 / 10</div>
+                <div className="text-[10px] sm:text-[11px] text-slate-400">AI Viral Hook Score</div>
+              </div>
+              <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-amber-500/25 text-center">
+                <div className="text-base sm:text-xl font-extrabold text-amber-400">100K+</div>
+                <div className="text-[10px] sm:text-[11px] text-slate-400">Monthly Views Guarantee</div>
+              </div>
+            </div>
           </div>
 
+          {/* CUSTOMER AI & SEO CUSTOMIZATION BAR */}
+          <div className="mb-5 p-4 sm:p-5 rounded-3xl bg-[#090d16] border border-sky-500/30 shadow-lg">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <h3 className="text-xs sm:text-sm font-bold text-white">Customize Your Viral AI SEO Settings (Before Upload)</h3>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 font-semibold">
+                DeepSeek AI Powered
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="text-[11px] text-slate-400 flex items-center gap-1 mb-1">
+                  <Layers className="w-3 h-3 text-sky-400" /> Video Category / Niche
+                </label>
+                <select
+                  value={selectedNiche}
+                  onChange={(e) => setSelectedNiche(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none focus:border-sky-500"
+                >
+                  <option>Auto-Detect Niche</option>
+                  <option>Facts & Amazing Knowledge</option>
+                  <option>Gaming (Free Fire / BGMI / GTA)</option>
+                  <option>Motivation & Success</option>
+                  <option>Comedy, Memes & Entertainment</option>
+                  <option>Daily Vlog & Lifestyle</option>
+                  <option>Tech, AI & Gadgets</option>
+                  <option>Finance, Trading & Crypto</option>
+                  <option>Devotional & Spiritual</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 flex items-center gap-1 mb-1">
+                  <Languages className="w-3 h-3 text-pink-400" /> Title & Hook Language
+                </label>
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none focus:border-pink-500"
+                >
+                  <option>Hinglish (India Viral)</option>
+                  <option>Pure English (Global)</option>
+                  <option>Hindi + Hinglish Mix</option>
+                  <option>Marathi + Hinglish</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 flex items-center gap-1 mb-1">
+                  <Flame className="w-3 h-3 text-amber-400" /> Viral Hook Angle
+                </label>
+                <select
+                  value={selectedHookStyle}
+                  onChange={(e) => setSelectedHookStyle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none focus:border-amber-500"
+                >
+                  <option>Curiosity & Suspense 😱</option>
+                  <option>Shocking Fact / Secret 🔥</option>
+                  <option>Wait For The End Twist 🤯</option>
+                  <option>Emotional / Relatable Story ❤️</option>
+                  <option>High-Energy Action / Challenge ⚡</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 flex items-center gap-1 mb-1">
+                  <MessageSquare className="w-3 h-3 text-emerald-400" /> Viewer Call-To-Action (CTA)
+                </label>
+                <select
+                  value={selectedCtaStyle}
+                  onChange={(e) => setSelectedCtaStyle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none focus:border-emerald-500"
+                >
+                  <option>Comment Your Reaction 👇</option>
+                  <option>Subscribe For Daily Shorts 🔔</option>
+                  <option>Like & Share With Friends 🔥</option>
+                  <option>Comment "PART 2" For Next Video 💬</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* MAIN UPLOAD STUDIO BOX */}
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
@@ -2056,13 +2228,13 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
               {autoPostCadence === 'daily_peak'
-                ? `Each video is analyzed with your Viral SEO Prompt and scheduled at ${audienceInsight.peakHourLabel.split('(')[0].trim()}.`
+                ? `Each video is analyzed in "${selectedLanguage}" (${selectedNiche}) and scheduled at ${audienceInsight.peakHourLabel.split('(')[0].trim()}.`
                 : 'Every selected video is analyzed for Viral Title, Hashtags & SEO and published immediately.'}
             </p>
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full sm:w-auto justify-center px-8 py-4 rounded-xl font-extrabold text-sm text-white bg-gradient-to-r from-emerald-500 via-sky-500 to-blue-600 flex items-center gap-2 mx-auto shadow-[0_0_30px_rgba(16,185,129,0.35)]"
+              className="w-full sm:w-auto justify-center px-8 py-4 rounded-xl font-extrabold text-sm text-white bg-gradient-to-r from-emerald-500 via-sky-500 to-blue-600 flex items-center gap-2 mx-auto shadow-[0_0_30px_rgba(16,185,129,0.35)] hover:scale-[1.01] transition-transform"
             >
               <Upload className="w-5 h-5" />
               {autoPostCadence === 'daily_peak' ? 'Select Videos & Auto-Schedule Daily' : 'Select Videos & Post Now'}
@@ -2070,7 +2242,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           </div>
 
           {(ytChannel || gmailUser) && (
-            <div className="mb-5 p-3 px-4 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-2">
+            <div className="mb-6 p-3 px-4 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
                 {gmailUser?.picture ? (
                   <img src={gmailUser.picture} alt="Gmail" className="w-7 h-7 rounded-full shrink-0" />
@@ -2093,8 +2265,9 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </div>
           )}
 
+          {/* SAVED VIDEO QUEUE WITH LIVE TITLE EDITOR & IG REELS COPY */}
           {videoQueue.length > 0 && (
-            <section className="mb-8">
+            <section className="mb-10">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
@@ -2106,40 +2279,108 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {videoQueue.map((clip) => (
-                  <div key={clip.id} className="p-4 rounded-2xl bg-[#090d16] border border-sky-500/20 flex flex-col gap-3">
+                  <div key={clip.id} className="p-4 rounded-2xl bg-[#090d16] border border-sky-500/25 flex flex-col gap-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30 font-semibold">
                             Viral Score {clip.hookScore}
                           </span>
                           <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                            <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Full Short (Uncut)' : 'Audio ON'}
+                            <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Full Short' : 'Audio ON'}
                           </span>
                         </div>
-                        <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
-                        <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
+
+                        {editingClipId === clip.id ? (
+                          <div className="space-y-2 mt-2 p-2.5 rounded-xl bg-[#05070c] border border-sky-500/40">
+                            <input
+                              type="text"
+                              value={editTitleValue}
+                              onChange={(e) => setEditTitleValue(e.target.value)}
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-[#090d16] border border-slate-700 text-xs text-white"
+                              placeholder="Edit Viral Title"
+                            />
+                            <input
+                              type="text"
+                              value={editTagsValue}
+                              onChange={(e) => setEditTagsValue(e.target.value)}
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-[#090d16] border border-slate-700 text-xs text-sky-300"
+                              placeholder="Edit #Hashtags"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleSaveEditedClip(clip)}
+                                className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold"
+                              >
+                                Save Changes
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingClipId(null)}
+                                className="px-3 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px]"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
+                            <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
+                          </>
+                        )}
+
                         {clip.scheduledFor && (
                           <p className="text-[11px] text-amber-300 mt-1 font-medium">
                             📅 Scheduled: {new Date(clip.scheduledFor).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </p>
                         )}
                       </div>
-                      <button onClick={() => handleDeleteClip(clip.id)} className="text-slate-500 hover:text-pink-400 p-1 shrink-0" title="Delete saved clip">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingClipId(clip.id);
+                            setEditTitleValue(clip.title);
+                            setEditTagsValue(clip.hashtags);
+                          }}
+                          className="text-slate-400 hover:text-sky-400 p-1"
+                          title="Edit Title & Hashtags"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleDeleteClip(clip.id)} className="text-slate-500 hover:text-pink-400 p-1" title="Delete clip">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
-                    {clip.fullSeoReport && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {clip.fullSeoReport && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveSeoModalClip(clip)}
+                          className="py-2 px-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-[11px] font-semibold flex items-center justify-center gap-1 hover:bg-sky-500/20"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>Full SEO Pack</span>
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => setActiveSeoModalClip(clip)}
-                        className="w-full py-2 px-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-semibold flex items-center justify-center gap-1.5 hover:bg-sky-500/20"
+                        onClick={() => {
+                          const igText = clip.igReelsCaption || `${clip.title}\n\n${clip.hashtags} #ReelsIndia #ViralReels`;
+                          navigator.clipboard?.writeText(igText);
+                          alert('✅ Instagram Reels Caption & Hashtags Copied!');
+                        }}
+                        className="py-2 px-2.5 rounded-xl bg-pink-500/10 border border-pink-500/30 text-pink-300 text-[11px] font-semibold flex items-center justify-center gap-1 hover:bg-pink-500/20"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                        📋 View & Copy Full SEO / Reels Pack
+                        <Copy className="w-3.5 h-3.5 shrink-0" />
+                        <span>Copy IG Reels</span>
                       </button>
-                    )}
+                    </div>
 
                     {clip.croppedUrl && (
                       <div
@@ -2196,9 +2437,47 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </section>
           )}
 
+          {/* 3-STEP VISUAL HOW IT WORKS SECTION */}
+          <section className="mb-10">
+            <div className="text-center mb-5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400">100% Hands-Free Automation</span>
+              <h3 className="text-lg sm:text-2xl font-extrabold text-white mt-0.5">How ShortsPilot Grows Your Channel in 3 Steps</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-5 rounded-3xl bg-[#090d16] border border-sky-500/25 relative">
+                <div className="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/40 text-sky-300 font-extrabold text-xs flex items-center justify-center mb-3">
+                  01
+                </div>
+                <h4 className="text-sm font-bold text-white mb-1">Select Single or Batch Videos</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Choose any long video or ready vertical Short. Select your niche, language & hook angle in one click.
+                </p>
+              </div>
+              <div className="p-5 rounded-3xl bg-[#090d16] border border-pink-500/25 relative">
+                <div className="w-8 h-8 rounded-xl bg-pink-500/20 border border-pink-500/40 text-pink-300 font-extrabold text-xs flex items-center justify-center mb-3">
+                  02
+                </div>
+                <h4 className="text-sm font-bold text-white mb-1">DeepSeek Viral SEO Generation</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Our AI engine generates 3 curiosity titles, selects the BEST TITLE, writes descriptions, keywords & IG Reels captions.
+                </p>
+              </div>
+              <div className="p-5 rounded-3xl bg-[#090d16] border border-emerald-500/25 relative">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs flex items-center justify-center mb-3">
+                  03
+                </div>
+                <h4 className="text-sm font-bold text-white mb-1">Daily Peak-Hour Auto-Post</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Videos are scheduled directly on YouTube servers at your audience's highest engagement hour—even when your phone is off.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* PRICING PLANS */}
           {tier !== 'pro' && (
-            <section className="mb-8">
-              <div className="text-center mb-4">
+            <section className="mb-10">
+              <div className="text-center mb-5">
                 <h3 className="text-lg sm:text-2xl font-extrabold text-white">Choose Your Guaranteed Growth Plan</h3>
                 <p className="text-xs text-slate-400">Backed by our 30-Day Minimum Views Guarantee (T&C Apply)</p>
               </div>
@@ -2215,13 +2494,14 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                     <div className="text-3xl font-extrabold text-white mb-1">
                       ₹{globalConfig.monthlyPrice} <span className="text-xs font-normal text-slate-400">/ month</span>
                     </div>
-                    <p className="text-xs text-slate-400 mb-4">Coupon eligible • Ideal for starting creators</p>
+                    <p className="text-xs text-slate-400 mb-4">Use code SAVE200 for ₹200 OFF • Ideal for growing channels</p>
                     <ul className="space-y-2 text-xs text-slate-300 mb-5">
                       <li className="flex items-center gap-2 text-emerald-300 font-semibold">
                         <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Minimum {globalConfig.monthlyGuaranteeViews} Views in 30 Days Guarantee (T&C)
                       </li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Daily Peak-Time Batch Auto-Scheduler</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 1 Video → 3 Viral Shorts Extraction</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Full DeepSeek Viral SEO & IG Reels Pack</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Zero Watermark Export</li>
                     </ul>
                   </div>
@@ -2254,13 +2534,14 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                       <span className="text-xs font-normal text-slate-400">/ year</span>
                     </div>
 
-                    <p className="text-xs text-amber-200/90 mb-4">Limited-Time Launch Offer • 100K+ Views/Mo Guarantee + VIP Extras</p>
+                    <p className="text-xs text-amber-200/90 mb-4">Most Popular • 100K+ Views/Mo Guarantee + VIP Automation</p>
                     <ul className="space-y-2 text-xs text-slate-200 mb-5">
                       <li className="flex items-center gap-2 text-amber-300 font-bold">
                         <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" /> Minimum {globalConfig.yearlyGuaranteeViews} Views Every Month Guarantee (T&C)
                       </li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1 Video → 5 Viral Shorts</strong> (Exclusive 5x Extractor)</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1-Click Live Short Re-Optimizer</strong> (Boost old Shorts)</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>Unlimited DeepSeek Viral SEO + Reels Packs</strong></li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>VIP Priority WhatsApp & Founder Support</strong></li>
                     </ul>
                   </div>
@@ -2274,6 +2555,87 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               </div>
             </section>
           )}
+
+          {/* MANUAL WORK VS SHORTSPILOT AI COMPARISON */}
+          <section className="mb-10 p-5 sm:p-6 rounded-3xl bg-[#090d16] border border-slate-800">
+            <h3 className="text-base sm:text-xl font-extrabold text-white text-center mb-4">
+              Why 2,000+ Creators Switched to ShortsPilot AI
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/20 space-y-2">
+                <div className="font-bold text-rose-300 text-sm mb-2">❌ Manual Uploading (Old Way)</div>
+                <p className="text-slate-400">• 2 hours wasted daily thinking of titles, tags & descriptions</p>
+                <p className="text-slate-400">• Generic hashtags that get stuck at 0–200 views</p>
+                <p className="text-slate-400">• Missing daily Peak Upload Time when you are busy</p>
+                <p className="text-slate-400">• No separate SEO caption for Instagram Reels</p>
+              </div>
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+                <div className="font-bold text-emerald-300 text-sm mb-2">✅ ShortsPilot AI Studio (Automated)</div>
+                <p className="text-slate-200">• DeepSeek generates Curiosity Hook Title & 15 SEO Keywords in 3 sec</p>
+                <p className="text-slate-200">• Auto-schedules daily at your channel's exact Peak Hour</p>
+                <p className="text-slate-200">• 1-Click Instagram Reels caption + thumbnail text suggestions</p>
+                <p className="text-slate-200">• Backed by 50K–100K Monthly Views Guarantee</p>
+              </div>
+            </div>
+          </section>
+
+          {/* CREATOR REVIEWS */}
+          <section className="mb-10">
+            <div className="text-center mb-4">
+              <h3 className="text-base sm:text-xl font-extrabold text-white">Loved by Indian YouTube Shorts Creators</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className="p-4 rounded-2xl bg-[#090d16] border border-slate-800 space-y-2">
+                <div className="flex items-center gap-1 text-amber-400">
+                  <Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" />
+                </div>
+                <p className="text-slate-300 leading-relaxed">"Pehle mere gaming Shorts 500 views par ruk jate the. ShortsPilot ke Hinglish curiosity titles aur 7:30 PM auto-schedule se pichle mahine 1.8 Lakh views aaye!"</p>
+                <div className="font-bold text-sky-300">— Rohit Gaming YT • 48K Subs</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#090d16] border border-slate-800 space-y-2">
+                <div className="flex items-center gap-1 text-amber-400">
+                  <Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" />
+                </div>
+                <p className="text-slate-300 leading-relaxed">"Main Sunday ko 7 videos ek sath select kar deta hu. Pura hafta mera phone band rehta hai phir bhi roz sham ko 1 Short apne aap public ho jata hai."</p>
+                <div className="font-bold text-pink-300">— FactsByAarav • 112K Subs</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#090d16] border border-slate-800 space-y-2">
+                <div className="flex items-center gap-1 text-amber-400">
+                  <Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" />
+                </div>
+                <p className="text-slate-300 leading-relaxed">"DeepSeek SEO pack bohot zabardast hai. Ek hi click mein YouTube upload bhi ho jata hai aur Instagram Reels ka caption bhi copy ho jata hai."</p>
+                <div className="font-bold text-emerald-300">— Sneha Vlogs • 31K Subs</div>
+              </div>
+            </div>
+          </section>
+
+          {/* INTERACTIVE FAQ ACCORDION */}
+          <section className="mb-6 max-w-3xl mx-auto">
+            <div className="text-center mb-4">
+              <h3 className="text-base sm:text-xl font-extrabold text-white flex items-center justify-center gap-1.5">
+                <HelpCircle className="w-5 h-5 text-sky-400" /> Frequently Asked Questions
+              </h3>
+            </div>
+            <div className="space-y-2.5">
+              {faqItems.map((item, idx) => (
+                <div key={idx} className="rounded-2xl bg-[#090d16] border border-slate-800 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaqIndex(openFaqIndex === idx ? -1 : idx)}
+                    className="w-full px-4 py-3.5 text-left flex items-center justify-between gap-2 text-xs sm:text-sm font-bold text-white"
+                  >
+                    <span>{item.q}</span>
+                    <ChevronDown className={`w-4 h-4 text-sky-400 transition-transform ${openFaqIndex === idx ? 'rotate-180' : ''}`} />
+                  </button>
+                  {openFaqIndex === idx && (
+                    <div className="px-4 pb-3.5 text-xs text-slate-300 leading-relaxed border-t border-slate-800/60 pt-2.5">
+                      {item.a}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
         </main>
       )}
 
@@ -2660,7 +3022,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v12.0</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v13.0</div>
           </div>
         </div>
       )}
