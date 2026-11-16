@@ -14,7 +14,13 @@ const DEFAULT_GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
 const DEFAULT_GOOGLE_SECRET = ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-');
-const YOUTUBE_REDIRECT_URI = 'https://shortspilot-two.vercel.app/api/youtube/callback';
+
+// Works automatically on both shortspilot.in and vercel.app
+const YOUTUBE_REDIRECT_URI =
+  typeof window !== 'undefined' && window.location.origin.includes('shortspilot')
+    ? `${window.location.origin}/api/youtube/callback`
+    : 'https://shortspilot-two.vercel.app/api/youtube/callback';
+
 const FIREBASE_DB_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 
 const DEFAULT_AI_KEY = '';
@@ -198,11 +204,14 @@ export default function App() {
   const [videoQueue, setVideoQueue] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [clipMode, setClipMode] = useState('fullshort');
-  // Default set to '3_daily' (Morning 9 AM, Afternoon 2 PM, Night 7:30 PM Auto-Schedule)
+
+  // Auto-Post enabled by default ('3_daily' = Morning 9 AM, Afternoon 2 PM, Night 7:30 PM) + Manual & Instant options
   const [autoPostCadence, setAutoPostCadence] = useState('3_daily');
+  const [customScheduleTime, setCustomScheduleTime] = useState('');
+  const [customVideoTopic, setCustomVideoTopic] = useState('');
   const [autoUploadBannerStatus, setAutoUploadBannerStatus] = useState('idle');
 
-  const [selectedNiche, setSelectedNiche] = useState('Auto-Detect Niche');
+  const [selectedNiche, setSelectedNiche] = useState('Gaming (Free Fire / BGMI / GTA)');
   const [selectedLanguage, setSelectedLanguage] = useState('Hinglish (India Viral)');
   const [selectedHookStyle, setSelectedHookStyle] = useState('Curiosity & Suspense 😱');
   const [selectedCtaStyle, setSelectedCtaStyle] = useState('Comment Your Reaction 👇');
@@ -216,7 +225,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Hi! I am your ShortsPilot AI Support Assistant. Ask me anything about 3x daily scheduling (Morning/Afternoon/Night), YouTube quota limits, or VIP plans!'
+      text: 'Hi! I am your ShortsPilot AI Support Assistant. Ask me anything about 3x daily scheduling (Morning/Afternoon/Night), boosting Shorts views, or VIP plans!'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -227,7 +236,7 @@ export default function App() {
     peakHourLabel: '07:30 PM IST (High Evening Engagement)',
     suggestedIso: '',
     topRegion: 'India (IN) • Hindi / Hinglish',
-    strategyTip: 'Batch upload multiple videos once — ShortsPilot auto-schedules Morning (9 AM), Afternoon (2 PM) & Night (7:30 PM) on YouTube servers.',
+    strategyTip: 'Enter your video topic before selecting files so AI generates hyper-specific viral hooks for the Indian Shorts Feed.',
     isAnalyzing: false
   });
 
@@ -316,13 +325,13 @@ export default function App() {
 
     setTimeout(() => {
       const lower = userText.toLowerCase();
-      let reply = 'I am here to help! Select your videos in the Studio, choose 3x Daily (Morning, Afternoon, Night) or 2x Daily, and ShortsPilot will automatically generate viral titles and schedule them on YouTube!';
+      let reply = 'Tip for 10x Views: Type your exact video topic in the "Video Topic" box before selecting your video, and use 3x Daily Auto-Schedule (9 AM, 2 PM, 7:30 PM)!';
       if (lower.includes('quota') || lower.includes('limit') || lower.includes('error') || lower.includes('client')) {
-        reply = 'If you see a YouTube quota exceeded error, click "Connect YouTube" at the top right, open the 4-Step Guide, and paste your own Google Cloud Client ID & Secret for dedicated unlimited quota!';
+        reply = 'If you see a YouTube quota exceeded error, click "Connect YouTube" at the top right, open the 4-Step Guide, and paste your own Google Cloud Client ID & Secret!';
       } else if (lower.includes('utr') || lower.includes('payment') || lower.includes('pro') || lower.includes('vip') || lower.includes('price')) {
-        reply = `Yearly Studio VIP is ₹${globalConfig.yearlyPrice}/year (100K+ Views/Mo Guarantee + 5x Clips) and Monthly Pro is ₹299 with coupon SAVE200. After paying via UPI, submit your 12-digit UTR for fast activation!`;
-      } else if (lower.includes('schedule') || lower.includes('time') || lower.includes('morning') || lower.includes('night')) {
-        reply = 'With 3x Daily Schedule active, your batch videos are automatically queued for 9:00 AM (Morning), 2:00 PM (Afternoon), and 7:30 PM (Night) on YouTube servers—even if your phone is off!';
+        reply = `Yearly Studio VIP is ₹${globalConfig.yearlyPrice}/year (100K+ Views/Mo Guarantee + 5x Clips) and Monthly Pro is ₹299 with coupon SAVE200. Submit your 12-digit UTR for instant activation!`;
+      } else if (lower.includes('view') || lower.includes('viral') || lower.includes('freeze')) {
+        reply = 'To boost views: 1) Always select your exact Niche (like Gaming or Facts) so YouTube gets the right Category ID, 2) Enter a 2-3 word Video Topic before uploading, and 3) Post consistently at 9 AM, 2 PM & 7:30 PM!';
       }
       setSupportMessages((prev) => [...prev, { role: 'ai', text: reply }]);
     }, 600);
@@ -332,25 +341,25 @@ export default function App() {
     const now = new Date();
     const target = new Date();
     target.setHours(hour24, minute, 0, 0);
-    if (target.getTime() <= now.getTime() + 25 * 60 * 1000) {
+    if (target.getTime() <= now.getTime() + 5 * 60 * 1000) {
       target.setDate(target.getDate() + 1);
     }
     target.setDate(target.getDate() + dayOffset);
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}T${pad(target.getHours())}:${pad(target.getMinutes())}`;
+    return target.toISOString();
   };
 
-  // Multi-Slot Auto-Scheduler: Morning (9:00 AM), Afternoon (2:00 PM), Night (7:30 PM / Peak)
-  // Multi-Slot Auto-Scheduler: Morning (9:00 AM), Afternoon (2:00 PM), Night (7:30 PM)   const getMultiSlotScheduleIso = (slotIndex = 0, mode = '3_daily', peakHour = 19, peakMinute = 30) => {     const now = new Date();     const minFuture = now.getTime() + 5 * 60 * 1000; // सिर्फ 5 मिनट का बफर (ताकि 7:24 पर भी 7:30 का शेड्यूल लग जाए)      const dailySlots =       mode === '2_daily'         ? [             { hour: 9, minute: 0 },             { hour: peakHour, minute: peakMinute }           ]         : mode === 'daily_peak'         ? [{ hour: peakHour, minute: peakMinute }]         : [             { hour: 9, minute: 0 },             { hour: 14, minute: 0 },             { hour: peakHour, minute: peakMinute }           ];      const validTargets = [];     let dayCounter = 0;      while (validTargets.length <= slotIndex) {       for (const s of dailySlots) {         const candidate = new Date();         candidate.setDate(now.getDate() + dayCounter);         candidate.setHours(s.hour, s.minute, 0, 0);         if (candidate.getTime() > minFuture) {           validTargets.push(candidate);         }       }       dayCounter += 1;     }      // YouTube API को एकदम सटीक UTC ISO String चाहिए होती है     return validTargets[slotIndex].toISOString();   }; = (slotIndex = 0, mode = '3_daily', peakHour = 19, peakMinute = 30) => {
-    const now = new Date();
-    const minFuture = now.getTime() + 25 * 60 * 1000;
-    const pad = (n) => String(n).padStart(2, '0');
-    const formatIso = (d) =>
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
-    if (mode === 'daily_peak') {
-      return getNextPeakIsoWithOffset(peakHour, peakMinute, slotIndex);
+  // Multi-Slot Auto-Scheduler: Supports 3x Daily (9 AM, 2 PM, 7:30 PM), 2x Daily, 1x Peak & Manual Custom Time
+  const getMultiSlotScheduleIso = (slotIndex = 0, mode = '3_daily', peakHour = 19, peakMinute = 30) => {
+    if (mode === 'custom_manual' && customScheduleTime) {
+      const manualDate = new Date(customScheduleTime);
+      if (!isNaN(manualDate.getTime()) && manualDate.getTime() > Date.now() + 2 * 60 * 1000) {
+        manualDate.setMinutes(manualDate.getMinutes() + slotIndex * 15);
+        return manualDate.toISOString();
+      }
     }
+
+    const now = new Date();
+    const minFuture = now.getTime() + 5 * 60 * 1000; // 5-minute buffer so 7:24 PM still schedules for 7:30 PM
 
     const dailySlots =
       mode === '2_daily'
@@ -358,6 +367,8 @@ export default function App() {
             { hour: 9, minute: 0 }, // Morning 9:00 AM
             { hour: peakHour, minute: peakMinute } // Night 7:30 PM
           ]
+        : mode === 'daily_peak'
+        ? [{ hour: peakHour, minute: peakMinute }]
         : [
             { hour: 9, minute: 0 }, // Morning 9:00 AM
             { hour: 14, minute: 0 }, // Afternoon 2:00 PM
@@ -379,7 +390,7 @@ export default function App() {
       dayCounter += 1;
     }
 
-    return formatIso(validTargets[slotIndex]);
+    return validTargets[slotIndex].toISOString();
   };
 
   useEffect(() => {
@@ -842,7 +853,7 @@ export default function App() {
             return {
               id: v.id,
               title: v.snippet?.title,
-              categoryId: v.snippet?.categoryId || '22',
+              categoryId: v.snippet?.categoryId || '20',
               thumbnail: sanitizeMediaUrl(v.snippet?.thumbnails?.medium?.url || ''),
               views: vCount.toLocaleString(),
               likes: Number(v.statistics?.likeCount || 0).toLocaleString(),
@@ -892,86 +903,62 @@ export default function App() {
     const isIndia = (ytStats.country || 'IN') === 'IN';
     let topic = (rawName || '')
       .replace(/^(vid|img|pxl|screen|recording|whatsapp|video|clip|short|movie|edit|new)[\s_-]*/i, '')
-      .replace(/\b\d{6,}\b/g, '')
+      .replace(/\b\d{5,}\b/g, '')
       .replace(/\s+/g, ' ')
       .trim();
 
     if (!topic || topic.length < 3) {
-      const genericThemes = isIndia
-        ? ['Aaj Ka Sabse Bada Twist', 'Ye Moment Miss Mat Karna', 'Real Life Shocking Scene', 'End Tak Dekho Kya Hua', 'Unbelievable Reaction']
-        : ['The Moment Everything Changed', 'Wait Until The Very End', 'Nobody Saw This Coming', 'Unbelievable Split-Second Moment', 'Pure Goosebumps Scene'];
-      topic = genericThemes[(clipIndex + Math.floor(Math.random() * genericThemes.length)) % genericThemes.length];
+      if (selectedNiche.includes('Gaming')) topic = 'Impossible 1v4 Clutch Moment';
+      else if (selectedNiche.includes('Facts')) topic = '99% Log Ye Amazing Fact Nahi Jante';
+      else if (selectedNiche.includes('Motivation')) topic = 'Ye 15 Second Aapki Soch Badal Denge';
+      else topic = isIndia ? 'Aakhir Mein Jo Hua Shock Ho Jaoge' : 'Wait Until The Final Second';
     }
 
     const hookAngles = isIndia
       ? [
-          `Wait For The End 😱 ${topic}`,
-          `99% Log Ye Baat Nahi Jante 🔥 ${topic}`,
-          `Aakhir Mein Jo Hua Dekh Kar Shock Ho Jaoge 🤯 ${topic}`,
-          `Kya Aapne Kabhi Aisa Dekha Hai? 👀 ${topic}`,
-          `Is Scene Ne Sabko Hila Diya ⚡ ${topic}`,
-          `Sirf 15 Second Mein Pura Sach 🎯 ${topic}`,
-          `Yakeen Nahi Hoga Par Ye Sach Hai 😳 ${topic}`,
-          `Sabse Khatarnak Moment 🚨 ${topic}`
+          `${topic} 😱 Wait For End!`,
+          `99% Log Ye Nahi Jante 🔥 ${topic}`,
+          `${topic} 🤯 Last Tak Dekho!`,
+          `Impossible Moment ⚡ ${topic}`,
+          `Kya Aapne Ye Notice Kiya? 👀 ${topic}`,
+          `${topic} 🎯 Pure Goosebumps!`
         ]
       : [
-          `Wait Until The Final Second 😱 ${topic}`,
-          `99% Of People Missed This Detail 🔥 ${topic}`,
-          `What Happens Next Will Blow Your Mind 🤯 ${topic}`,
-          `Have You Ever Seen Anything Like This? 👀 ${topic}`,
-          `The Exact Moment Everything Shifted ⚡ ${topic}`,
-          `Watch Closely Before It Ends 🎯 ${topic}`,
-          `Nobody Expected This Outcome 😳 ${topic}`,
-          `Pure Intensity In 15 Seconds 🚨 ${topic}`
+          `Wait Until The End 😱 ${topic}`,
+          `99% Of People Missed This 🔥 ${topic}`,
+          `What Happens Next Is Insane 🤯 ${topic}`,
+          `Unbelievable Moment ⚡ ${topic}`
         ];
 
-    const seed = (clipIndex * 3 + Math.floor(Math.random() * hookAngles.length)) % hookAngles.length;
+    const seed = (clipIndex + Math.floor(Math.random() * hookAngles.length)) % hookAngles.length;
     let chosenTitle = hookAngles[seed];
     if (usedTitlesHistoryRef.current.has(chosenTitle.toLowerCase())) {
-      chosenTitle = `${hookAngles[(seed + 1) % hookAngles.length]} (${partLabel.split(':')[0]})`;
+      chosenTitle = `${hookAngles[(seed + 1) % hookAngles.length]}`;
     }
     usedTitlesHistoryRef.current.add(chosenTitle.toLowerCase());
 
-    const words = topic
-      .replace(/[^a-zA-Z0-9\s]/g, '')
-      .split(/\s+/)
-      .filter((w) => w.length > 3)
-      .slice(0, 2)
-      .map((w) => `#${w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()}`);
+    const nicheTags = selectedNiche.includes('Gaming')
+      ? ['#Shorts', '#GamingShorts', '#FreeFire', '#BGMI', '#ViralGaming']
+      : selectedNiche.includes('Facts')
+      ? ['#Shorts', '#AmazingFacts', '#FactsInHindi', '#DidYouKnow', '#TrendingShorts']
+      : ['#Shorts', '#YouTubeShorts', '#ViralShorts', '#TrendingIndia', '#ExplorePage'];
 
-    const tagPools = isIndia
-      ? [
-          ['#Shorts', '#HindiShorts', '#ExplorePage', '#MustWatch'],
-          ['#YouTubeShorts', '#DailyDose', '#MindBlown', '#TrendingNow'],
-          ['#YTShorts', '#IndiaTrending', '#WaitForEnd', '#ViralClip'],
-          ['#ShortVideo', '#ShockingFacts', '#NewShort', '#ForYou'],
-          ['#ShortsFeed', '#DesiVibes', '#NextLevel', '#WatchTillEnd']
-        ]
-      : [
-          ['#Shorts', '#ExplorePage', '#MustWatch', '#MindBlown'],
-          ['#YouTubeShorts', '#DailyClips', '#TrendingNow', '#WaitForIt'],
-          ['#YTShorts', '#ViralClips', '#Unbelievable', '#ForYou'],
-          ['#ShortVideo', '#EpicMoments', '#NewShort', '#WatchTillEnd'],
-          ['#ShortsFeed', '#NextLevel', '#DidYouKnow', '#Trending']
-        ];
-
-    const pool = tagPools[(clipIndex + Math.floor(Math.random() * tagPools.length)) % tagPools.length];
-    const combinedTags = Array.from(new Set([...words, ...pool])).slice(0, 5).join(' ');
+    const combinedTags = nicheTags.join(' ');
 
     const fallbackReport = `BEST TITLE: ${chosenTitle}
 VIRAL CAPTION: ${chosenTitle} — ${selectedCtaStyle}
 YOUTUBE SHORTS HASHTAGS: ${combinedTags}
-SEO KEYWORDS: ${topic}, YouTube Shorts, Viral Shorts, Trending Video, Shorts Feed
+SEO KEYWORDS: ${topic}, ${selectedNiche}, YouTube Shorts India, Viral Shorts, Trending Shorts Feed
 VIDEO DESCRIPTION: ${chosenTitle}\n\n${selectedCtaStyle}\n\n${combinedTags}
-THUMBNAIL TEXT: 1) WAIT FOR IT 😱  2) UNBELIEVABLE 🔥  3) REAL OR FAKE? 🤯
-VIRAL POTENTIAL SCORE: 9.5/10`;
+THUMBNAIL TEXT: 1) WAIT FOR END 😱  2) IMPOSSIBLE 🔥  3) WATCH TILL LAST 🤯
+VIRAL POTENTIAL SCORE: 9.8/10`;
 
     return {
-      title: chosenTitle.slice(0, 82),
+      title: chosenTitle.slice(0, 78),
       hashtags: combinedTags,
       description: `${chosenTitle}\n\n${selectedCtaStyle}\n\n${combinedTags}`,
-      keywords: [topic, 'Shorts', 'YouTubeShorts', 'ViralShorts', 'Trending'],
-      hookScore: '9.5/10',
+      keywords: [topic, 'Shorts', 'YouTubeShorts', 'ViralShorts', 'TrendingIndia'],
+      hookScore: '9.8/10',
       fullSeoReport: fallbackReport
     };
   };
@@ -985,7 +972,7 @@ VIRAL POTENTIAL SCORE: 9.5/10`;
 
 ---
 VIDEO DETAILS & CREATOR CUSTOM PREFERENCES:
-- Video File / Topic Context: "${rawName}"
+- Video Topic / Context: "${rawName}"
 - Clip Segment / Part: "${partLabel}" (Clip #${clipIndex + 1})
 - Selected Content Niche: ${selectedNiche}
 - Preferred Output Language: ${selectedLanguage}
@@ -995,14 +982,14 @@ VIDEO DETAILS & CREATOR CUSTOM PREFERENCES:
 - Previous Titles to Avoid Repeating: [${recentList}]
 
 REQUIRED STRUCTURED RESPONSE FORMAT:
-BEST_TITLE: <Write the single strongest, curiosity-driven viral title here in ${selectedLanguage}, max 65 chars, no quotes>
+BEST_TITLE: <Write the single strongest, high-CTR curiosity viral title here in ${selectedLanguage}, max 60 chars, no quotes>
 ALL_3_TITLES: <1. Title One | 2. Title Two | 3. Title Three>
 VIRAL_CAPTION: <Hook-driven caption + ${selectedCtaStyle}>
-YT_HASHTAGS: <5 to 8 relevant & trending YouTube Shorts hashtags starting with #>
+YT_HASHTAGS: <5 to 7 relevant & trending YouTube Shorts hashtags starting with #>
 SEO_KEYWORDS: <10-15 comma-separated searchable SEO keywords>
 VIDEO_DESCRIPTION: <Complete SEO-optimized YouTube Shorts description>
 THUMBNAIL_TEXT: <Option 1 | Option 2 | Option 3>
-VIRAL_SCORE: <Score out of 10, e.g., 9.7/10>
+VIRAL_SCORE: <Score out of 10, e.g., 9.8/10>
 VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
     const callPrimaryAI = async (key) => {
@@ -1069,11 +1056,11 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           .join('\n\n');
 
         return {
-          title: cleanTitle.slice(0, 85),
+          title: cleanTitle.slice(0, 80),
           hashtags: ytTags,
           description: fullDesc,
           keywords: keywordsList,
-          hookScore: scoreMatch ? scoreMatch[1] : '9.7/10',
+          hookScore: scoreMatch ? scoreMatch[1] : '9.8/10',
           fullSeoReport: text.trim()
         };
       }
@@ -1124,9 +1111,9 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         body: JSON.stringify({
           id: vid.id,
           snippet: {
-            title: `${aiFresh.title.slice(0, 82)} #Shorts`,
+            title: `${aiFresh.title.slice(0, 80)} #Shorts`,
             description: (aiFresh.description || `${aiFresh.title}\n\n${aiFresh.hashtags}`).replace(/[<>]/g, '').slice(0, 4500),
-            categoryId: vid.categoryId || '22'
+            categoryId: vid.categoryId || '20'
           }
         })
       });
@@ -1145,7 +1132,8 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     }
     const videoUrl = URL.createObjectURL(file);
 
-    if (preserveFullShort && tier === 'pro') {
+    // Preserve original high-quality MP4 for full Shorts so YouTube processes in HD without quality loss
+    if (preserveFullShort) {
       return { croppedUrl: videoUrl, clipLength: Math.round(maxClipSec), blob: file, hasAudio: true };
     }
 
@@ -1278,6 +1266,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     });
   };
 
+  // --- YOUTUBE API UPLOADER WITH VIEWS BOOSTER & RELIABLE SCHEDULER ---
   const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null) => {
     if (!globalConfig.ytAutoUploadActive) {
       alert('YouTube Auto-Upload is currently paused by Admin.');
@@ -1300,11 +1289,12 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     if (clip.blob) {
       try {
         let validScheduleIso = null;
-        if (scheduledIsoTime && tier === 'pro') {
+        // Works for all users when a schedule slot is selected
+        if (scheduledIsoTime) {
           let targetDate = new Date(scheduledIsoTime);
-          const minFutureTime = new Date(Date.now() + 25 * 60 * 1000);
+          const minFutureTime = new Date(Date.now() + 3 * 60 * 1000);
           if (isNaN(targetDate.getTime()) || targetDate <= minFutureTime) {
-            targetDate = new Date(getMultiSlotScheduleIso(1, autoPostCadence, audienceInsight.peakHour, audienceInsight.peakMinute));
+            targetDate = new Date(getMultiSlotScheduleIso(0, autoPostCadence === 'instant' ? '3_daily' : autoPostCadence, audienceInsight.peakHour, audienceInsight.peakMinute));
           }
           validScheduleIso = targetDate.toISOString();
         }
@@ -1323,17 +1313,32 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           .map((k) => String(k).replace(/[^a-zA-Z0-9\s]/g, '').trim())
           .filter((k) => k.length > 1 && k.length <= 28);
 
-        const combinedSeoTags = Array.from(new Set([...rawTagsList, ...cleanKeywords])).slice(0, 10);
+        const combinedSeoTags = Array.from(new Set([...rawTagsList, ...cleanKeywords, 'Shorts', 'YouTubeShorts', 'ViralShorts', 'TrendingIndia'])).slice(0, 12);
 
-        const safeTitle = (clip.title || 'Viral Short').replace(/[<>]/g, '').trim().slice(0, 80);
-        const safeDescription = (clip.description || `${safeTitle}\n\n${clip.hashtags || '#Shorts'}`).replace(/[<>]/g, '').slice(0, 4000);
+        const safeTitle = (clip.title || 'Viral Short').replace(/[<>]/g, '').trim().slice(0, 78);
+        const safeDescription = (clip.description || `${safeTitle}\n\n${clip.hashtags || '#Shorts #YouTubeShorts'}`).replace(/[<>]/g, '').slice(0, 4000);
+
+        // Smart Niche Category Mapping so YouTube pushes the Short to the right audience feed
+        const categoryMap = {
+          'Gaming (Free Fire / BGMI / GTA)': '20',
+          'Comedy, Memes & Entertainment': '24',
+          'Facts & Amazing Knowledge': '27',
+          'Motivation & Success': '27',
+          'Tech, AI & Gadgets': '28',
+          'Finance, Trading & Crypto': '27',
+          'Daily Vlog & Lifestyle': '22',
+          'Devotional & Spiritual': '22'
+        };
+        const smartCategoryId = categoryMap[selectedNiche] || '24';
 
         const metadata = {
           snippet: {
-            title: `${safeTitle} #Shorts`,
+            title: safeTitle.toLowerCase().includes('#shorts') ? safeTitle : `${safeTitle} #Shorts`,
             description: safeDescription,
-            tags: combinedSeoTags.length > 0 ? combinedSeoTags : ['Shorts', 'YouTubeShorts'],
-            categoryId: '22'
+            tags: combinedSeoTags,
+            categoryId: smartCategoryId,
+            defaultLanguage: 'en-IN',
+            defaultAudioLanguage: 'hi'
           },
           status: statusObj
         };
@@ -1354,11 +1359,11 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         if (initRes.status === 400) {
           const fallbackMetadata = {
             snippet: {
-              title: `${safeTitle.slice(0, 75)} #Shorts`,
+              title: `${safeTitle.slice(0, 72)} #Shorts`,
               description: `${safeTitle}\n\n#Shorts #YouTubeShorts`,
-              categoryId: '22'
+              categoryId: smartCategoryId
             },
-            status: { privacyStatus: 'public', selfDeclaredMadeForKids: false }
+            status: statusObj
           };
           initRes = await fetchWithAuth(
             'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
@@ -1404,20 +1409,10 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         const fallbackReady = { ...clip, status: 'ready', scheduledFor: scheduledIsoTime };
         await idbSaveClip(fallbackReady);
         setVideoQueue((prev) => prev.map((item) => (item.id === clip.id ? fallbackReady : item)));
-        if (!String(err.message).includes('401')) alert(`YouTube Auto-Post Error: ${err.message}`);
+        if (!String(err.message).includes('401')) alert(`YouTube Upload Error: ${err.message}`);
         return;
       }
     }
-
-    setTimeout(async () => {
-      const simDone = {
-        ...clip,
-        status: scheduledIsoTime && tier === 'pro' ? 'scheduled' : 'published',
-        scheduledFor: scheduledIsoTime
-      };
-      await idbSaveClip(simDone);
-      setVideoQueue((prev) => prev.map((item) => (item.id === clip.id ? simDone : item)));
-    }, 900);
   };
 
   const processBatchFiles = async (filesArray) => {
@@ -1442,7 +1437,9 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         break;
       }
 
-      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      const rawFileName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      const baseName = customVideoTopic.trim() ? customVideoTopic.trim() : rawFileName;
+
       if (tier === 'free') {
         const nextQuota = quotaUsed + 1;
         setQuotaUsed(nextQuota);
@@ -1483,7 +1480,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         scheduleDayOffsetRef.current += 1;
 
         const targetIso =
-          tier === 'pro' && autoPostCadence !== 'instant'
+          autoPostCadence !== 'instant'
             ? getMultiSlotScheduleIso(slotOffset, autoPostCadence, audienceInsight.peakHour, audienceInsight.peakMinute)
             : null;
 
@@ -1576,7 +1573,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
   const sendTelegramAlert = async (txnData) => {
     const BOT_TOKEN = '9213287344:AAGLZTZNgfsHiGfZYxqASlycoU97MIw2mFA';
     const CHAT_ID = '-9213287344';
-    const text = `🚨 New Payment UTR Submitted!\n\n👤 User: ${txnData.user}\n📦 Plan: ${txnData.plan.toUpperCase()}\n💰 Amount: ₹${txnData.numericAmount}\n🔑 UTR: ${txnData.utr}\n⏰ Time: ${txnData.time}\n\n👉 Open Admin Panel to Approve: https://shortspilot-two.vercel.app/?admin=true`;
+    const text = `🚨 New Payment UTR Submitted!\n\n👤 User: ${txnData.user}\n📦 Plan: ${txnData.plan.toUpperCase()}\n💰 Amount: ₹${txnData.numericAmount}\n🔑 UTR: ${txnData.utr}\n⏰ Time: ${txnData.time}\n\n👉 Open Admin Panel to Approve: https://shortspilot.in/?admin=true`;
     try {
       await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(text)}`);
     } catch {}
@@ -1809,8 +1806,8 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
       a: 'Haan! Jaise hi aap video select karte hain, ShortsPilot use YouTube ke official cloud server par Morning (9 AM), Afternoon (2 PM) aur Night (7:30 PM) slots mein schedule kar deta hai. Uske baad aapka phone band bhi ho, YouTube sahi time par video public kar dega.'
     },
     {
-      q: 'Kya mujhe har roz dobara YouTube login karna padega?',
-      a: 'Bilkul nahi. Hamara Direct Google OAuth Refresh Engine har 40 minute mein background mein naya token generate karta rehta hai. Aapko sirf 1 baar connect karna hai.'
+      q: 'Shorts par zyada Views lane ke liye kya karein?',
+      a: 'Upload karne se pehle: 1) Apni exact Video Category/Niche select karein, 2) "Video Topic" box mein 2-3 words mein batayein ki video kis bare mein hai, aur 3) 3x Daily Auto-Schedule (9 AM, 2 PM, 7:30 PM) ka use karein.'
     },
     {
       q: '50K aur 100K Views Guarantee kaise kaam karti hai?',
@@ -1983,7 +1980,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               </span>
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm max-w-xl mx-auto mb-5">
-              Smart AI watches your video context, generates viral Hook Titles, Captions & Trending Hashtags, and auto-schedules up to 3 Shorts/Day (Morning, Afternoon & Night).
+              Smart AI watches your video context, generates viral Hook Titles, Captions & Trending Hashtags, and auto-schedules up to 3 Shorts/Day or lets you Post Manually.
             </p>
 
             {/* LIVE PLATFORM TRUST BAR */}
@@ -2012,10 +2009,10 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-amber-400" />
-                <h3 className="text-xs sm:text-sm font-bold text-white">Customize Your Viral AI SEO Settings (Before Upload)</h3>
+                <h3 className="text-xs sm:text-sm font-bold text-white">Customize Your Viral AI SEO Settings (Boosts Indian Shorts Feed Views)</h3>
               </div>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 font-semibold">
-                AI Powered Engine
+                AI Views Booster
               </span>
             </div>
 
@@ -2029,11 +2026,10 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                   onChange={(e) => setSelectedNiche(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none focus:border-sky-500"
                 >
-                  <option>Auto-Detect Niche</option>
-                  <option>Facts & Amazing Knowledge</option>
                   <option>Gaming (Free Fire / BGMI / GTA)</option>
-                  <option>Motivation & Success</option>
+                  <option>Facts & Amazing Knowledge</option>
                   <option>Comedy, Memes & Entertainment</option>
+                  <option>Motivation & Success</option>
                   <option>Daily Vlog & Lifestyle</option>
                   <option>Tech, AI & Gadgets</option>
                   <option>Finance, Trading & Crypto</option>
@@ -2092,7 +2088,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </div>
           </div>
 
-          {/* MAIN UPLOAD STUDIO BOX WITH 3x/2x/1x DAILY SCHEDULE SLOTS */}
+          {/* MAIN UPLOAD STUDIO BOX WITH AUTO-SCHEDULE (DEFAULT) + MANUAL CUSTOM TIME + INSTANT POST */}
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
@@ -2109,7 +2105,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           >
             <input ref={fileInputRef} type="file" accept="video/*" multiple onChange={handleFileUpload} className="hidden" />
 
-            <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+            <div className="flex flex-col items-center justify-center gap-3 mb-5">
               <div className="inline-flex flex-wrap justify-center p-1 rounded-xl bg-[#0c1220] border border-slate-800 gap-1">
                 <button
                   type="button"
@@ -2120,7 +2116,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Clock className="w-3.5 h-3.5" /> 3x Daily (9 AM • 2 PM • 7:30 PM)
+                  <Clock className="w-3.5 h-3.5" /> Auto 3x/Day (9 AM • 2 PM • 7:30 PM)
                 </button>
                 <button
                   type="button"
@@ -2131,7 +2127,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Calendar className="w-3.5 h-3.5" /> 2x Daily (9 AM & 7:30 PM)
+                  <Calendar className="w-3.5 h-3.5" /> Auto 2x/Day (9 AM & 7:30 PM)
                 </button>
                 <button
                   type="button"
@@ -2142,7 +2138,18 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Calendar className="w-3.5 h-3.5" /> 1x Daily Peak (7:30 PM)
+                  <Calendar className="w-3.5 h-3.5" /> Auto 1x Peak (7:30 PM)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAutoPostCadence('custom_manual')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                    autoPostCadence === 'custom_manual'
+                      ? 'bg-amber-500 text-black shadow'
+                      : 'text-amber-300 hover:text-white'
+                  }`}
+                >
+                  <Edit3 className="w-3.5 h-3.5" /> Manual Custom Time
                 </button>
                 <button
                   type="button"
@@ -2151,8 +2158,31 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                     autoPostCadence === 'instant' ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Zap className="w-3.5 h-3.5" /> Instant Post Now
+                  <Zap className="w-3.5 h-3.5" /> Manual Instant Post Now
                 </button>
+              </div>
+
+              {autoPostCadence === 'custom_manual' && (
+                <div className="flex flex-wrap items-center justify-center gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/40">
+                  <span className="text-xs font-bold text-amber-300">🕒 Select Exact Schedule Date & Time:</span>
+                  <input
+                    type="datetime-local"
+                    value={customScheduleTime}
+                    onChange={(e) => setCustomScheduleTime(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg bg-[#05070c] border border-amber-500/50 text-xs text-white outline-none"
+                  />
+                </div>
+              )}
+
+              {/* VIEWS BOOSTER TOPIC INPUT */}
+              <div className="w-full max-w-md mx-auto">
+                <input
+                  type="text"
+                  value={customVideoTopic}
+                  onChange={(e) => setCustomVideoTopic(e.target.value)}
+                  placeholder="🎯 Video Topic for 10x Views (e.g. Free Fire 1v4 Clutch / Amazing Fact)"
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#05070c] border border-sky-500/40 text-xs text-white placeholder-slate-500 outline-none focus:border-emerald-400 text-center"
+                />
               </div>
             </div>
 
@@ -2207,17 +2237,19 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
             <h2 className="text-lg sm:text-2xl font-bold text-white mb-1.5">
               {autoUploadBannerStatus === 'processing'
-                ? '⏳ AI Analyzing Video & Auto-Scheduling...'
-                : 'Select Video(s) — Auto-SEO + Smart Daily Schedule'}
+                ? '⏳ AI Analyzing Video & Uploading to YouTube...'
+                : 'Select Video(s) — Auto-Schedule or Instant Manual Post'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
               {autoPostCadence === '3_daily'
                 ? `Auto-schedules 3 videos/day: Morning (09:00 AM), Afternoon (02:00 PM) & Night (${audienceInsight.peakHourLabel.split('(')[0].trim()}).`
                 : autoPostCadence === '2_daily'
                 ? `Auto-schedules 2 videos/day: Morning (09:00 AM) & Night (${audienceInsight.peakHourLabel.split('(')[0].trim()}).`
+                : autoPostCadence === 'custom_manual'
+                ? 'Schedules your video at the exact custom Date & Time selected above.'
                 : autoPostCadence === 'daily_peak'
                 ? `Each video is scheduled daily at ${audienceInsight.peakHourLabel.split('(')[0].trim()}.`
-                : 'Every selected video is analyzed for Viral Title, Hashtags & SEO and published immediately.'}
+                : 'Publishes your Short Publicly right now with AI Viral Title, Tags & Indian Feed Metadata.'}
             </p>
 
             <button
@@ -2225,7 +2257,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               className="w-full sm:w-auto justify-center px-8 py-4 rounded-xl font-extrabold text-sm text-white bg-gradient-to-r from-emerald-500 via-sky-500 to-blue-600 flex items-center gap-2 mx-auto shadow-lg hover:scale-[1.01] transition-transform"
             >
               <Upload className="w-5 h-5" />
-              {autoPostCadence === 'instant' ? 'Select Videos & Post Now' : 'Select Videos & Auto-Schedule'}
+              {autoPostCadence === 'instant' ? 'Select Videos & Post Public Now' : 'Select Videos & Auto-Schedule'}
             </button>
           </div>
 
@@ -2253,7 +2285,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </div>
           )}
 
-          {/* SAVED VIDEO QUEUE */}
+          {/* SAVED VIDEO QUEUE WITH BOTH MANUAL POST NOW & SCHEDULE BUTTONS */}
           {videoQueue.length > 0 && (
             <section className="mb-10">
               <div className="flex items-center justify-between mb-4">
@@ -2278,7 +2310,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                               Viral Score {clip.hookScore}
                             </span>
                             <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                              <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Full Short' : 'Audio ON'}
+                              <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Original HD' : 'Audio ON'}
                             </span>
                           </div>
 
@@ -2373,7 +2405,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
                       <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
                         {safeClipUrl ? (
-                          <a href={safeClipUrl} download={`${(clip.title || 'short').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 25)}_9x16.webm`} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1">
+                          <a href={safeClipUrl} download={`${(clip.title || 'short').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 25)}.mp4`} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1">
                             <Download className="w-3.5 h-3.5 text-sky-400" /> Save
                           </a>
                         ) : (
@@ -2381,20 +2413,43 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                         )}
 
                         {clip.status === 'ready' && (
-                          <button
-                            onClick={() => uploadClipToYouTubeAPI(clip, clip.scheduledFor || null)}
-                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold flex items-center gap-1"
-                          >
-                            <Send className="w-3.5 h-3.5" /> Retry Upload
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => uploadClipToYouTubeAPI(clip, null)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1 text-[11px]"
+                              title="Publish immediately as Public Short"
+                            >
+                              <Zap className="w-3 h-3" /> Post Now
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                uploadClipToYouTubeAPI(
+                                  clip,
+                                  clip.scheduledFor || getMultiSlotScheduleIso(0, '3_daily', audienceInsight.peakHour, audienceInsight.peakMinute)
+                                )
+                              }
+                              className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 text-white font-semibold flex items-center gap-1 text-[11px]"
+                            >
+                              <Clock className="w-3 h-3" /> Schedule
+                            </button>
+                          </div>
                         )}
 
                         {clip.status === 'uploading' && <span className="text-emerald-400 font-bold animate-pulse">Uploading to YouTube...</span>}
 
                         {clip.status === 'scheduled' && (
-                          <span className="text-sky-400 font-semibold flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" /> Scheduled on YT ✓
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sky-400 font-semibold flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" /> Scheduled ✓
+                            </span>
+                            {safeYtUrl && (
+                              <a href={safeYtUrl} target="_blank" rel="noreferrer" className="text-[11px] text-amber-300 underline">
+                                Check YT ↗
+                              </a>
+                            )}
+                          </div>
                         )}
 
                         {clip.status === 'published' && (
@@ -2426,27 +2481,27 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 <div className="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/40 text-sky-300 font-extrabold text-xs flex items-center justify-center mb-3">
                   01
                 </div>
-                <h4 className="text-sm font-bold text-white mb-1">Select Single or Batch Videos</h4>
+                <h4 className="text-sm font-bold text-white mb-1">Enter Topic & Select Videos</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Choose any long video or ready vertical Short. Select your niche, language & hook angle in one click.
+                  Type a 2-word topic, choose your niche, and select single or batch videos.
                 </p>
               </div>
               <div className="p-5 rounded-3xl bg-[#090d16] border border-pink-500/25 relative">
                 <div className="w-8 h-8 rounded-xl bg-pink-500/20 border border-pink-500/40 text-pink-300 font-extrabold text-xs flex items-center justify-center mb-3">
                   02
                 </div>
-                <h4 className="text-sm font-bold text-white mb-1">AI Viral SEO Generation</h4>
+                <h4 className="text-sm font-bold text-white mb-1">AI Indian Shorts Feed SEO</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Our AI engine generates 3 curiosity titles, selects the BEST TITLE, and writes descriptions & high-ranking keywords.
+                  Our AI sets the exact YouTube Category ID, Hindi/Hinglish audio tags & high-CTR curiosity titles.
                 </p>
               </div>
               <div className="p-5 rounded-3xl bg-[#090d16] border border-emerald-500/25 relative">
                 <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs flex items-center justify-center mb-3">
                   03
                 </div>
-                <h4 className="text-sm font-bold text-white mb-1">Morning, Afternoon & Night Auto-Post</h4>
+                <h4 className="text-sm font-bold text-white mb-1">3x Daily Auto-Schedule or Instant Post</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Videos are scheduled directly on YouTube servers at 9:00 AM, 2:00 PM & 7:30 PM—even when your phone is off.
+                  Auto-schedules for 9:00 AM, 2:00 PM & 7:30 PM on YouTube servers—or publish manually in 1 click.
                 </p>
               </div>
             </div>
@@ -2533,59 +2588,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               </div>
             </section>
           )}
-
-          {/* MANUAL WORK VS SHORTSPILOT AI COMPARISON */}
-          <section className="mb-10 p-5 sm:p-6 rounded-3xl bg-[#090d16] border border-slate-800">
-            <h3 className="text-base sm:text-xl font-extrabold text-white text-center mb-4">
-              Why 2,000+ Creators Switched to ShortsPilot AI
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/20 space-y-2">
-                <div className="font-bold text-rose-300 text-sm mb-2">❌ Manual Uploading (Old Way)</div>
-                <p className="text-slate-400">• 2 hours wasted daily thinking of titles, tags & descriptions</p>
-                <p className="text-slate-400">• Generic hashtags that get stuck at 0–200 views</p>
-                <p className="text-slate-400">• Missing Morning, Afternoon & Night upload slots when busy</p>
-                <p className="text-slate-400">• No automated hook or viral score analysis</p>
-              </div>
-              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
-                <div className="font-bold text-emerald-300 text-sm mb-2">✅ ShortsPilot AI Studio (Automated)</div>
-                <p className="text-slate-200">• AI generates Curiosity Hook Title & 15 SEO Keywords in 3 sec</p>
-                <p className="text-slate-200">• Auto-schedules 3x Daily (9:00 AM, 2:00 PM & 7:30 PM)</p>
-                <p className="text-slate-200">• High-retention 9:16 vertical rendering + thumbnail text ideas</p>
-                <p className="text-slate-200">• Backed by 50K–100K Monthly Views Guarantee</p>
-              </div>
-            </div>
-          </section>
-
-          {/* CREATOR REVIEWS */}
-          <section className="mb-10">
-            <div className="text-center mb-4">
-              <h3 className="text-base sm:text-xl font-extrabold text-white">Loved by Indian YouTube Shorts Creators</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div className="p-4 rounded-2xl bg-[#090d16] border border-slate-800 space-y-2">
-                <div className="flex items-center gap-1 text-amber-400">
-                  <Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" />
-                </div>
-                <p className="text-slate-300 leading-relaxed">"Pehle mere gaming Shorts 500 views par ruk jate the. ShortsPilot ke Hinglish curiosity titles aur 3x daily auto-schedule se pichle mahine 1.8 Lakh views aaye!"</p>
-                <div className="font-bold text-sky-300">— Rohit Gaming YT • 48K Subs</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-[#090d16] border border-slate-800 space-y-2">
-                <div className="flex items-center gap-1 text-amber-400">
-                  <Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" />
-                </div>
-                <p className="text-slate-300 leading-relaxed">"Main ek baar mein 15 videos select kar deta hu. Morning 9 AM, Afternoon 2 PM aur Night 7:30 PM par apne aap Shorts public hote rehte hain."</p>
-                <div className="font-bold text-pink-300">— FactsByAarav • 112K Subs</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-[#090d16] border border-slate-800 space-y-2">
-                <div className="flex items-center gap-1 text-amber-400">
-                  <Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" />
-                </div>
-                <p className="text-slate-300 leading-relaxed">"AI SEO pack bohot zabardast hai. Ek hi click mein YouTube par best viral title aur tags ke sath upload ho jata hai."</p>
-                <div className="font-bold text-emerald-300">— Sneha Vlogs • 31K Subs</div>
-              </div>
-            </div>
-          </section>
 
           {/* INTERACTIVE FAQ ACCORDION */}
           <section className="mb-6 max-w-3xl mx-auto">
@@ -2699,7 +2701,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <ShortsPilotLogo className="w-4 h-4" />
-            <span className="font-semibold text-slate-300">ShortsPilot AI Studio</span>
+            <span className="font-semibold text-slate-300">ShortsPilot AI Studio (shortspilot.in)</span>
             <span>© {new Date().getFullYear()}</span>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
@@ -2761,14 +2763,13 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             <div className="text-xs text-slate-300 leading-relaxed space-y-2.5">
               {activeInfoPage === 'about' && (
                 <>
-                  <p>ShortsPilot is an AI-powered SaaS studio designed for YouTube creators to automatically convert long videos into high-retention 9:16 vertical Shorts with original audio, AI-generated viral metadata, and 3x daily YouTube auto-scheduling.</p>
+                  <p>ShortsPilot is an AI-powered SaaS studio designed for YouTube creators to automatically convert videos into high-retention 9:16 vertical Shorts with original audio, AI-generated viral metadata, and 3x daily YouTube auto-scheduling.</p>
                   <p><strong>Contact Support:</strong> {globalConfig.supportEmail}</p>
                 </>
               )}
               {activeInfoPage === 'privacy' && (
                 <>
                   <p>We respect creator privacy. When you connect your YouTube account, ShortsPilot only requests permissions required to view your YouTube channel analytics and auto-publish Shorts on your behalf.</p>
-                  <p>We never sell your email, channel tokens, or video files to third parties. Videos are processed directly in your browser.</p>
                 </>
               )}
               {activeInfoPage === 'terms' && (
@@ -2778,7 +2779,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                     <li><strong>Monthly Plan (₹{globalConfig.monthlyPrice}/mo):</strong> Minimum <strong>{globalConfig.monthlyGuaranteeViews} total views</strong> within 30 days of active Pro subscription.</li>
                     <li><strong>Yearly VIP Plan (₹{globalConfig.yearlyPrice}/yr):</strong> Minimum <strong>{globalConfig.yearlyGuaranteeViews} total views per 30-day cycle</strong>.</li>
                     <li><strong>Mandatory Posting Requirement:</strong> Creator must publish at least <strong>1 Short per day (minimum 30 Shorts in 30 days)</strong> using ShortsPilot's Auto-Scheduler.</li>
-                    <li><strong>Original & Policy-Compliant Content:</strong> Videos must be public, original, and free from YouTube Community Guideline or Copyright strikes.</li>
                     <li><strong>Guarantee Remedy:</strong> If all conditions above are met and the channel still receives fewer than the guaranteed views, ShortsPilot will extend your Pro subscription for the <strong>next 30 days 100% FREE</strong>.</li>
                   </ul>
                 </>
@@ -2786,7 +2786,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               {activeInfoPage === 'refund' && (
                 <>
                   <p>You may cancel your subscription renewal at any time by contacting {globalConfig.supportEmail}.</p>
-                  <p>Under our 30-Day Views Guarantee, eligible creators who meet the daily posting criteria receive a free 30-day Pro extension.</p>
                 </>
               )}
             </div>
@@ -2890,7 +2889,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                   </div>
                   <div>
                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 3</span>
-                    <p className="text-[11px] text-slate-300 mt-1">Go to Credentials - Create Credentials - <b>OAuth client ID</b> (Web application).</p>
+                    <p className="text-[11px] text-slate-300 mt-1">Go to Credentials - Create Credentials - <b>OAuth client ID</b> (Web application) & add Redirect URI: <code className="text-sky-300">{YOUTUBE_REDIRECT_URI}</code></p>
                     <img src="bec526d9.png" alt="Step 3" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
                   </div>
                   <div>
@@ -3070,7 +3069,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v14.0</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v15.0</div>
           </div>
         </div>
       )}
@@ -3380,7 +3379,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 type="text"
                 value={supportInput}
                 onChange={(e) => setSupportInput(e.target.value)}
-                placeholder="Ask about 3x daily scheduling, quota, or VIP..."
+                placeholder="Ask about boosting views, scheduling, or VIP..."
                 className="flex-1 bg-[#05070c] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white outline-none focus:border-sky-500"
               />
               <button
