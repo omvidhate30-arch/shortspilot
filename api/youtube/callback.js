@@ -1,15 +1,30 @@
+// api/youtube/callback.js
 export default async function handler(req, res) {
-  const { code } = req.query;
-  if (!code) {
-    return res.status(400).send('Authorization code missing');
+  const { code, state } = req.query;
+  if (!code) return res.redirect('/?error=no_code');
+
+  let customClientId = '';
+  let customClientSecret = '';
+
+  if (state) {
+    try {
+      const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+      if (decoded.cid) customClientId = decoded.cid.trim();
+      if (decoded.csec) customClientSecret = decoded.csec.trim();
+    } catch {}
   }
 
-  const CLIENT_ID =
+  const clientId =
+    customClientId ||
     process.env.VITE_GOOGLE_CLIENT_ID ||
-    process.env.GOOGLE_CLIENT_ID ||
     '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
 
-  const CLIENT_SECRET = ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-');
+  const clientSecret =
+    customClientSecret ||
+    process.env.GOOGLE_CLIENT_SECRET ||
+    ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-');
+
+  const redirectUri = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}/api/youtube/callback`;
 
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -17,25 +32,25 @@ export default async function handler(req, res) {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         code,
-        client_id: CLIENT_ID.trim(),
-        client_secret: CLIENT_SECRET.trim(),
-        redirect_uri: 'https://shortspilot-two.vercel.app/api/youtube/callback',
-        grant_type: 'authorization_code',
-      }),
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code'
+      })
     });
 
-    const tokens = await tokenRes.json();
-    if (!tokens.access_token) {
-      return res.status(400).json({ error: 'Token exchange failed', details: tokens });
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) {
+      return res.redirect('/?error=token_exchange_failed');
     }
 
-    const hashParams = new URLSearchParams({
-      access_token: tokens.access_token,
-      ...(tokens.refresh_token ? { refresh_token: tokens.refresh_token } : {}),
-    });
+    const hash = new URLSearchParams({
+      access_token: tokenData.access_token,
+      ...(tokenData.refresh_token ? { refresh_token: tokenData.refresh_token } : {})
+    }).toString();
 
-    return res.redirect(302, `https://shortspilot-two.vercel.app/#${hashParams.toString()}`);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.redirect(`/#${hash}`);
+  } catch {
+    return res.redirect('/?error=callback_exception');
   }
 }
