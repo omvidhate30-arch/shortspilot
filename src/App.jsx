@@ -25,39 +25,13 @@ YOUR TASK:
 I will send you a video. You must carefully analyze the actual video context first. Then generate all titles, captions, hashtags and SEO content based ONLY on that specific video.
 IMPORTANT: Never give generic or random content. Every output must match the actual video.
 FOR EVERY VIDEO, GENERATE:
-1. BEST VIRAL TITLE
-- Create 3 catchy, curiosity-driven titles.
-- Select the strongest title as BEST TITLE.
-- Make it SEO-friendly and engaging.
-2. VIRAL CAPTION
-- Write an attractive, engaging caption.
-- Start with a powerful hook.
-- Make viewers interested in watching until the end.
-- Add a natural call to action.
-3. TRENDING HASHTAGS
-- Give relevant hashtags based on the video's topic.
-- Mix niche-specific, popular and currently trending hashtags.
-- Never use irrelevant or fake trending hashtags.
-4. SEO KEYWORDS
-- Give 10-15 relevant searchable keywords.
-5. VIDEO DESCRIPTION
-- Create a professional, SEO-optimized YouTube Shorts description.
-6. BEST THUMBNAIL TEXT
-- Suggest 3 short, powerful thumbnail text options.
-7. VIRAL POTENTIAL ANALYSIS
-- Score the video's potential from 1 to 10.
-- Analyze its hook, audience appeal, engagement potential and retention.
-- Give practical suggestions to improve performance.
-STRICT RULES:
-- Understand the video's language, category, mood and target audience.
-- Match the output language to the video and its audience.
-- Do not invent events, facts or claims that are not visible in the video.
-- Do not blindly use the same hashtags for every video.
-- Prioritize audience retention, clicks, shares and comments.
-- Never promise 99% viral success. Focus on maximizing viral potential.
-- Keep everything professional, powerful and ready to copy and paste.
-FINAL OUTPUT:
-Present the BEST TITLE, CAPTION and HASHTAGS first so I can copy them immediately.`;
+1. BEST VIRAL TITLE (Create 3 catchy curiosity-driven titles and select the strongest as BEST TITLE)
+2. VIRAL CAPTION (Hook + natural call to action)
+3. TRENDING HASHTAGS (Mix niche-specific, popular and trending hashtags)
+4. SEO KEYWORDS (10-15 relevant searchable keywords)
+5. VIDEO DESCRIPTION (SEO-optimized YouTube Shorts description)
+6. BEST THUMBNAIL TEXT (3 short powerful options)
+7. VIRAL POTENTIAL ANALYSIS (Score 1 to 10 + retention analysis)`;
 
 const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
@@ -74,16 +48,11 @@ const sanitizeMediaUrl = (rawUrl) => {
 
 const openClipsDB = () =>
   new Promise((resolve, reject) => {
-    if (typeof window === 'undefined' || !window.indexedDB) {
-      reject(new Error('IndexedDB not supported'));
-      return;
-    }
+    if (typeof window === 'undefined' || !window.indexedDB) return reject(new Error('IndexedDB not supported'));
     const req = window.indexedDB.open(IDB_NAME, 1);
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE, { keyPath: 'id' });
-      }
+      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE, { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -94,15 +63,12 @@ const idbSaveClip = async (clipObj) => {
     const db = await openClipsDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readwrite');
-      const store = tx.objectStore(IDB_STORE);
       const { croppedUrl, ...persistable } = clipObj;
-      store.put({ ...persistable, savedAt: Date.now() });
+      tx.objectStore(IDB_STORE).put({ ...persistable, savedAt: Date.now() });
       tx.oncomplete = () => resolve(true);
       tx.onerror = () => reject(tx.error);
     });
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 };
 
 const idbGetAllClips = async () => {
@@ -110,21 +76,17 @@ const idbGetAllClips = async () => {
     const db = await openClipsDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readonly');
-      const store = tx.objectStore(IDB_STORE);
-      const req = store.getAll();
+      const req = tx.objectStore(IDB_STORE).getAll();
       req.onsuccess = () => {
         const items = (req.result || []).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
-        const hydrated = items.map((item) => ({
+        resolve(items.map((item) => ({
           ...item,
           croppedUrl: item.blob instanceof Blob ? URL.createObjectURL(item.blob) : null
-        }));
-        resolve(hydrated);
+        })));
       };
       req.onerror = () => reject(req.error);
     });
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 };
 
 const idbDeleteClip = async (clipId) => {
@@ -136,9 +98,7 @@ const idbDeleteClip = async (clipId) => {
       tx.oncomplete = () => resolve(true);
       tx.onerror = () => resolve(false);
     });
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 };
 
 const idbClearAllClips = async () => {
@@ -150,16 +110,13 @@ const idbClearAllClips = async () => {
       tx.oncomplete = () => resolve(true);
       tx.onerror = () => resolve(false);
     });
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 };
 
 const inspectVideoProperties = (file) =>
   new Promise((resolve) => {
     if (!(file instanceof Blob)) {
-      resolve({ duration: 15, width: 1080, height: 1920, isVerticalOrSquare: true, isAlreadyShort: false });
-      return;
+      return resolve({ duration: 15, width: 1080, height: 1920, isVerticalOrSquare: true, isAlreadyShort: false });
     }
     const url = URL.createObjectURL(file);
     const vid = document.createElement('video');
@@ -170,9 +127,8 @@ const inspectVideoProperties = (file) =>
       const width = vid.videoWidth || 1080;
       const height = vid.videoHeight || 1920;
       const isVerticalOrSquare = height >= width;
-      const isAlreadyShort = isVerticalOrSquare && duration <= 185;
       URL.revokeObjectURL(url);
-      resolve({ duration, width, height, isVerticalOrSquare, isAlreadyShort });
+      resolve({ duration, width, height, isVerticalOrSquare, isAlreadyShort: isVerticalOrSquare && duration <= 185 });
     };
     vid.onerror = () => {
       URL.revokeObjectURL(url);
@@ -242,7 +198,8 @@ export default function App() {
   const [videoQueue, setVideoQueue] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [clipMode, setClipMode] = useState('fullshort');
-  const [autoPostCadence, setAutoPostCadence] = useState('daily_peak');
+  // Default set to '3_daily' (Morning 9 AM, Afternoon 2 PM, Night 7:30 PM Auto-Schedule)
+  const [autoPostCadence, setAutoPostCadence] = useState('3_daily');
   const [autoUploadBannerStatus, setAutoUploadBannerStatus] = useState('idle');
 
   const [selectedNiche, setSelectedNiche] = useState('Auto-Detect Niche');
@@ -259,7 +216,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Hi! I am your ShortsPilot AI Support Assistant. Ask me anything about YouTube quota limits, daily auto-scheduling, video rendering, or VIP plans!'
+      text: 'Hi! I am your ShortsPilot AI Support Assistant. Ask me anything about 3x daily scheduling (Morning/Afternoon/Night), YouTube quota limits, or VIP plans!'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -270,26 +227,16 @@ export default function App() {
     peakHourLabel: '07:30 PM IST (High Evening Engagement)',
     suggestedIso: '',
     topRegion: 'India (IN) • Hindi / Hinglish',
-    strategyTip: 'Batch upload multiple videos once — ShortsPilot auto-schedules 1 Short per day at Peak Time on YouTube servers.',
+    strategyTip: 'Batch upload multiple videos once — ShortsPilot auto-schedules Morning (9 AM), Afternoon (2 PM) & Night (7:30 PM) on YouTube servers.',
     isAnalyzing: false
   });
 
   const [gmailUser, setGmailUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sp_gmail_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
+    try { return JSON.parse(localStorage.getItem('sp_gmail_user') || 'null'); } catch { return null; }
   });
 
   const [ytChannel, setYtChannel] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sp_yt_channel');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
+    try { return JSON.parse(localStorage.getItem('sp_yt_channel') || 'null'); } catch { return null; }
   });
 
   const [ytStats, setYtStats] = useState({
@@ -345,11 +292,10 @@ export default function App() {
     DEFAULT_GOOGLE_CLIENT_ID;
 
   const activeClientSecret = (customClientSecret || '').trim() || DEFAULT_GOOGLE_SECRET;
-
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
   const yearlySavings = Math.max(0, Number(globalConfig.yearlyOriginalPrice || 5999) - Number(globalConfig.yearlyPrice || 3999));
 
-  // Dynamic Live Customers Counter (Changes every 3 seconds randomly)
+  // Dynamic Live Customers Counter (Randomly updates every 3 seconds)
   useEffect(() => {
     const timer = setInterval(() => {
       setLiveUsersCount((prev) => {
@@ -370,16 +316,16 @@ export default function App() {
 
     setTimeout(() => {
       const lower = userText.toLowerCase();
-      let reply = 'I am here to help! Select your video in the Studio, choose your Niche & Language, and ShortsPilot will automatically generate viral titles and schedule your Short at Peak Hour.';
+      let reply = 'I am here to help! Select your videos in the Studio, choose 3x Daily (Morning, Afternoon, Night) or 2x Daily, and ShortsPilot will automatically generate viral titles and schedule them on YouTube!';
       if (lower.includes('quota') || lower.includes('limit') || lower.includes('error') || lower.includes('client')) {
         reply = 'If you see a YouTube quota exceeded error, click "Connect YouTube" at the top right, open the 4-Step Guide, and paste your own Google Cloud Client ID & Secret for dedicated unlimited quota!';
       } else if (lower.includes('utr') || lower.includes('payment') || lower.includes('pro') || lower.includes('vip') || lower.includes('price')) {
         reply = `Yearly Studio VIP is ₹${globalConfig.yearlyPrice}/year (100K+ Views/Mo Guarantee + 5x Clips) and Monthly Pro is ₹299 with coupon SAVE200. After paying via UPI, submit your 12-digit UTR for fast activation!`;
-      } else if (lower.includes('schedule') || lower.includes('time') || lower.includes('band') || lower.includes('offline')) {
-        reply = 'Once your video status shows "Scheduled on YT", it is saved on YouTube cloud servers. Even if you turn off your phone or laptop, YouTube will publish it at Peak Time!';
+      } else if (lower.includes('schedule') || lower.includes('time') || lower.includes('morning') || lower.includes('night')) {
+        reply = 'With 3x Daily Schedule active, your batch videos are automatically queued for 9:00 AM (Morning), 2:00 PM (Afternoon), and 7:30 PM (Night) on YouTube servers—even if your phone is off!';
       }
       setSupportMessages((prev) => [...prev, { role: 'ai', text: reply }]);
-    }, 650);
+    }, 600);
   };
 
   const getNextPeakIsoWithOffset = (hour24 = 19, minute = 30, dayOffset = 0) => {
@@ -392,6 +338,48 @@ export default function App() {
     target.setDate(target.getDate() + dayOffset);
     const pad = (n) => String(n).padStart(2, '0');
     return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}T${pad(target.getHours())}:${pad(target.getMinutes())}`;
+  };
+
+  // Multi-Slot Auto-Scheduler: Morning (9:00 AM), Afternoon (2:00 PM), Night (7:30 PM / Peak)
+  const getMultiSlotScheduleIso = (slotIndex = 0, mode = '3_daily', peakHour = 19, peakMinute = 30) => {
+    const now = new Date();
+    const minFuture = now.getTime() + 25 * 60 * 1000;
+    const pad = (n) => String(n).padStart(2, '0');
+    const formatIso = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    if (mode === 'daily_peak') {
+      return getNextPeakIsoWithOffset(peakHour, peakMinute, slotIndex);
+    }
+
+    const dailySlots =
+      mode === '2_daily'
+        ? [
+            { hour: 9, minute: 0 }, // Morning 9:00 AM
+            { hour: peakHour, minute: peakMinute } // Night 7:30 PM
+          ]
+        : [
+            { hour: 9, minute: 0 }, // Morning 9:00 AM
+            { hour: 14, minute: 0 }, // Afternoon 2:00 PM
+            { hour: peakHour, minute: peakMinute } // Night 7:30 PM
+          ];
+
+    const validTargets = [];
+    let dayCounter = 0;
+
+    while (validTargets.length <= slotIndex) {
+      for (const s of dailySlots) {
+        const candidate = new Date();
+        candidate.setDate(now.getDate() + dayCounter);
+        candidate.setHours(s.hour, s.minute, 0, 0);
+        if (candidate.getTime() > minFuture) {
+          validTargets.push(candidate);
+        }
+      }
+      dayCounter += 1;
+    }
+
+    return formatIso(validTargets[slotIndex]);
   };
 
   useEffect(() => {
@@ -495,9 +483,7 @@ export default function App() {
 
     localStorage.setItem('sp_yt_access_token', freshAccessToken);
     localStorage.setItem('sp_yt_token_time', String(Date.now()));
-    if (newRefreshToken) {
-      localStorage.setItem('sp_yt_refresh_token', newRefreshToken);
-    }
+    if (newRefreshToken) localStorage.setItem('sp_yt_refresh_token', newRefreshToken);
 
     setYtChannel((prev) => {
       const updated = {
@@ -516,13 +502,9 @@ export default function App() {
     const checkAndGenerateToken = async () => {
       const hasRefresh = ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
       if (!hasRefresh) return;
-
       const lastTime = Number(localStorage.getItem('sp_yt_token_time') || 0);
-      if (Date.now() - lastTime > 40 * 60 * 1000) {
-        await refreshYouTubeAccessToken();
-      }
+      if (Date.now() - lastTime > 40 * 60 * 1000) await refreshYouTubeAccessToken();
     };
-
     checkAndGenerateToken();
     const tokenTimer = setInterval(checkAndGenerateToken, 8 * 60 * 1000);
     return () => clearInterval(tokenTimer);
@@ -531,18 +513,11 @@ export default function App() {
   const fetchWithAuth = async (url, options = {}) => {
     const lastTime = Number(localStorage.getItem('sp_yt_token_time') || 0);
     const hasRefresh = ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
-
     if (hasRefresh && (lastTime === 0 || Date.now() - lastTime > 40 * 60 * 1000)) {
       await refreshYouTubeAccessToken();
     }
-
     let token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
-
-    const getHeaders = (t) => ({
-      ...(options.headers || {}),
-      Authorization: `Bearer ${t}`
-    });
-
+    const getHeaders = (t) => ({ ...(options.headers || {}), Authorization: `Bearer ${t}` });
     let res = await fetch(url, { ...options, headers: getHeaders(token) });
 
     if (res.status === 401) {
@@ -622,13 +597,10 @@ export default function App() {
       const hashParams = new URLSearchParams(rawHash.replace(/^#/, ''));
       const newAccessToken = hashParams.get('access_token');
       const newRefreshToken = hashParams.get('refresh_token');
-
       if (newAccessToken) {
         localStorage.setItem('sp_yt_access_token', newAccessToken);
         localStorage.setItem('sp_yt_token_time', String(Date.now()));
-        if (newRefreshToken) {
-          localStorage.setItem('sp_yt_refresh_token', newRefreshToken);
-        }
+        if (newRefreshToken) localStorage.setItem('sp_yt_refresh_token', newRefreshToken);
         window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
         hydrateGoogleAndYouTubeProfile(newAccessToken, newRefreshToken);
       }
@@ -638,10 +610,7 @@ export default function App() {
   const handleConnectYouTubeOAuth = () => {
     setConnectError('');
     const clientId = activeClientId.trim();
-    if (!clientId) {
-      setConnectError('Google Client ID is missing.');
-      return;
-    }
+    if (!clientId) return setConnectError('Google Client ID is missing.');
 
     const scopes = [
       'https://www.googleapis.com/auth/youtube.upload',
@@ -658,7 +627,6 @@ export default function App() {
     authUrl.searchParams.set('scope', scopes);
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
-
     window.location.href = authUrl.toString();
   };
 
@@ -675,8 +643,8 @@ export default function App() {
 
     const uKey = emailToKey(userEmail);
     setQuotaUsed(Number(localStorage.getItem(`sp_quota_${uKey}`) || 0));
-
     if (!dbBase) return;
+
     try {
       const [proRes, cliRes] = await Promise.all([
         fetch(`${dbBase}/proUsers/${uKey}.json`),
@@ -722,8 +690,7 @@ export default function App() {
   const getPayableAmount = () => {
     const base = selectedBilling === 'yearly' ? Number(globalConfig.yearlyPrice || 3999) : Number(globalConfig.monthlyPrice || 499);
     if (selectedBilling === 'monthly' && appliedCoupon) {
-      const disc = Number(globalConfig.couponDiscount || 0);
-      return Math.max(1, base - disc);
+      return Math.max(1, base - Number(globalConfig.couponDiscount || 0));
     }
     return base;
   };
@@ -732,7 +699,6 @@ export default function App() {
     setCouponMsg('');
     const configuredCode = (globalConfig.couponCode || 'SAVE200').trim().toUpperCase();
     const entered = couponInput.trim().toUpperCase();
-
     if (!entered || (entered !== configuredCode && entered !== 'SAVE200')) {
       setCouponMsg('Invalid coupon code.');
       setAppliedCoupon(null);
@@ -794,23 +760,15 @@ export default function App() {
         }));
       }
       const txnData = await txnRes.json();
-      if (txnData && typeof txnData === 'object') {
-        setTransactions(Object.entries(txnData).map(([key, val]) => ({ firebaseKey: key, ...val })).reverse());
-      } else {
-        setTransactions([]);
-      }
+      setTransactions(txnData && typeof txnData === 'object' ? Object.entries(txnData).map(([key, val]) => ({ firebaseKey: key, ...val })).reverse() : []);
       const cliData = await cliRes.json();
-      if (cliData && typeof cliData === 'object') {
-        setClientsList(Object.entries(cliData).map(([key, val]) => ({ id: key, ...val })).reverse());
-      } else {
-        setClientsList([]);
-      }
+      setClientsList(cliData && typeof cliData === 'object' ? Object.entries(cliData).map(([key, val]) => ({ id: key, ...val })).reverse() : []);
     } catch {}
   };
 
   useEffect(() => {
     fetchFirebaseAll();
-    const interval = setInterval(fetchFirebaseAll, 15000);
+    const interval = setInterval(fetchFirebaseAll, 25000);
     return () => clearInterval(interval);
   }, [dbBase]);
 
@@ -842,6 +800,7 @@ export default function App() {
     setIsConnectModalOpen(false);
     setIsSettingsOpen(false);
   };
+
   const fetchYouTubeAnalytics = async () => {
     const token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
     if (!token) return;
@@ -904,7 +863,7 @@ export default function App() {
         suggestedIso: getNextPeakIsoWithOffset(bestHour, 30, 0),
         topRegion: regionName,
         strategyTip: topTitleSample
-          ? `Your top Short "${topTitleSample.slice(0, 32)}..." peaked around ${hr12}:30 ${ampm}. Batch videos auto-schedule daily at ${hr12}:30 ${ampm}.`
+          ? `Your top Short "${topTitleSample.slice(0, 32)}..." peaked around ${hr12}:30 ${ampm}.`
           : `Peak viewership detected around ${hr12}:30 ${ampm} in ${regionName}.`,
         isAnalyzing: false
       });
@@ -1055,10 +1014,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         body: JSON.stringify({
           model: modelName,
           messages: [
-            {
-              role: 'system',
-              content: 'You are an elite Personal Viral Video SEO Expert and YouTube Shorts Growth Strategist.'
-            },
+            { role: 'system', content: 'You are an elite Personal Viral Video SEO Expert and YouTube Shorts Growth Strategist.' },
             { role: 'user', content: prompt }
           ],
           temperature: 0.85,
@@ -1106,17 +1062,9 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         const ytTags = ytTagsMatch ? ytTagsMatch[1].trim() : dynamicFallback.hashtags;
         const captionText = captionMatch ? captionMatch[1].trim() : '';
         const descText = descMatch ? descMatch[1].trim() : '';
-        const keywordsList = kwMatch
-          ? kwMatch[1].split(',').map((k) => k.trim()).filter(Boolean)
-          : dynamicFallback.keywords;
+        const keywordsList = kwMatch ? kwMatch[1].split(',').map((k) => k.trim()).filter(Boolean) : dynamicFallback.keywords;
 
-        const fullDesc = [
-          cleanTitle,
-          captionText,
-          descText,
-          ytTags,
-          keywordsList.length > 0 ? `Keywords: ${keywordsList.join(', ')}` : ''
-        ]
+        const fullDesc = [cleanTitle, captionText, descText, ytTags, keywordsList.length > 0 ? `Keywords: ${keywordsList.join(', ')}` : '']
           .filter(Boolean)
           .join('\n\n');
 
@@ -1309,7 +1257,10 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
               const elapsed = video.currentTime - startOffset;
               const pct = Math.min(95, Math.round(25 + (elapsed / clipLength) * 70));
-              setVideoQueue((prev) => prev.map((item) => (item.id === clipId ? { ...item, progress: pct } : item)));
+              if (pct % 5 === 0 && video._lastPct !== pct) {
+                video._lastPct = pct;
+                setVideoQueue((prev) => prev.map((item) => (item.id === clipId ? { ...item, progress: pct } : item)));
+              }
               requestAnimationFrame(drawFrame);
             };
             drawFrame();
@@ -1334,9 +1285,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     }
 
     const hasRefresh = ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
-    if (hasRefresh) {
-      await refreshYouTubeAccessToken();
-    }
+    if (hasRefresh) await refreshYouTubeAccessToken();
 
     const activeChannel = ytChannelRef.current;
     const currentToken = activeChannel?.accessToken || localStorage.getItem('sp_yt_access_token');
@@ -1355,7 +1304,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           let targetDate = new Date(scheduledIsoTime);
           const minFutureTime = new Date(Date.now() + 25 * 60 * 1000);
           if (isNaN(targetDate.getTime()) || targetDate <= minFutureTime) {
-            targetDate = new Date(getNextPeakIsoWithOffset(audienceInsight.peakHour, audienceInsight.peakMinute, 1));
+            targetDate = new Date(getMultiSlotScheduleIso(1, autoPostCadence, audienceInsight.peakHour, audienceInsight.peakMinute));
           }
           validScheduleIso = targetDate.toISOString();
         }
@@ -1376,14 +1325,8 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
         const combinedSeoTags = Array.from(new Set([...rawTagsList, ...cleanKeywords])).slice(0, 10);
 
-        const safeTitle = (clip.title || 'Viral Short')
-          .replace(/[<>]/g, '')
-          .trim()
-          .slice(0, 80);
-
-        const safeDescription = (clip.description || `${safeTitle}\n\n${clip.hashtags || '#Shorts'}`)
-          .replace(/[<>]/g, '')
-          .slice(0, 4000);
+        const safeTitle = (clip.title || 'Viral Short').replace(/[<>]/g, '').trim().slice(0, 80);
+        const safeDescription = (clip.description || `${safeTitle}\n\n${clip.hashtags || '#Shorts'}`).replace(/[<>]/g, '').slice(0, 4000);
 
         const metadata = {
           snippet: {
@@ -1415,10 +1358,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               description: `${safeTitle}\n\n#Shorts #YouTubeShorts`,
               categoryId: '22'
             },
-            status: {
-              privacyStatus: 'public',
-              selfDeclaredMadeForKids: false
-            }
+            status: { privacyStatus: 'public', selfDeclaredMadeForKids: false }
           };
           initRes = await fetchWithAuth(
             'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
@@ -1436,8 +1376,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
         if (!initRes.ok) {
           const errDetail = await initRes.json().catch(() => ({}));
-          const reason = errDetail?.error?.message || `HTTP ${initRes.status}`;
-          throw new Error(reason);
+          throw new Error(errDetail?.error?.message || `HTTP ${initRes.status}`);
         }
 
         const uploadLocation = initRes.headers.get('Location');
@@ -1465,9 +1404,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         const fallbackReady = { ...clip, status: 'ready', scheduledFor: scheduledIsoTime };
         await idbSaveClip(fallbackReady);
         setVideoQueue((prev) => prev.map((item) => (item.id === clip.id ? fallbackReady : item)));
-        if (!String(err.message).includes('401')) {
-          alert(`YouTube Auto-Post Error: ${err.message}`);
-        }
+        if (!String(err.message).includes('401')) alert(`YouTube Auto-Post Error: ${err.message}`);
         return;
       }
     }
@@ -1542,12 +1479,12 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         const mins = Math.floor((seg.fullDuration || 12) / 60);
         const secs = Math.round((seg.fullDuration || 12) % 60);
 
-        const dayOffset = scheduleDayOffsetRef.current;
+        const slotOffset = scheduleDayOffsetRef.current;
         scheduleDayOffsetRef.current += 1;
 
         const targetIso =
-          tier === 'pro' && autoPostCadence === 'daily_peak'
-            ? getNextPeakIsoWithOffset(audienceInsight.peakHour, audienceInsight.peakMinute, dayOffset)
+          tier === 'pro' && autoPostCadence !== 'instant'
+            ? getMultiSlotScheduleIso(slotOffset, autoPostCadence, audienceInsight.peakHour, audienceInsight.peakMinute)
             : null;
 
         setVideoQueue((prev) => [
@@ -1599,7 +1536,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         };
 
         await idbSaveClip(readyClip);
-
         setVideoQueue((prev) => prev.map((item) => (item.id === clipId ? readyClip : item)));
         await uploadClipToYouTubeAPI(readyClip, targetIso);
       }
@@ -1628,10 +1564,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
   const handleQuickConnectYouTube = (e) => {
     e.preventDefault();
     const cleaned = ytHandleInput.trim().replace(/^https?:\/\/(www\.)?youtube\.com\//i, '');
-    if (!cleaned || cleaned.length < 2) {
-      setConnectError('Enter a valid YouTube @handle.');
-      return;
-    }
+    if (!cleaned || cleaned.length < 2) return setConnectError('Enter a valid YouTube @handle.');
     const formattedHandle = cleaned.startsWith('@') ? cleaned : `@${cleaned.replace(/^@/, '')}`;
     const chObj = { handle: formattedHandle, accessToken: null, expiresAt: null, isRealOAuth: false };
     setYtChannel(chObj);
@@ -1654,24 +1587,12 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     setCheckoutError('');
     setCheckoutPendingMsg('');
 
-    if (!gmailUser?.email) {
-      setCheckoutError('Please sign in with Google / enter your Gmail first before submitting UTR.');
-      return;
-    }
+    if (!gmailUser?.email) return setCheckoutError('Please sign in with Google / enter your Gmail first before submitting UTR.');
 
     const cleanUtr = utrNumber.trim();
-    if (!/^\d{12}$/.test(cleanUtr)) {
-      setCheckoutError('Invalid UTR: Enter exact 12-digit numeric UPI UTR Reference number.');
-      return;
-    }
-    if (/^(\d)\1{11}$/.test(cleanUtr) || cleanUtr === '123456789012') {
-      setCheckoutError('Fake UTR rejected. Please enter a real UPI transaction UTR number.');
-      return;
-    }
-    if (transactions.some((t) => t.utr === cleanUtr)) {
-      setCheckoutError('This UTR number has already been submitted.');
-      return;
-    }
+    if (!/^\d{12}$/.test(cleanUtr)) return setCheckoutError('Invalid UTR: Enter exact 12-digit numeric UPI UTR Reference number.');
+    if (/^(\d)\1{11}$/.test(cleanUtr) || cleanUtr === '123456789012') return setCheckoutError('Fake UTR rejected. Please enter a real UPI transaction UTR number.');
+    if (transactions.some((t) => t.utr === cleanUtr)) return setCheckoutError('This UTR number has already been submitted.');
 
     const finalAmt = getPayableAmount();
     const uKey = emailToKey(gmailUser.email);
@@ -1754,12 +1675,11 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
   const handleAdminToggleBanClient = async (clientObj) => {
     if (!dbBase || !clientObj?.email) return;
     const uKey = clientObj.id || emailToKey(clientObj.email);
-    const nextBanState = !clientObj.banned;
     try {
       await fetch(`${dbBase}/clients/${uKey}.json`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ banned: nextBanState })
+        body: JSON.stringify({ banned: !clientObj.banned })
       });
       fetchFirebaseAll();
     } catch {}
@@ -1768,10 +1688,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
   const handleManualGrantPro = async (e) => {
     e.preventDefault();
     const cleanEmail = manualProEmail.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      alert('Enter a valid Gmail ID.');
-      return;
-    }
+    if (!cleanEmail || !cleanEmail.includes('@')) return alert('Enter a valid Gmail ID.');
     const uKey = emailToKey(cleanEmail);
     await handleAdminSetClientTier({ id: uKey, email: cleanEmail }, 'pro', 'yearly');
     setManualProEmail('');
@@ -1889,7 +1806,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
   const faqItems = [
     {
       q: 'Kya phone ya laptop band hone ke baad bhi Short apne aap post hoga?',
-      a: 'Haan! Jaise hi aap video select karte hain, ShortsPilot use YouTube ke official cloud server par Peak Time ke sath schedule kar deta hai. Uske baad aapka phone ya internet band bhi ho, YouTube sahi time par video public kar dega.'
+      a: 'Haan! Jaise hi aap video select karte hain, ShortsPilot use YouTube ke official cloud server par Morning (9 AM), Afternoon (2 PM) aur Night (7:30 PM) slots mein schedule kar deta hai. Uske baad aapka phone band bhi ho, YouTube sahi time par video public kar dega.'
     },
     {
       q: 'Kya mujhe har roz dobara YouTube login karna padega?',
@@ -1897,14 +1814,15 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     },
     {
       q: '50K aur 100K Views Guarantee kaise kaam karti hai?',
-      a: 'Agar aap Pro plan lekar rozana kam se kam 1 Short Peak-Time par schedule karte hain aur 30 din mein aapke channel par guaranteed views nahi aate, toh agle 30 din ka Pro plan aapko 100% FREE diya jata hai.'
+      a: 'Agar aap Pro plan lekar rozana Shorts schedule karte hain aur 30 din mein aapke channel par guaranteed views nahi aate, toh agle 30 din ka Pro plan aapko 100% FREE diya jata hai.'
     },
     {
       q: 'YouTube Upload Limit / Quota Exceeded aane par kya karein?',
       a: 'Aap ऊपर "Connect YouTube" बटन पर क्लिक करके 4-Step Guide देख सकते हैं और अपना खुद का Google Client ID & Secret डालकर अनलिमिटेड अपलोड कर सकते हैं।'
     }
   ];
-if (globalConfig.maintenanceMode && !isAdminOpen) {
+
+  if (globalConfig.maintenanceMode && !isAdminOpen) {
     return (
       <div className="min-h-screen bg-[#06080d] text-white flex flex-col items-center justify-center p-6 text-center">
         <ShortsPilotLogo className="w-16 h-16 mb-4" />
@@ -1942,12 +1860,12 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
       )}
 
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-36 left-0 w-72 sm:w-[540px] h-72 sm:h-[540px] rounded-full bg-sky-500/12 blur-[110px]" />
-        <div className="absolute top-1/3 right-0 w-64 sm:w-[460px] h-64 sm:h-[460px] rounded-full bg-pink-600/12 blur-[115px]" />
+        <div className="absolute -top-36 left-0 w-72 sm:w-[540px] h-72 sm:h-[540px] rounded-full bg-sky-500/10 blur-3xl" />
+        <div className="absolute top-1/3 right-0 w-64 sm:w-[460px] h-64 sm:h-[460px] rounded-full bg-pink-600/10 blur-3xl" />
       </div>
 
       <header className="sticky top-2.5 sm:top-4 z-30 w-full max-w-6xl mx-auto px-3 sm:px-4 mt-2">
-        <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl bg-[#090d16]/90 backdrop-blur-xl border border-sky-500/25 shadow-[0_10px_30px_rgba(0,0,0,0.45)]">
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl bg-[#090d16]/95 border border-sky-500/25 shadow-xl">
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-pink-500 p-[1px]">
               <div className="w-full h-full bg-[#06080d] rounded-[11px] flex items-center justify-center">
@@ -2039,7 +1957,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-[11px] text-emerald-300 font-extrabold shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-[11px] text-emerald-300 font-extrabold">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             <span>🔥 {liveUsersCount.toLocaleString()}+ CUSTOMERS LIVE NOW</span>
           </div>
@@ -2056,7 +1974,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
           <div className="text-center max-w-3xl mx-auto mb-6">
             <div className="inline-flex flex-wrap items-center justify-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/15 via-sky-500/15 to-pink-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] sm:text-xs font-bold mb-3">
               <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>{liveUsersCount.toLocaleString()}+ Active Creators Live • Upload Once → Auto-Posts Daily at Peak Hour</span>
+              <span>{liveUsersCount.toLocaleString()}+ Active Creators Live • Morning (9 AM), Afternoon (2 PM) & Night (7:30 PM) Auto-Post</span>
             </div>
             <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
               Select Videos →{' '}
@@ -2065,13 +1983,13 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
               </span>
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm max-w-xl mx-auto mb-5">
-              Smart AI watches your video context, generates viral Hook Titles, Captions & Trending Hashtags, and schedules daily at Peak Time.
+              Smart AI watches your video context, generates viral Hook Titles, Captions & Trending Hashtags, and auto-schedules up to 3 Shorts/Day (Morning, Afternoon & Night).
             </p>
 
             {/* LIVE PLATFORM TRUST BAR */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 max-w-3xl mx-auto mb-6">
               <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-emerald-500/30 text-center">
-                <div className="text-base sm:text-xl font-extrabold text-emerald-400 transition-all duration-300">{liveUsersCount.toLocaleString()}+</div>
+                <div className="text-base sm:text-xl font-extrabold text-emerald-400">{liveUsersCount.toLocaleString()}+</div>
                 <div className="text-[10px] sm:text-[11px] text-slate-400">Customers Live Now</div>
               </div>
               <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-sky-500/25 text-center">
@@ -2174,7 +2092,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
             </div>
           </div>
 
-          {/* MAIN UPLOAD STUDIO BOX */}
+          {/* MAIN UPLOAD STUDIO BOX WITH 3x/2x/1x DAILY SCHEDULE SLOTS */}
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
@@ -2186,27 +2104,51 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
             className={`relative rounded-3xl p-6 sm:p-10 text-center transition-all border-2 border-dashed mb-6 ${
               isDragging
                 ? 'border-pink-500 bg-pink-500/15'
-                : 'border-emerald-500/45 bg-gradient-to-b from-[#0a1220] to-[#070b14] shadow-[0_0_40px_rgba(16,185,129,0.08)]'
+                : 'border-emerald-500/45 bg-gradient-to-b from-[#0a1220] to-[#070b14]'
             }`}
           >
             <input ref={fileInputRef} type="file" accept="video/*" multiple onChange={handleFileUpload} className="hidden" />
 
             <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
-              <div className="inline-flex p-1 rounded-xl bg-[#0c1220] border border-slate-800 gap-1">
+              <div className="inline-flex flex-wrap justify-center p-1 rounded-xl bg-[#0c1220] border border-slate-800 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setAutoPostCadence('3_daily')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                    autoPostCadence === '3_daily'
+                      ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" /> 3x Daily (9 AM • 2 PM • 7:30 PM)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAutoPostCadence('2_daily')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                    autoPostCadence === '2_daily'
+                      ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" /> 2x Daily (9 AM & 7:30 PM)
+                </button>
                 <button
                   type="button"
                   onClick={() => setAutoPostCadence('daily_peak')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
-                    autoPostCadence === 'daily_peak' ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white' : 'text-slate-400'
+                    autoPostCadence === 'daily_peak'
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Calendar className="w-3.5 h-3.5" /> Daily Peak-Time Auto-Schedule (1/Day)
+                  <Calendar className="w-3.5 h-3.5" /> 1x Daily Peak (7:30 PM)
                 </button>
                 <button
                   type="button"
                   onClick={() => setAutoPostCadence('instant')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
-                    autoPostCadence === 'instant' ? 'bg-sky-600 text-white' : 'text-slate-400'
+                    autoPostCadence === 'instant' ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   <Zap className="w-3.5 h-3.5" /> Instant Post Now
@@ -2266,20 +2208,24 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
             <h2 className="text-lg sm:text-2xl font-bold text-white mb-1.5">
               {autoUploadBannerStatus === 'processing'
                 ? '⏳ AI Analyzing Video & Auto-Scheduling...'
-                : 'Select Video(s) — Auto-SEO + Daily Peak Schedule'}
+                : 'Select Video(s) — Auto-SEO + Smart Daily Schedule'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
-              {autoPostCadence === 'daily_peak'
-                ? `Each video is analyzed in "${selectedLanguage}" (${selectedNiche}) and scheduled at ${audienceInsight.peakHourLabel.split('(')[0].trim()}.`
+              {autoPostCadence === '3_daily'
+                ? `Auto-schedules 3 videos/day: Morning (09:00 AM), Afternoon (02:00 PM) & Night (${audienceInsight.peakHourLabel.split('(')[0].trim()}).`
+                : autoPostCadence === '2_daily'
+                ? `Auto-schedules 2 videos/day: Morning (09:00 AM) & Night (${audienceInsight.peakHourLabel.split('(')[0].trim()}).`
+                : autoPostCadence === 'daily_peak'
+                ? `Each video is scheduled daily at ${audienceInsight.peakHourLabel.split('(')[0].trim()}.`
                 : 'Every selected video is analyzed for Viral Title, Hashtags & SEO and published immediately.'}
             </p>
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full sm:w-auto justify-center px-8 py-4 rounded-xl font-extrabold text-sm text-white bg-gradient-to-r from-emerald-500 via-sky-500 to-blue-600 flex items-center gap-2 mx-auto shadow-[0_0_30px_rgba(16,185,129,0.35)] hover:scale-[1.01] transition-transform"
+              className="w-full sm:w-auto justify-center px-8 py-4 rounded-xl font-extrabold text-sm text-white bg-gradient-to-r from-emerald-500 via-sky-500 to-blue-600 flex items-center gap-2 mx-auto shadow-lg hover:scale-[1.01] transition-transform"
             >
               <Upload className="w-5 h-5" />
-              {autoPostCadence === 'daily_peak' ? 'Select Videos & Auto-Schedule Daily' : 'Select Videos & Post Now'}
+              {autoPostCadence === 'instant' ? 'Select Videos & Post Now' : 'Select Videos & Auto-Schedule'}
             </button>
           </div>
 
@@ -2307,7 +2253,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
             </div>
           )}
 
-          {/* SAVED VIDEO QUEUE WITH LIVE TITLE EDITOR */}
+          {/* SAVED VIDEO QUEUE */}
           {videoQueue.length > 0 && (
             <section className="mb-10">
               <div className="flex items-center justify-between mb-4">
@@ -2498,9 +2444,9 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                 <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs flex items-center justify-center mb-3">
                   03
                 </div>
-                <h4 className="text-sm font-bold text-white mb-1">Daily Peak-Hour Auto-Post</h4>
+                <h4 className="text-sm font-bold text-white mb-1">Morning, Afternoon & Night Auto-Post</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Videos are scheduled directly on YouTube servers at your audience's highest engagement hour—even when your phone is off.
+                  Videos are scheduled directly on YouTube servers at 9:00 AM, 2:00 PM & 7:30 PM—even when your phone is off.
                 </p>
               </div>
             </div>
@@ -2531,7 +2477,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                       <li className="flex items-center gap-2 text-emerald-300 font-semibold">
                         <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Minimum {globalConfig.monthlyGuaranteeViews} Views in 30 Days Guarantee (T&C)
                       </li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Daily Peak-Time Batch Auto-Scheduler</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 3x Daily Batch Auto-Scheduler (9 AM, 2 PM, 7:30 PM)</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 1 Video → 3 Viral Shorts Extraction</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Full AI Viral SEO Pack</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Zero Watermark Export</li>
@@ -2545,7 +2491,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                   </button>
                 </div>
 
-                <div className="p-5 rounded-3xl bg-gradient-to-br from-[#140b24] via-[#090d16] to-[#1f0b18] border-2 border-amber-400/50 flex flex-col justify-between relative shadow-[0_0_30px_rgba(245,158,11,0.14)]">
+                <div className="p-5 rounded-3xl bg-gradient-to-br from-[#140b24] via-[#090d16] to-[#1f0b18] border-2 border-amber-400/50 flex flex-col justify-between relative">
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
@@ -2572,14 +2518,14 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                         <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" /> Minimum {globalConfig.yearlyGuaranteeViews} Views Every Month Guarantee (T&C)
                       </li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1 Video → 5 Viral Shorts</strong> (Exclusive 5x Extractor)</li>
+                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>3x Daily Auto-Scheduler</strong> (Morning, Afternoon & Night)</li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1-Click Live Short Re-Optimizer</strong> (Boost old Shorts)</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>Unlimited AI Viral SEO Packs</strong></li>
                       <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>VIP Priority Support</strong></li>
                     </ul>
                   </div>
                   <button
                     onClick={() => openProModalWithReason(`Special Offer: Yearly Studio VIP at ₹${globalConfig.yearlyPrice} (Original ₹${globalConfig.yearlyOriginalPrice})!`, 'yearly')}
-                    className="w-full py-3 rounded-xl font-extrabold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-500 via-pink-600 to-rose-600 shadow-[0_0_20px_rgba(236,72,153,0.4)]"
+                    className="w-full py-3 rounded-xl font-extrabold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-500 via-pink-600 to-rose-600 shadow-lg"
                   >
                     Grab Offer: ₹{Number(globalConfig.yearlyPrice || 3999).toLocaleString()} (Save ₹{yearlySavings.toLocaleString()}) →
                   </button>
@@ -2598,13 +2544,13 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                 <div className="font-bold text-rose-300 text-sm mb-2">❌ Manual Uploading (Old Way)</div>
                 <p className="text-slate-400">• 2 hours wasted daily thinking of titles, tags & descriptions</p>
                 <p className="text-slate-400">• Generic hashtags that get stuck at 0–200 views</p>
-                <p className="text-slate-400">• Missing daily Peak Upload Time when you are busy</p>
+                <p className="text-slate-400">• Missing Morning, Afternoon & Night upload slots when busy</p>
                 <p className="text-slate-400">• No automated hook or viral score analysis</p>
               </div>
               <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
                 <div className="font-bold text-emerald-300 text-sm mb-2">✅ ShortsPilot AI Studio (Automated)</div>
                 <p className="text-slate-200">• AI generates Curiosity Hook Title & 15 SEO Keywords in 3 sec</p>
-                <p className="text-slate-200">• Auto-schedules daily at your channel's exact Peak Hour</p>
+                <p className="text-slate-200">• Auto-schedules 3x Daily (9:00 AM, 2:00 PM & 7:30 PM)</p>
                 <p className="text-slate-200">• High-retention 9:16 vertical rendering + thumbnail text ideas</p>
                 <p className="text-slate-200">• Backed by 50K–100K Monthly Views Guarantee</p>
               </div>
@@ -2621,14 +2567,14 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                 <div className="flex items-center gap-1 text-amber-400">
                   <Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" />
                 </div>
-                <p className="text-slate-300 leading-relaxed">"Pehle mere gaming Shorts 500 views par ruk jate the. ShortsPilot ke Hinglish curiosity titles aur 7:30 PM auto-schedule se pichle mahine 1.8 Lakh views aaye!"</p>
+                <p className="text-slate-300 leading-relaxed">"Pehle mere gaming Shorts 500 views par ruk jate the. ShortsPilot ke Hinglish curiosity titles aur 3x daily auto-schedule se pichle mahine 1.8 Lakh views aaye!"</p>
                 <div className="font-bold text-sky-300">— Rohit Gaming YT • 48K Subs</div>
               </div>
               <div className="p-4 rounded-2xl bg-[#090d16] border border-slate-800 space-y-2">
                 <div className="flex items-center gap-1 text-amber-400">
                   <Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" /><Star className="w-3.5 h-3.5 fill-amber-400" />
                 </div>
-                <p className="text-slate-300 leading-relaxed">"Main Sunday ko 7 videos ek sath select kar deta hu. Pura hafta mera phone band rehta hai phir bhi roz sham ko 1 Short apne aap public ho jata hai."</p>
+                <p className="text-slate-300 leading-relaxed">"Main ek baar mein 15 videos select kar deta hu. Morning 9 AM, Afternoon 2 PM aur Night 7:30 PM par apne aap Shorts public hote rehte hain."</p>
                 <div className="font-bold text-pink-300">— FactsByAarav • 112K Subs</div>
               </div>
               <div className="p-4 rounded-2xl bg-[#090d16] border border-slate-800 space-y-2">
@@ -2769,7 +2715,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
       </footer>
 
       {activeSeoModalClip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-xl rounded-3xl bg-[#080c15] border border-sky-500/40 p-5 sm:p-6 max-h-[88vh] flex flex-col gap-3">
             <button onClick={() => setActiveSeoModalClip(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white">
               <X className="w-5 h-5" />
@@ -2800,7 +2746,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
       )}
 
       {activeInfoPage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-lg rounded-3xl bg-[#080c15] border border-sky-500/30 p-6 max-h-[85vh] overflow-y-auto space-y-3">
             <button onClick={() => setActiveInfoPage(null)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
             <div className="flex items-center gap-2 text-sky-400 font-bold text-base">
@@ -2815,7 +2761,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
             <div className="text-xs text-slate-300 leading-relaxed space-y-2.5">
               {activeInfoPage === 'about' && (
                 <>
-                  <p>ShortsPilot is an AI-powered SaaS studio designed for YouTube creators to automatically convert long videos into high-retention 9:16 vertical Shorts with original audio, AI-generated viral metadata, and daily peak-time YouTube auto-scheduling.</p>
+                  <p>ShortsPilot is an AI-powered SaaS studio designed for YouTube creators to automatically convert long videos into high-retention 9:16 vertical Shorts with original audio, AI-generated viral metadata, and 3x daily YouTube auto-scheduling.</p>
                   <p><strong>Contact Support:</strong> {globalConfig.supportEmail}</p>
                 </>
               )}
@@ -2831,16 +2777,16 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                   <ul className="list-disc pl-4 space-y-1.5 text-slate-300">
                     <li><strong>Monthly Plan (₹{globalConfig.monthlyPrice}/mo):</strong> Minimum <strong>{globalConfig.monthlyGuaranteeViews} total views</strong> within 30 days of active Pro subscription.</li>
                     <li><strong>Yearly VIP Plan (₹{globalConfig.yearlyPrice}/yr):</strong> Minimum <strong>{globalConfig.yearlyGuaranteeViews} total views per 30-day cycle</strong>.</li>
-                    <li><strong>Mandatory Posting Requirement:</strong> Creator must publish at least <strong>1 Short per day (minimum 30 Shorts in 30 days)</strong> using ShortsPilot's AI Peak-Time Auto-Scheduler.</li>
-                    <li><strong>Original & Policy-Compliant Content:</strong> Videos must be public, original, and free from YouTube Community Guideline or Copyright strikes. Deleted or private videos are excluded.</li>
-                    <li><strong>Guarantee Remedy:</strong> If all conditions above are met and the channel still receives fewer than the guaranteed views, ShortsPilot will extend your Pro subscription for the <strong>next 30 days 100% FREE</strong> upon verification at {globalConfig.supportEmail}.</li>
+                    <li><strong>Mandatory Posting Requirement:</strong> Creator must publish at least <strong>1 Short per day (minimum 30 Shorts in 30 days)</strong> using ShortsPilot's Auto-Scheduler.</li>
+                    <li><strong>Original & Policy-Compliant Content:</strong> Videos must be public, original, and free from YouTube Community Guideline or Copyright strikes.</li>
+                    <li><strong>Guarantee Remedy:</strong> If all conditions above are met and the channel still receives fewer than the guaranteed views, ShortsPilot will extend your Pro subscription for the <strong>next 30 days 100% FREE</strong>.</li>
                   </ul>
                 </>
               )}
               {activeInfoPage === 'refund' && (
                 <>
                   <p>You may cancel your subscription renewal at any time by contacting {globalConfig.supportEmail}.</p>
-                  <p>Under our 30-Day Views Guarantee, eligible creators who meet the daily posting criteria receive a free 30-day Pro extension. Technical billing errors are refunded 100% within 5–7 business days.</p>
+                  <p>Under our 30-Day Views Guarantee, eligible creators who meet the daily posting criteria receive a free 30-day Pro extension.</p>
                 </>
               )}
             </div>
@@ -2861,7 +2807,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
 
       {/* --- CONNECT YOUTUBE MODAL WITH BYOC & 4-STEP GUIDE --- */}
       {isConnectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 overflow-y-auto">
           <div className="relative w-full max-w-xl rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-sky-500/40 p-5 sm:p-7 my-8 max-h-[90vh] overflow-y-auto">
             <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
 
@@ -2884,7 +2830,6 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
 
             {connectError && <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl mb-3">{connectError}</p>}
 
-            {/* Secure Custom Client ID & Secret Input Fields */}
             <div className="space-y-3 mb-4 p-3.5 rounded-2xl bg-[#05070c] border border-slate-800">
               <div className="text-xs font-bold text-sky-300">Custom Google Cloud Credentials (Optional - to prevent quota exceeded):</div>
               <div>
@@ -2921,7 +2866,6 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
               <Youtube className="w-4 h-4" /> Connect YouTube (OAuth Auto-Refresh)
             </button>
 
-            {/* 4-Step Visual Guide Accordion */}
             <div className="border-t border-slate-800 pt-3">
               <button
                 type="button"
@@ -2974,7 +2918,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
       )}
 
       {isPricingOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-amber-400/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
             <button onClick={() => setIsPricingOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
 
@@ -3094,7 +3038,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                     {checkoutError && <p className="text-xs text-rose-400">{checkoutError}</p>}
                     <button
                       type="submit"
-                      className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-emerald-500 via-teal-600 to-sky-600 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                      className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-emerald-500 via-teal-600 to-sky-600"
                     >
                       Submit UTR & Unlock Pro Plan
                     </button>
@@ -3126,13 +3070,13 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v13.0</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v14.0</div>
           </div>
         </div>
       )}
 
       {isAdminOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-lg">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90">
           <div className="relative w-full max-w-3xl rounded-t-3xl sm:rounded-3xl bg-[#070a12] border border-pink-500/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
             <button onClick={() => setIsAdminOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
 
@@ -3255,14 +3199,12 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                         <input type="password" value={globalConfig.claudeApiKey} onChange={(e) => setGlobalConfig({ ...globalConfig, claudeApiKey: e.target.value })} placeholder="Claude API Key (sk-ant-...)" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-pink-300" />
                       </div>
                       <div>
-                        <label className="text-[10px] text-amber-300 block mb-1">
-                          Master Viral SEO Prompt (Sent with every video)
-                        </label>
+                        <label className="text-[10px] text-amber-300 block mb-1">Master Viral SEO Prompt</label>
                         <textarea
-                          rows={5}
+                          rows={4}
                           value={globalConfig.customAiPrompt}
                           onChange={(e) => setGlobalConfig({ ...globalConfig, customAiPrompt: e.target.value })}
-                          className="w-full bg-[#05070c] p-2.5 rounded-lg border border-sky-500/40 text-[11px] text-slate-200 font-mono leading-relaxed"
+                          className="w-full bg-[#05070c] p-2.5 rounded-lg border border-sky-500/40 text-[11px] text-slate-200 font-mono"
                         />
                       </div>
                     </div>
@@ -3273,65 +3215,12 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                   <div className="space-y-3.5">
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-amber-500/40 space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
-                          <Tag className="w-3.5 h-3.5" /> Top Offer Banner Headline
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setGlobalConfig({ ...globalConfig, bannerActive: !globalConfig.bannerActive })}
-                          className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-amber-300 font-semibold"
-                        >
+                        <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" /> Top Offer Banner Headline</span>
+                        <button type="button" onClick={() => setGlobalConfig({ ...globalConfig, bannerActive: !globalConfig.bannerActive })} className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-amber-300 font-semibold">
                           Banner: {globalConfig.bannerActive ? 'ON' : 'OFF'}
                         </button>
                       </div>
-                      <input
-                        type="text"
-                        value={globalConfig.bannerText}
-                        onChange={(e) => setGlobalConfig({ ...globalConfig, bannerText: e.target.value })}
-                        placeholder="🔥 COUPON OFFER: Use code SAVE200..."
-                        className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-amber-500/40 text-xs text-white"
-                      />
-                    </div>
-
-                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/35 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5"><ShieldCheck className="w-4 h-4" /> 30-Day Minimum Views Guarantee</span>
-                        <button type="button" onClick={() => setGlobalConfig({ ...globalConfig, guaranteeActive: !globalConfig.guaranteeActive })} className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-emerald-300 font-semibold">
-                          Badge: {globalConfig.guaranteeActive ? 'ON' : 'OFF'}
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Monthly Guarantee Views</label>
-                          <input type="text" value={globalConfig.monthlyGuaranteeViews} onChange={(e) => setGlobalConfig({ ...globalConfig, monthlyGuaranteeViews: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Yearly Guarantee Views/Mo</label>
-                          <input type="text" value={globalConfig.yearlyGuaranteeViews} onChange={(e) => setGlobalConfig({ ...globalConfig, yearlyGuaranteeViews: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-indigo-500/30 space-y-2.5">
-                      <div className="text-xs font-semibold text-indigo-300 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> Live Website Content & Limits</div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Hero Main Headline</label>
-                          <input type="text" value={globalConfig.heroHeadline} onChange={(e) => setGlobalConfig({ ...globalConfig, heroHeadline: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Free Plan Video Watermark Text</label>
-                          <input type="text" value={globalConfig.watermarkText} onChange={(e) => setGlobalConfig({ ...globalConfig, watermarkText: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Free Plan Video Limit</label>
-                          <input type="number" value={globalConfig.freeLimit} onChange={(e) => setGlobalConfig({ ...globalConfig, freeLimit: Number(e.target.value) })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Support Email</label>
-                          <input type="email" value={globalConfig.supportEmail} onChange={(e) => setGlobalConfig({ ...globalConfig, supportEmail: e.target.value })} className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
-                        </div>
-                      </div>
+                      <input type="text" value={globalConfig.bannerText} onChange={(e) => setGlobalConfig({ ...globalConfig, bannerText: e.target.value })} className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-amber-500/40 text-xs text-white" />
                     </div>
 
                     <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-pink-500/30 space-y-2.5">
@@ -3341,24 +3230,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                           Popup: {globalConfig.broadcastAlertActive ? 'ON' : 'OFF'}
                         </button>
                       </div>
-                      <input type="text" value={globalConfig.broadcastAlertText} onChange={(e) => setGlobalConfig({ ...globalConfig, broadcastAlertText: e.target.value })} placeholder="Type message to show as popup on all users' screens..." className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
-                    </div>
-
-                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-2.5">
-                      <div className="grid grid-cols-2 gap-2">
-                        <button type="button" onClick={() => setGlobalConfig({ ...globalConfig, ytAutoUploadActive: !globalConfig.ytAutoUploadActive })} className="p-2 rounded-xl border border-slate-700 text-xs font-semibold text-emerald-300 flex justify-between">
-                          <span>YT Auto-Post</span>
-                          <span>{globalConfig.ytAutoUploadActive ? 'ON' : 'OFF'}</span>
-                        </button>
-                        <button type="button" onClick={() => setGlobalConfig({ ...globalConfig, maintenanceMode: !globalConfig.maintenanceMode })} className="p-2 rounded-xl border border-slate-700 text-xs font-semibold text-amber-300 flex justify-between">
-                          <span className="flex items-center gap-1"><Wrench className="w-3 h-3" /> Maintenance</span>
-                          <span>{globalConfig.maintenanceMode ? 'ON' : 'OFF'}</span>
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2 pt-1">
-                        <KeyRound className="w-4 h-4 text-slate-400 shrink-0" />
-                        <input type="text" value={globalConfig.adminPin} onChange={(e) => setGlobalConfig({ ...globalConfig, adminPin: e.target.value })} placeholder="Master Admin PIN" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-slate-300" />
-                      </div>
+                      <input type="text" value={globalConfig.broadcastAlertText} onChange={(e) => setGlobalConfig({ ...globalConfig, broadcastAlertText: e.target.value })} placeholder="Broadcast message..." className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
                     </div>
                   </div>
                 )}
@@ -3366,79 +3238,59 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                 {adminSubTab === 'clients' && (
                   <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-sky-300">Manage Creators & Subscriptions ({clientsList.length})</span>
+                      <span className="text-xs font-bold text-sky-300">Manage Creators ({clientsList.length})</span>
                       <button onClick={fetchFirebaseAll} className="text-[11px] text-sky-400">Refresh</button>
                     </div>
-                    {clientsList.length === 0 ? (
-                      <div className="text-xs text-slate-500 py-4 text-center">No clients logged in yet.</div>
-                    ) : (
-                      <div className="space-y-2 max-h-72 overflow-y-auto">
-                        {clientsList.map((cli) => (
-                          <div key={cli.id} className="p-3 rounded-xl bg-[#05070c] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              {cli.picture ? (
-                                <img src={sanitizeMediaUrl(cli.picture)} alt="" className="w-7 h-7 rounded-full shrink-0" />
-                              ) : (
-                                <div className="w-7 h-7 rounded-full bg-sky-500/20 flex items-center justify-center text-sky-300 font-bold shrink-0">{(cli.name || 'U')[0]}</div>
-                              )}
-                              <div className="min-w-0">
-                                <div className="font-semibold text-white truncate">
-                                  {cli.name} <span className="text-pink-400">({cli.youtubeHandle})</span>
-                                  {cli.banned && <span className="ml-1.5 text-[10px] text-rose-400 font-bold">[BANNED]</span>}
-                                </div>
-                                <div className="text-[11px] text-slate-400 truncate">{cli.email}</div>
-                                <div className="text-[10px] text-slate-500">Last seen: {cli.lastActive}</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              {cli.tier === 'pro' ? (
-                                <button onClick={() => handleAdminSetClientTier(cli, 'free')} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-semibold">Set Free</button>
-                              ) : (
-                                <>
-                                  <button onClick={() => handleAdminSetClientTier(cli, 'pro', 'monthly')} className="px-2 py-1 rounded bg-sky-600 text-white text-[10px] font-bold">Monthly Pro</button>
-                                  <button onClick={() => handleAdminSetClientTier(cli, 'pro', 'yearly')} className="px-2 py-1 rounded bg-emerald-600 text-white text-[10px] font-bold">Yearly VIP</button>
-                                </>
-                              )}
-                              <button onClick={() => handleAdminToggleBanClient(cli)} className={`px-2 py-1 rounded text-[10px] font-semibold flex items-center gap-0.5 ${cli.banned ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'}`}>
-                                <Ban className="w-3 h-3" /> {cli.banned ? 'Unban' : 'Ban'}
-                              </button>
-                            </div>
+                    <div className="space-y-2 max-h-72 overflow-y-auto">
+                      {clientsList.map((cli) => (
+                        <div key={cli.id} className="p-3 rounded-xl bg-[#05070c] border border-slate-800 flex items-center justify-between gap-2 text-xs">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-white truncate">{cli.name} ({cli.youtubeHandle})</div>
+                            <div className="text-[11px] text-slate-400 truncate">{cli.email}</div>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {cli.tier === 'pro' ? (
+                              <button onClick={() => handleAdminSetClientTier(cli, 'free')} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-[10px]">Set Free</button>
+                            ) : (
+                              <>
+                                <button onClick={() => handleAdminSetClientTier(cli, 'pro', 'monthly')} className="px-2 py-1 rounded bg-sky-600 text-white text-[10px] font-bold">Monthly</button>
+                                <button onClick={() => handleAdminSetClientTier(cli, 'pro', 'yearly')} className="px-2 py-1 rounded bg-emerald-600 text-white text-[10px] font-bold">Yearly VIP</button>
+                              </>
+                            )}
+                            <button onClick={() => handleAdminToggleBanClient(cli)} className="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-[10px]">
+                              {cli.banned ? 'Unban' : 'Ban'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
                 {adminSubTab === 'payments' && (
                   <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-amber-500/35 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-amber-300">UTR Payment Approvals ({transactions.length})</span>
+                      <span className="text-xs font-bold text-amber-300">UTR Approvals ({transactions.length})</span>
                       <button onClick={fetchFirebaseAll} className="text-[11px] text-sky-400">Refresh</button>
                     </div>
-                    {transactions.length === 0 ? (
-                      <div className="text-xs text-slate-500 py-4 text-center">No payment UTRs submitted yet.</div>
-                    ) : (
-                      <div className="space-y-2 max-h-72 overflow-y-auto">
-                        {transactions.map((txn, idx) => (
-                          <div key={idx} className="p-2.5 rounded-xl bg-[#05070c] border border-slate-800 flex items-center justify-between gap-2 text-xs">
-                            <div className="min-w-0">
-                              <div className="font-semibold text-white truncate">{txn.user}</div>
-                              <div className="font-mono text-[11px] text-sky-400">UTR: {txn.utr} • {txn.amount}</div>
-                              <div className="text-[10px] text-slate-500">Coupon: {txn.couponUsed || 'None'} • {txn.time}</div>
-                            </div>
-                            {txn.status === 'Pending' ? (
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <button onClick={() => handleAdminApproveTxn(txn)} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-semibold">Approve</button>
-                                <button onClick={() => handleAdminRejectTxn(txn)} className="px-2.5 py-1 rounded-lg bg-rose-600/30 text-rose-300">Reject</button>
-                              </div>
-                            ) : (
-                              <span className={`text-[11px] font-bold ${txn.status === 'Verified' ? 'text-emerald-400' : 'text-rose-400'}`}>{txn.status}</span>
-                            )}
+                    <div className="space-y-2 max-h-72 overflow-y-auto">
+                      {transactions.map((txn, idx) => (
+                        <div key={idx} className="p-2.5 rounded-xl bg-[#05070c] border border-slate-800 flex items-center justify-between gap-2 text-xs">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-white truncate">{txn.user}</div>
+                            <div className="font-mono text-[11px] text-sky-400">UTR: {txn.utr} • {txn.amount}</div>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                          {txn.status === 'Pending' ? (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button onClick={() => handleAdminApproveTxn(txn)} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-semibold">Approve</button>
+                              <button onClick={() => handleAdminRejectTxn(txn)} className="px-2.5 py-1 rounded-lg bg-rose-600/30 text-rose-300">Reject</button>
+                            </div>
+                          ) : (
+                            <span className={`text-[11px] font-bold ${txn.status === 'Verified' ? 'text-emerald-400' : 'text-rose-400'}`}>{txn.status}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -3447,7 +3299,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                     type="button"
                     onClick={handlePublishGlobalConfig}
                     disabled={isSyncingGlobal}
-                    className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 shadow-[0_0_25px_rgba(255,16,110,0.3)]"
+                    className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600"
                   >
                     {isSyncingGlobal ? 'Publishing to Live Site...' : '🚀 Publish All Live Website Changes'}
                   </button>
@@ -3480,7 +3332,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
         <button
           type="button"
           onClick={() => setShowAiSupport(true)}
-          className="px-4 py-3 rounded-full bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 text-white text-xs font-extrabold shadow-[0_0_25px_rgba(56,189,248,0.4)] flex items-center gap-2 hover:scale-105 transition-transform border border-sky-400/40"
+          className="px-4 py-3 rounded-full bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 text-white text-xs font-extrabold shadow-lg flex items-center gap-2 hover:scale-105 transition-transform border border-sky-400/40"
         >
           <Bot className="w-4 h-4" />
           <span>AI Support</span>
@@ -3488,7 +3340,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
       </div>
 
       {showAiSupport && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75">
           <div className="w-full max-w-md h-[470px] rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-sky-500/40 flex flex-col overflow-hidden shadow-2xl">
             <div className="p-4 bg-[#0c1220] border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -3528,7 +3380,7 @@ if (globalConfig.maintenanceMode && !isAdminOpen) {
                 type="text"
                 value={supportInput}
                 onChange={(e) => setSupportInput(e.target.value)}
-                placeholder="Ask about quota error, scheduling, or VIP..."
+                placeholder="Ask about 3x daily scheduling, quota, or VIP..."
                 className="flex-1 bg-[#05070c] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white outline-none focus:border-sky-500"
               />
               <button
