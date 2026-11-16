@@ -4,10 +4,10 @@ import {
   Youtube, X, Trash2, RefreshCw, Calendar,
   Clock, Eye, Users, Bot, Crown, Tag,
   Bell, Flame, Star, ChevronDown, Edit3, Layers,
-  Home, MoreVertical, Sun, Moon, Copy, TrendingUp
+  Home, MoreVertical, Sun, Moon, Copy, TrendingUp, KeyRound
 } from 'lucide-react';
 
-import Header, { ShortsPilotLogo } from './Header';
+import Header from './Header';
 import BottomNav from './BottomNav';
 import {
   sanitizeMediaUrl,
@@ -30,6 +30,8 @@ const DEFAULT_GOOGLE_SECRET = ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-
 
 const YOUTUBE_REDIRECT_URI =
   typeof window !== 'undefined' && window.location.origin.includes('shortspilot')
+    ? `${window.location.origin}/api/youtube/callback`
+    : typeof window !== 'undefined'
     ? `${window.location.origin}/api/youtube/callback`
     : 'https://shortspilot-two.vercel.app/api/youtube/callback';
 
@@ -56,15 +58,15 @@ export default function App() {
     adminPin: '9767905729'
   });
 
-  const [isSyncingGlobal, setIsSyncingGlobal] = useState(false);
+  // --- USER CUSTOM YOUTUBE API CREDENTIALS STATE ---
   const [customClientId, setCustomClientId] = useState(() => localStorage.getItem('sp_custom_client_id') || '');
   const [customClientSecret, setCustomClientSecret] = useState(() => localStorage.getItem('sp_custom_client_secret') || '');
+  const [customYtApiKey, setCustomYtApiKey] = useState(() => localStorage.getItem('sp_custom_yt_api_key') || '');
+  const [apiSaveMsg, setApiSaveMsg] = useState('');
   const [showClientGuideModal, setShowClientGuideModal] = useState(false);
 
   const [activeTab, setActiveTab] = useState('home');
   const [tier, setTier] = useState('free');
-  const [isUserBanned, setIsUserBanned] = useState(false);
-  const [activePlanType, setActivePlanType] = useState('');
   const [quotaUsed, setQuotaUsed] = useState(0);
   const [videoQueue, setVideoQueue] = useState([]);
   const [clipMode, setClipMode] = useState('fullshort');
@@ -78,8 +80,6 @@ export default function App() {
 
   const [activeToolModal, setActiveToolModal] = useState(null);
   const [selectedNiche, setSelectedNiche] = useState('Gaming (Free Fire / BGMI / GTA)');
-  const [selectedLanguage, setSelectedLanguage] = useState('Hinglish (India Viral)');
-  const [selectedHookStyle, setSelectedHookStyle] = useState('Curiosity & Suspense 😱');
   const [selectedCtaStyle] = useState('Comment Your Reaction 👇');
   const [generatedHashtags, setGeneratedHashtags] = useState('#Shorts #YouTubeShorts #ViralShorts #TrendingIndia #FreeFire #BGMI #ExplorePage #MustWatch');
   const [thumbnailTopicInput, setThumbnailTopicInput] = useState('');
@@ -89,17 +89,10 @@ export default function App() {
     { title: 'AAKHIR MEIN KYA HUA? 🤯', sub: 'Shocking Twist Inside!', color: 'from-cyan-500 via-blue-700 to-purple-950', score: '9.6/10' }
   ]);
 
-  const [editingClipId, setEditingClipId] = useState(null);
-  const [editTitleValue, setEditTitleValue] = useState('');
-  const [editTagsValue, setEditTagsValue] = useState('');
-  const [openClipMenuId, setOpenClipMenuId] = useState(null);
-  const [showSamplePostMenu, setShowSamplePostMenu] = useState(false);
-  const [openFaqIndex, setOpenFaqIndex] = useState(0);
-
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
     { id: 1, title: 'Auto-Post Engine Active ⚡', desc: 'Your 3x Daily Slots (9:00 AM, 2:00 PM, 7:30 PM) are armed & ready.', time: 'Just now', unread: true },
-    { id: 2, title: 'Viral Score 9.8/10 Achieved 🔥', desc: '"Hidden Places in Pune 🌱" is trending in the India Shorts feed.', time: '2 hours ago', unread: true },
+    { id: 2, title: 'Bring Your Own YouTube API 🔑', desc: 'Users can now add their own Google Client ID, Secret & API Key for unlimited quota.', time: 'New', unread: true },
     { id: 3, title: 'Yearly VIP Offer ₹3,999 👑', desc: 'Unlock 100K+ Guaranteed Monthly Views & 5x Clips Extractor.', time: 'Today', unread: false }
   ]);
 
@@ -107,17 +100,15 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste Om! Main aapka ShortsPilot AI Assistant hoon. Auto-Post 3x/Day default roop se chalu hai. Aap mujhse Video Upload, Viral Tags, YouTube Connect ya ₹3,999 VIP Plan ke baare mein kuch bhi pooch sakte hain!'
+      text: 'Namaste! Auto-Post 3x/Day default roop se active hai. Agar aap apna khud ka YouTube API (Client ID / Secret / API Key) lagana chahte hain, toh Settings ya Connect YouTube button par click karein!'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
-  const [audienceInsight, setAudienceInsight] = useState({
+  const [audienceInsight] = useState({
     peakHour: 19,
     peakMinute: 30,
-    peakHourLabel: '07:30 PM IST (High Evening Engagement)',
-    topRegion: 'India (IN) • Hindi / Hinglish',
-    strategyTip: 'Enter your video topic before selecting files so AI generates hyper-specific viral hooks for the Indian Shorts Feed.'
+    peakHourLabel: '07:30 PM IST (High Evening Engagement)'
   });
 
   const [gmailUser, setGmailUser] = useState(() => {
@@ -133,7 +124,6 @@ export default function App() {
     totalViews: '1.8M',
     videoCount: '247',
     country: 'IN',
-    recentVideos: [],
     loading: false
   });
 
@@ -143,14 +133,11 @@ export default function App() {
 
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [selectedBilling, setSelectedBilling] = useState('yearly');
-  const [couponInput, setCouponInput] = useState('SAVE200');
-  const [appliedCoupon, setAppliedCoupon] = useState('SAVE200');
-  const [couponMsg, setCouponMsg] = useState('🎉 Default Coupon "SAVE200" applied! ₹200 OFF on Monthly.');
+  const [appliedCoupon] = useState('SAVE200');
   const [upgradeReason, setUpgradeReason] = useState('');
 
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
   const [previewClip, setPreviewClip] = useState(null);
-  const [activeSeoModalClip, setActiveSeoModalClip] = useState(null);
 
   const [utrNumber, setUtrNumber] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
@@ -158,19 +145,17 @@ export default function App() {
 
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
-  const [adminSubTab, setAdminSubTab] = useState('controls');
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
-  const [manualProEmail, setManualProEmail] = useState('');
   const [liveDbUrl] = useState(() => localStorage.getItem('sp_firebase_url') || FIREBASE_DB_URL);
   const [storageUsedGB, setStorageUsedGB] = useState(14.8);
-  const [transactions, setTransactions] = useState([]);
-  const [clientsList, setClientsList] = useState([]);
 
   const fileInputRef = useRef(null);
   const ytChannelRef = useRef(ytChannel);
   const usedTitlesHistoryRef = useRef(new Set());
   const scheduleDayOffsetRef = useRef(0);
+
+  const hasUserCustomApi = Boolean(customClientId.trim() || customYtApiKey.trim());
 
   const activeClientId =
     (customClientId || '').trim() ||
@@ -180,7 +165,11 @@ export default function App() {
 
   const activeClientSecret = (customClientSecret || '').trim() || DEFAULT_GOOGLE_SECRET;
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
-  const yearlySavings = Math.max(0, Number(globalConfig.yearlyOriginalPrice || 5999) - Number(globalConfig.yearlyPrice || 3999));
+
+  useEffect(() => {
+    ytChannelRef.current = ytChannel;
+    if (ytChannel) localStorage.setItem('sp_yt_channel', JSON.stringify(ytChannel));
+  }, [ytChannel]);
 
   useEffect(() => {
     let mounted = true;
@@ -195,16 +184,51 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
 
+  // Capture OAuth Callback Token from URL Hash
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
-        e.preventDefault();
-        setIsAdminOpen((prev) => !prev);
+    const rawHash = window.location.hash;
+    if (rawHash && rawHash.includes('access_token=')) {
+      const hashParams = new URLSearchParams(rawHash.replace(/^#/, ''));
+      const newAccessToken = hashParams.get('access_token');
+      const newRefreshToken = hashParams.get('refresh_token');
+      if (newAccessToken) {
+        localStorage.setItem('sp_yt_access_token', newAccessToken);
+        localStorage.setItem('sp_yt_token_time', String(Date.now()));
+        if (newRefreshToken) localStorage.setItem('sp_yt_refresh_token', newRefreshToken);
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+
+        const updatedCh = {
+          handle: ytChannelRef.current?.handle || '@ConnectedChannel',
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken || localStorage.getItem('sp_yt_refresh_token') || null,
+          isRealOAuth: true
+        };
+        setYtChannel(updatedCh);
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    }
   }, []);
+
+  // Save User Custom YouTube API Credentials
+  const handleSaveUserYoutubeApi = (e) => {
+    if (e) e.preventDefault();
+    localStorage.setItem('sp_custom_client_id', customClientId.trim());
+    localStorage.setItem('sp_custom_client_secret', customClientSecret.trim());
+    localStorage.setItem('sp_custom_yt_api_key', customYtApiKey.trim());
+    setApiSaveMsg('✅ Your Custom YouTube API Keys are saved & active!');
+    setTimeout(() => setApiSaveMsg(''), 3500);
+  };
+
+  // Clear User Custom YouTube API Credentials
+  const handleResetUserYoutubeApi = () => {
+    setCustomClientId('');
+    setCustomClientSecret('');
+    setCustomYtApiKey('');
+    localStorage.removeItem('sp_custom_client_id');
+    localStorage.removeItem('sp_custom_client_secret');
+    localStorage.removeItem('sp_custom_yt_api_key');
+    setApiSaveMsg('🔄 Reset to Default System API.');
+    setTimeout(() => setApiSaveMsg(''), 3000);
+  };
 
   const getMultiSlotScheduleIso = (slotIndex = 0, mode = '3_daily', peakHour = 19, peakMinute = 30) => {
     if (mode === 'custom_manual' && customScheduleTime) {
@@ -240,6 +264,8 @@ export default function App() {
   const refreshYouTubeAccessToken = async () => {
     const storedRefresh = ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
     if (!storedRefresh) return null;
+
+    // 1. Try direct refresh with user's custom Client ID & Secret
     try {
       const directRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
@@ -260,6 +286,28 @@ export default function App() {
         }
       }
     } catch {}
+
+    // 2. Fallback to serverless endpoint passing user's custom credentials
+    try {
+      const res = await fetch('/api/youtube/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          refresh_token: storedRefresh,
+          client_id: activeClientId.trim(),
+          client_secret: activeClientSecret.trim()
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.access_token) {
+          localStorage.setItem('sp_yt_access_token', data.access_token);
+          localStorage.setItem('sp_yt_token_time', String(Date.now()));
+          return data.access_token;
+        }
+      }
+    } catch {}
+
     return null;
   };
 
@@ -274,8 +322,14 @@ export default function App() {
     return res;
   };
 
+  // OAuth Login Passing User's Custom Client ID & Secret in State
   const handleConnectYouTubeOAuth = () => {
     setConnectError('');
+    handleSaveUserYoutubeApi();
+
+    const cid = activeClientId.trim();
+    if (!cid) return setConnectError('Please enter a valid Google Client ID.');
+
     const scopes = [
       'https://www.googleapis.com/auth/youtube.upload',
       'https://www.googleapis.com/auth/youtube.readonly',
@@ -283,14 +337,63 @@ export default function App() {
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile'
     ].join(' ');
+
+    const statePayload = btoa(
+      JSON.stringify({
+        cid: customClientId.trim() || undefined,
+        csec: customClientSecret.trim() || undefined
+      })
+    );
+
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authUrl.searchParams.set('client_id', activeClientId.trim());
+    authUrl.searchParams.set('client_id', cid);
     authUrl.searchParams.set('redirect_uri', YOUTUBE_REDIRECT_URI);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('scope', scopes);
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
+    authUrl.searchParams.set('state', statePayload);
     window.location.href = authUrl.toString();
+  };
+
+  // Fetch Channel Stats via User's API Key or OAuth Token
+  const handleFetchChannelViaApiKey = async (e) => {
+    if (e) e.preventDefault();
+    setConnectError('');
+    handleSaveUserYoutubeApi();
+
+    const cleanedHandle = ytHandleInput.trim().replace(/^https?:\/\/(www\.)?youtube\.com\//i, '');
+    if (!cleanedHandle) return setConnectError('Please enter your YouTube @handle.');
+    const formattedHandle = cleanedHandle.startsWith('@') ? cleanedHandle : `@${cleanedHandle}`;
+
+    if (customYtApiKey.trim()) {
+      try {
+        const apiUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forHandle=${encodeURIComponent(
+          formattedHandle
+        )}&key=${encodeURIComponent(customYtApiKey.trim())}`;
+        const res = await fetch(apiUrl);
+        const data = await res.json();
+        const ch = data?.items?.[0];
+        if (ch) {
+          setYtStats({
+            subscribers: Number(ch.statistics?.subscriberCount || 0).toLocaleString(),
+            totalViews: Number(ch.statistics?.viewCount || 0).toLocaleString(),
+            videoCount: Number(ch.statistics?.videoCount || 0).toLocaleString(),
+            country: ch.snippet?.country || 'IN',
+            loading: false
+          });
+        }
+      } catch {}
+    }
+
+    const chObj = {
+      handle: formattedHandle,
+      accessToken: localStorage.getItem('sp_yt_access_token') || null,
+      isRealOAuth: Boolean(localStorage.getItem('sp_yt_access_token'))
+    };
+    setYtChannel(chObj);
+    setYtHandleInput('');
+    setIsConnectModalOpen(false);
   };
 
   const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null) => {
@@ -316,18 +419,19 @@ export default function App() {
         status: statusObj
       };
 
-      const initRes = await fetchWithAuth(
-        'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Upload-Content-Type': clip.blob.type || 'video/mp4',
-            'X-Upload-Content-Length': String(clip.blob.size)
-          },
-          body: JSON.stringify(metadata)
-        }
-      );
+      const uploadEndpoint = customYtApiKey.trim()
+        ? `https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status&key=${encodeURIComponent(customYtApiKey.trim())}`
+        : 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status';
+
+      const initRes = await fetchWithAuth(uploadEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Upload-Content-Type': clip.blob.type || 'video/mp4',
+          'X-Upload-Content-Length': String(clip.blob.size)
+        },
+        body: JSON.stringify(metadata)
+      });
 
       if (!initRes.ok) throw new Error(`HTTP ${initRes.status}`);
       const uploadLocation = initRes.headers.get('Location');
@@ -426,23 +530,11 @@ export default function App() {
   const handleDeleteClip = async (clipId) => {
     await idbDeleteClip(clipId);
     setVideoQueue((prev) => prev.filter((i) => i.id !== clipId));
-    setOpenClipMenuId(null);
   };
 
   const handleClearAllClips = async () => {
     await idbClearAllClips();
     setVideoQueue([]);
-  };
-
-  const handleSaveEditedClip = async (clip) => {
-    const updatedClip = {
-      ...clip,
-      title: editTitleValue.trim() || clip.title,
-      hashtags: editTagsValue.trim() || clip.hashtags
-    };
-    await idbSaveClip(updatedClip);
-    setVideoQueue((prev) => prev.map((c) => (c.id === clip.id ? updatedClip : c)));
-    setEditingClipId(null);
   };
 
   const openProModalWithReason = (reasonText = '', preferredPlan = null) => {
@@ -457,15 +549,6 @@ export default function App() {
     const base = selectedBilling === 'yearly' ? Number(globalConfig.yearlyPrice || 3999) : Number(globalConfig.monthlyPrice || 499);
     if (selectedBilling === 'monthly' && appliedCoupon) return Math.max(1, base - Number(globalConfig.couponDiscount || 0));
     return base;
-  };
-
-  const handleApplyCoupon = () => {
-    if (selectedBilling !== 'monthly') {
-      setCouponMsg('Coupon applies to the Monthly Plan.');
-      return;
-    }
-    setAppliedCoupon('SAVE200');
-    setCouponMsg('🎉 Coupon "SAVE200" applied! ₹200 OFF.');
   };
 
   const handleVerifyPayment = async (e) => {
@@ -514,23 +597,10 @@ export default function App() {
         ...prev,
         {
           role: 'ai',
-          text: `Auto-Post 3x/Day (9 AM, 2 PM, 7:30 PM) bilkul active hai! Yearly Studio VIP Plan ₹${globalConfig.yearlyPrice}/yr mein 100K+ Views Guarantee deta hai.`
+          text: `Aap Settings tab mein jaakar apna Google Client ID, Secret aur YouTube API Key daal sakte hain! Yearly Studio VIP Plan ₹${globalConfig.yearlyPrice}/yr hai.`
         }
       ]);
     }, 500);
-  };
-
-  const handleGenerateSmartHashtags = (nicheName) => {
-    setSelectedNiche(nicheName);
-    if (nicheName.includes('Gaming')) {
-      setGeneratedHashtags('#Shorts #GamingShorts #FreeFireIndia #BGMI #1v4Clutch #GamingCommunity #ViralGaming #TrendingIndia');
-    } else if (nicheName.includes('Facts')) {
-      setGeneratedHashtags('#Shorts #AmazingFacts #FactsInHindi #DidYouKnow #MysteryShorts #Knowledge #ViralFacts #TrendingShorts');
-    } else if (nicheName.includes('Motivation')) {
-      setGeneratedHashtags('#Shorts #MotivationIndia #SuccessMindset #StudyMotivation #Hustle #QuotesInHindi #ViralMotivation');
-    } else {
-      setGeneratedHashtags('#Shorts #IndianComedy #FunnyShorts #DesiMemes #Relatable #ComedyVideo #ViralReels #Trending');
-    }
   };
 
   const handleGenerateThumbnails = () => {
@@ -608,14 +678,14 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 4 STATS CARDS */}
+              {/* 4 STATS CARDS[cite: 1, 2] */}
               <div className="grid grid-cols-4 gap-2">
                 <div onClick={() => setActiveTab('projects')} className="p-2.5 rounded-2xl bg-[#0e0a1c] border border-blue-500/40 flex items-center gap-2 cursor-pointer">
                   <div className="w-8 h-8 rounded-full bg-blue-500/15 border border-blue-400/40 flex items-center justify-center shrink-0">
                     <Play className="w-3.5 h-3.5 text-cyan-400 fill-cyan-400 ml-0.5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-extrabold text-white leading-tight">{247 + videoQueue.length}</div>
+                    <div className="text-sm font-extrabold text-white leading-tight">{Number(ytStats.videoCount.replace(/,/g, '') || 247) + videoQueue.length}</div>
                     <div className="text-[8.5px] text-slate-400 leading-tight truncate">Videos Posted</div>
                   </div>
                 </div>
@@ -653,7 +723,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* AUTO-POST 3X / DAY CARD */}
+              {/* AUTO-POST 3X / DAY CARD[cite: 1, 2] */}
               <div className="p-4 rounded-[26px] bg-gradient-to-r from-[#1a0f36] via-[#120b28] to-[#160d30] border border-purple-400/40 space-y-3.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-3">
@@ -712,7 +782,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 4 TOOL CARDS */}
+              {/* 4 TOOL CARDS[cite: 1, 2] */}
               <div className="grid grid-cols-4 gap-2">
                 <button onClick={() => setActiveToolModal('aiEdit')} className="p-2.5 rounded-2xl bg-gradient-to-b from-[#1c1038] to-[#0e091e] border border-purple-500/40 flex flex-col items-center text-center justify-between min-h-[96px] cursor-pointer">
                   <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300">
@@ -753,7 +823,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* RECENT POSTS */}
+              {/* RECENT POSTS[cite: 1] */}
               <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
@@ -847,21 +917,143 @@ export default function App() {
               </div>
               <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 text-xs space-y-2">
                 <div className="flex justify-between"><span>Auto-Post 3x/Day:</span><span className="text-emerald-400 font-bold">Active (Default)</span></div>
+                <div className="flex justify-between"><span>API Mode:</span><span className="text-cyan-300 font-bold">{hasUserCustomApi ? 'User Custom API Active' : 'System Default API'}</span></div>
                 <div className="flex justify-between"><span>Vault Storage:</span><span className="text-purple-300 font-bold">{storageUsedGB} GB</span></div>
               </div>
             </div>
           )}
 
+          {/* ================= SETTINGS TAB WITH USER CUSTOM YOUTUBE API MANAGER ================= */}
           {activeTab === 'settings' && (
             <div className="space-y-4 pt-2">
-              <h2 className="text-lg font-extrabold text-white">Studio Settings</h2>
-              <button onClick={() => setIsConnectModalOpen(true)} className="w-full py-3 rounded-2xl bg-gradient-to-r from-red-600 to-pink-600 text-xs font-extrabold text-white">
-                Connect YouTube Channel (OAuth)
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-extrabold text-white">YouTube API & Settings</h2>
+                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-extrabold ${hasUserCustomApi ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40' : 'bg-purple-500/20 text-purple-300 border border-purple-400/40'}`}>
+                  {hasUserCustomApi ? 'Custom API Active' : 'Default API'}
+                </span>
+              </div>
+
+              {/* USER'S OWN YOUTUBE API CONFIGURATION CARD */}
+              <form onSubmit={handleSaveUserYoutubeApi} className="p-4 rounded-3xl bg-[#110c22] border border-cyan-500/40 shadow-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-cyan-400" />
+                    <h3 className="text-xs font-extrabold text-white">Add Your Own YouTube API (Unlimited Quota)</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowClientGuideModal(!showClientGuideModal)}
+                    className="text-[10px] text-cyan-300 underline font-bold"
+                  >
+                    How to get?
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Apna khud ka Google Cloud Client ID, Secret ya YouTube API Key daalein taaki aapke channel par bina kisi daily quota limit ke 3x/Day Shorts upload ho sakein.
+                </p>
+
+                {showClientGuideModal && (
+                  <div className="p-3 rounded-2xl bg-[#070510] border border-slate-800 space-y-1.5 text-[10.5px] text-slate-300">
+                    <div className="font-bold text-cyan-300">Quick 3-Step Google Cloud Setup:</div>
+                    <p>1. Go to <b>console.cloud.google.com</b> → Create Project → Enable <b>YouTube Data API v3</b>.</p>
+                    <p>2. In <b>Credentials</b> → Create <b>OAuth Client ID (Web Application)</b> & copy your Client ID & Secret.</p>
+                    <p>3. Paste this Authorized Redirect URI in Google Console:</p>
+                    <div className="flex items-center justify-between bg-[#120d24] px-2.5 py-1.5 rounded-xl border border-purple-500/30 font-mono text-[10px] text-emerald-300">
+                      <span className="truncate">{YOUTUBE_REDIRECT_URI}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(YOUTUBE_REDIRECT_URI);
+                          alert('Redirect URI Copied!');
+                        }}
+                        className="ml-2 text-white hover:text-cyan-300 shrink-0"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300">1. Google OAuth Client ID</label>
+                    <input
+                      type="text"
+                      value={customClientId}
+                      onChange={(e) => setCustomClientId(e.target.value)}
+                      placeholder="e.g. 123456789-abc.apps.googleusercontent.com"
+                      className="w-full mt-1 px-3 py-2 rounded-xl bg-[#070510] border border-slate-700 focus:border-cyan-400 text-xs text-white outline-none font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300">2. Google OAuth Client Secret</label>
+                    <input
+                      type="password"
+                      value={customClientSecret}
+                      onChange={(e) => setCustomClientSecret(e.target.value)}
+                      placeholder="e.g. GOCSPX-your_secret_key"
+                      className="w-full mt-1 px-3 py-2 rounded-xl bg-[#070510] border border-slate-700 focus:border-cyan-400 text-xs text-white outline-none font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300">3. YouTube Data API v3 Key (Optional)</label>
+                    <input
+                      type="text"
+                      value={customYtApiKey}
+                      onChange={(e) => setCustomYtApiKey(e.target.value)}
+                      placeholder="e.g. AIzaSyYourYouTubeDataApiKey..."
+                      className="w-full mt-1 px-3 py-2 rounded-xl bg-[#070510] border border-slate-700 focus:border-cyan-400 text-xs text-white outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                {apiSaveMsg && (
+                  <div className="p-2 rounded-xl bg-emerald-500/15 border border-emerald-400/40 text-[11px] text-emerald-300 font-bold text-center">
+                    {apiSaveMsg}
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-extrabold text-xs shadow-lg cursor-pointer"
+                  >
+                    Save My API Keys
+                  </button>
+                  {hasUserCustomApi && (
+                    <button
+                      type="button"
+                      onClick={handleResetUserYoutubeApi}
+                      className="px-3 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-bold cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              <button
+                onClick={() => setIsConnectModalOpen(true)}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-red-600 via-pink-600 to-purple-600 text-xs font-extrabold text-white flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+              >
+                <Youtube className="w-4 h-4" />
+                <span>{ytChannel ? `Connected (${ytChannel.handle}) — Reconnect` : 'Connect YouTube Channel (OAuth)'}</span>
               </button>
-              <button onClick={() => setIsPricingOpen(true)} className="w-full py-3 rounded-2xl bg-amber-500 text-black text-xs font-extrabold">
+
+              <button
+                onClick={() => setIsPricingOpen(true)}
+                className="w-full py-3 rounded-2xl bg-amber-500 text-black text-xs font-extrabold cursor-pointer"
+              >
                 Upgrade to Yearly VIP (₹{globalConfig.yearlyPrice}/yr)
               </button>
-              <button onClick={() => setIsAdminOpen(true)} className="w-full py-3 rounded-2xl bg-purple-600/25 border border-purple-500/40 text-purple-300 text-xs font-extrabold">
+
+              <button
+                onClick={() => setIsAdminOpen(true)}
+                className="w-full py-3 rounded-2xl bg-purple-600/25 border border-purple-500/40 text-purple-300 text-xs font-extrabold cursor-pointer"
+              >
                 🔐 Open Owner Master Admin Console
               </button>
             </div>
@@ -874,6 +1066,117 @@ export default function App() {
           onTriggerUpload={() => fileInputRef.current?.click()}
         />
       </div>
+
+      {/* CONNECT YOUTUBE + ADD USER API MODAL */}
+      {isConnectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-4 max-h-[92vh] overflow-y-auto shadow-2xl">
+            <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2">
+              <Youtube className="w-6 h-6 text-red-500" />
+              <div>
+                <h3 className="text-base font-extrabold text-white">Connect YouTube & Custom API</h3>
+                <p className="text-[11px] text-slate-400">Use Default System OAuth or bring your own API Keys</p>
+              </div>
+            </div>
+
+            {connectError && <p className="text-xs text-amber-300 bg-amber-500/10 p-2.5 rounded-xl">{connectError}</p>}
+
+            {/* User Custom API Inputs directly inside Connect Modal too */}
+            <div className="p-3.5 rounded-2xl bg-[#120d24] border border-purple-500/30 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-cyan-300">🔑 Your Own YouTube API (Optional)</span>
+                <span className="text-[10px] text-slate-400">{hasUserCustomApi ? 'Custom Active' : 'Using Default'}</span>
+              </div>
+              <input
+                type="text"
+                value={customClientId}
+                onChange={(e) => setCustomClientId(e.target.value)}
+                placeholder="Custom Google Client ID (Optional)"
+                className="w-full px-3 py-2 rounded-xl bg-[#070510] border border-slate-700 text-xs text-white font-mono"
+              />
+              <input
+                type="password"
+                value={customClientSecret}
+                onChange={(e) => setCustomClientSecret(e.target.value)}
+                placeholder="Custom Google Client Secret (Optional)"
+                className="w-full px-3 py-2 rounded-xl bg-[#070510] border border-slate-700 text-xs text-white font-mono"
+              />
+              <input
+                type="text"
+                value={customYtApiKey}
+                onChange={(e) => setCustomYtApiKey(e.target.value)}
+                placeholder="YouTube Data API v3 Key (AIzaSy...)"
+                className="w-full px-3 py-2 rounded-xl bg-[#070510] border border-slate-700 text-xs text-white font-mono"
+              />
+              <button
+                type="button"
+                onClick={handleSaveUserYoutubeApi}
+                className="w-full py-2 rounded-xl bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 text-xs font-extrabold cursor-pointer"
+              >
+                Save My API Credentials
+              </button>
+              {apiSaveMsg && <p className="text-[11px] text-emerald-400 text-center font-bold">{apiSaveMsg}</p>}
+            </div>
+
+            <button
+              onClick={handleConnectYouTubeOAuth}
+              className="w-full py-3 rounded-2xl font-extrabold text-xs text-white bg-gradient-to-r from-red-600 via-pink-600 to-purple-600 flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+            >
+              <Youtube className="w-4 h-4" /> Connect with Google OAuth (Auto-Post)
+            </button>
+
+            <form onSubmit={handleFetchChannelViaApiKey} className="space-y-2 pt-2 border-t border-slate-800">
+              <label className="text-[11px] text-slate-400">Or Link Channel @Handle with API Key:</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={ytHandleInput}
+                  onChange={(e) => setYtHandleInput(e.target.value)}
+                  placeholder="@YourChannelHandle"
+                  className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+                />
+                <button type="submit" className="px-4 py-2 rounded-xl bg-cyan-600 text-xs font-bold text-white cursor-pointer">
+                  Link
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SIDE DRAWER */}
+      {isSettingsDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex bg-black/75 backdrop-blur-sm">
+          <div className="w-72 bg-[#0b0818] border-r border-purple-500/30 h-full p-5 flex flex-col justify-between shadow-2xl">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <span className="font-extrabold text-sm text-white">ShortsPilot AI</span>
+                <button onClick={() => setIsSettingsDrawerOpen(false)} className="text-slate-400"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="space-y-1 text-xs font-bold">
+                <button onClick={() => { setActiveTab('home'); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left hover:bg-white/5 flex items-center gap-2.5 text-slate-200">
+                  <Home className="w-4 h-4 text-pink-400" /> Home Dashboard
+                </button>
+                <button onClick={() => { setActiveTab('settings'); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left hover:bg-white/5 flex items-center gap-2.5 text-cyan-300">
+                  <KeyRound className="w-4 h-4 text-cyan-400" /> Add Your YouTube API Key
+                </button>
+                <button onClick={() => { setIsConnectModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left hover:bg-white/5 flex items-center gap-2.5 text-slate-200">
+                  <Youtube className="w-4 h-4 text-red-500" /> Connect YouTube Channel
+                </button>
+                <button onClick={() => { setIsPricingOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left hover:bg-white/5 flex items-center gap-2.5 text-amber-300">
+                  <Crown className="w-4 h-4" /> VIP Pro (₹3,999/yr)
+                </button>
+              </div>
+            </div>
+            <div className="text-[11px] text-slate-500">ShortsPilot AI • Custom API Ready</div>
+          </div>
+          <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
+        </div>
+      )}
 
       {/* TOOL MODALS */}
       {activeToolModal && (
@@ -930,12 +1233,29 @@ export default function App() {
         </div>
       )}
 
+      {/* NOTIFICATIONS MODAL */}
+      {isNotificationOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-6 space-y-3">
+            <button onClick={() => setIsNotificationOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
+            <h3 className="text-base font-extrabold text-white">Notifications</h3>
+            {notificationsList.map((n) => (
+              <div key={n.id} className="p-3 rounded-2xl bg-[#130d26] border border-purple-500/25 space-y-1">
+                <div className="text-xs font-extrabold text-white">{n.title}</div>
+                <p className="text-[11px] text-slate-300">{n.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* PRICING MODAL */}
       {isPricingOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-amber-400/50 p-6 space-y-4">
             <button onClick={() => setIsPricingOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
             <h3 className="text-lg font-extrabold text-amber-400">ShortsPilot VIP Pro (₹{globalConfig.yearlyPrice}/yr)</h3>
+            {upgradeReason && <div className="text-xs text-amber-200">{upgradeReason}</div>}
             <form onSubmit={handleVerifyPayment} className="space-y-3">
               <div className="text-xs text-slate-300">UPI ID: <span className="font-mono text-emerald-400 font-bold">{globalConfig.receiverUpi}</span></div>
               <input type="email" value={gmailUser?.email || ''} onChange={(e) => setGmailUser({ email: e.target.value })} placeholder="Your Gmail ID" className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white" />
@@ -969,6 +1289,16 @@ export default function App() {
               <input type="text" value={supportInput} onChange={(e) => setSupportInput(e.target.value)} placeholder="Ask anything..." className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white" />
               <button type="submit" className="px-4 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs">Send</button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* VIDEO PREVIEW MODAL */}
+      {previewClip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
+          <div className="relative w-full max-w-[290px] rounded-3xl bg-[#0b0818] border border-purple-500/40 p-3">
+            <button onClick={() => setPreviewClip(null)} className="absolute -top-3 -right-3 p-2 rounded-full bg-slate-900 border border-slate-700 text-white z-10"><X className="w-4 h-4" /></button>
+            <video src={sanitizeMediaUrl(previewClip.croppedUrl)} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
           </div>
         </div>
       )}
