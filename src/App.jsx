@@ -1812,7 +1812,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     },
     {
       q: 'Manual Mode (Hold & Post) kaise kaam karta hai?',
-      a: 'Agar aap "Manual Mode" select karke video upload karte hain, toh AI uska viral title aur tags taiyar karke Vault mein rakh deta hai. Phir aap jab chahein 1-click mein "Manual Post Public Now" ya apna custom date/time chunkar post kar sakte hain.'
+      a: 'Agar aap "Manual Mode" select karke video upload karte hain, toh AI uska viral title aur tags taiyar karke Vault mein rakh deta hai. Phir aap jab chahein 1-click mein "Manual Post Public Now" ya apna custom date/time chunkar post kar सकते hain.'
     },
     {
       q: '50K aur 100K Views Guarantee kaise kaam karti hai?',
@@ -1826,7 +1826,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
   if (globalConfig.maintenanceMode && !isAdminOpen) {
     return (
-      <div className="min-h-screen bg-[#06080d] text-white flex flex-col items-center justify-center p-6 text-center">
+      <div className="min-h-screen bg-[#070913] text-white flex flex-col items-center justify-center p-6 text-center">
         <ShortsPilotLogo className="w-16 h-16 mb-4" />
         <h1 className="text-2xl font-bold mb-2">ShortsPilot is Upgrading</h1>
         <p className="text-sm text-slate-400 max-w-md mb-6">Deploying faster 9:16 AI rendering servers. Back online shortly!</p>
@@ -1836,9 +1836,9 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
   }
 
   return (
-    <div className="min-h-screen w-full max-w-[100vw] bg-[#06080d] text-slate-100 font-sans relative overflow-x-hidden flex flex-col">
+    <div className="min-h-screen w-full max-w-[100vw] bg-[#070913] text-slate-100 font-sans relative overflow-x-hidden flex flex-col items-center">
       {globalConfig.broadcastAlertActive && globalConfig.broadcastAlertText && !dismissedBroadcast && (
-        <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:max-w-sm z-40 p-4 rounded-2xl bg-[#0c1324] border border-amber-400/50 shadow-2xl flex items-start justify-between gap-3">
+        <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:max-w-sm z-40 p-4 rounded-2xl bg-[#101528] border border-amber-400/50 shadow-2xl flex items-start justify-between gap-3">
           <div className="flex items-start gap-2.5">
             <Bell className="w-5 h-5 text-amber-400 shrink-0 mt-0.5 animate-bounce" />
             <div>
@@ -1855,1328 +1855,529 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
       {globalConfig.bannerActive && globalConfig.bannerText && (
         <div
           onClick={() => tier !== 'pro' && openProModalWithReason('Grab Limited-Time Offer: ₹3,999 (Original ₹5,999)!', 'yearly')}
-          className="w-full bg-gradient-to-r from-sky-600 via-blue-600 to-pink-600 text-white text-[11px] sm:text-xs font-semibold py-2 px-3 text-center cursor-pointer shadow-md"
+          className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-sky-600 text-white text-[11px] sm:text-xs font-semibold py-2 px-3 text-center cursor-pointer shadow-md"
         >
           {globalConfig.bannerText}
         </div>
       )}
 
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-36 left-0 w-72 sm:w-[540px] h-72 sm:h-[540px] rounded-full bg-sky-500/10 blur-3xl" />
-        <div className="absolute top-1/3 right-0 w-64 sm:w-[460px] h-64 sm:h-[460px] rounded-full bg-pink-600/10 blur-3xl" />
-      </div>
-
-      <header className="sticky top-2.5 sm:top-4 z-30 w-full max-w-6xl mx-auto px-3 sm:px-4 mt-2">
-        <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl bg-[#090d16]/95 border border-sky-500/25 shadow-xl">
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-pink-500 p-[1px]">
-              <div className="w-full h-full bg-[#06080d] rounded-[11px] flex items-center justify-center">
-                <ShortsPilotLogo className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
-            </div>
-            <div>
-              <span className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-white via-sky-200 to-pink-300 bg-clip-text text-transparent block leading-none">
-                ShortsPilot
-              </span>
-              <span className="text-[10px] text-emerald-400 font-semibold hidden sm:inline-flex items-center gap-1 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                {liveUsersCount.toLocaleString()}+ Customers Live Now
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
-            <button
-              onClick={() => setIsConnectModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold border max-w-[145px] sm:max-w-[210px] ${
-                gmailUser || ytChannel
-                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
-                  : 'bg-rose-500/15 border-rose-500/40 text-rose-300'
-              }`}
-            >
-              {gmailUser?.picture ? (
-                <img src={sanitizeMediaUrl(gmailUser.picture)} alt="Profile" className="w-4 h-4 rounded-full shrink-0" />
-              ) : (
-                <Youtube className={`w-3.5 h-3.5 shrink-0 ${ytChannel ? 'text-emerald-400' : 'text-rose-400'}`} />
-              )}
-              <span className="truncate">
-                {ytChannel ? ytChannel.handle : gmailUser ? gmailUser.name : 'Connect YouTube'}
-              </span>
+      {/* MOBILE APP CONTAINER (EXACTLY MATCHING YOUR REFERENCE UI) */}
+      <div className="w-full max-w-md bg-[#070913] text-white rounded-none sm:rounded-[36px] sm:border sm:border-purple-500/30 sm:shadow-2xl overflow-hidden relative font-sans my-0 sm:my-6 flex flex-col min-h-screen sm:min-h-0">
+        
+        {/* TOP APP BAR */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 bg-[#070913]/90 sticky top-0 z-30 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setIsSettingsOpen(true)} className="text-slate-300 hover:text-white p-1">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
             </button>
-
-            {tier === 'pro' ? (
-              <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-pink-500/15 border border-pink-500/40 text-[11px] font-semibold text-pink-200 shrink-0">
-                <Crown className="w-3.5 h-3.5 text-amber-400" />
-                <span>{activePlanType === 'yearly' ? 'YEARLY VIP' : 'PRO'}</span>
-              </div>
-            ) : paymentStatusNote === 'pending' ? (
-              <button
-                onClick={() => openProModalWithReason('Payment UTR under Admin review.')}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-[11px] font-semibold text-amber-300 shrink-0"
-              >
-                <Hourglass className="w-3 h-3 animate-spin" />
-                <span>Verifying...</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => openProModalWithReason('Get 50K–100K Guaranteed Views/Month with Pro!')}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-400/50 text-[11px] sm:text-xs font-bold text-amber-300 shrink-0"
-              >
-                <Crown className="w-3.5 h-3.5 text-amber-400" />
-                <span>Pro ₹{globalConfig.monthlyPrice}</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-2 rounded-xl bg-[#0c1220] border border-slate-800 text-slate-300 shrink-0"
-            >
-              <Sliders className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex p-1 rounded-2xl bg-[#090d16] border border-slate-800 w-full sm:w-auto">
-          <button
-            onClick={() => setActiveTab('studio')}
-            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === 'studio' ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Scissors className="w-3.5 h-3.5" /> Auto-Upload Studio
-          </button>
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === 'analytics' ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" /> 24h–36h AI Insights & Analytics
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-[11px] text-emerald-300 font-extrabold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>🔥 {liveUsersCount.toLocaleString()}+ CUSTOMERS LIVE NOW</span>
-          </div>
-          <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/30 text-[11px] text-sky-300 font-semibold">
-            <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
-            <span>Direct Token Auto-Refresh</span>
-          </div>
-        </div>
-      </div>
-
-      {activeTab === 'studio' && (
-        <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 pb-16 flex-1">
-          <div className="text-center max-w-3xl mx-auto mb-6">
-            <div className="inline-flex flex-wrap items-center justify-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/15 via-sky-500/15 to-pink-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] sm:text-xs font-bold mb-3">
-              <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>{liveUsersCount.toLocaleString()}+ Active Creators Live • Morning (9 AM), Afternoon (2 PM) & Night (7:30 PM) Auto-Post</span>
-            </div>
-            <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white mb-2.5 leading-snug">
-              Select Videos →{' '}
-              <span className="bg-gradient-to-r from-sky-400 via-blue-400 to-pink-500 bg-clip-text text-transparent">
-                {globalConfig.heroHeadline || 'Auto-Scheduled Daily on YouTube'}
-              </span>
-            </h1>
-            <p className="text-slate-400 text-xs sm:text-sm max-w-xl mx-auto mb-5">
-              Smart AI watches your video context, generates viral Hook Titles, Captions & Trending Hashtags, and auto-schedules 3x/Day or lets you Post Manually.
-            </p>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 max-w-3xl mx-auto mb-6">
-              <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-emerald-500/30 text-center">
-                <div className="text-base sm:text-xl font-extrabold text-emerald-400">{liveUsersCount.toLocaleString()}+</div>
-                <div className="text-[10px] sm:text-[11px] text-slate-400">Customers Live Now</div>
-              </div>
-              <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-sky-500/25 text-center">
-                <div className="text-base sm:text-xl font-extrabold text-sky-400">42,800+</div>
-                <div className="text-[10px] sm:text-[11px] text-slate-400">Shorts Auto-Posted</div>
-              </div>
-              <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-pink-500/25 text-center">
-                <div className="text-base sm:text-xl font-extrabold text-pink-400">9.8 / 10</div>
-                <div className="text-[10px] sm:text-[11px] text-slate-400">AI Viral Hook Score</div>
-              </div>
-              <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-amber-500/25 text-center">
-                <div className="text-base sm:text-xl font-extrabold text-amber-400">100K+</div>
-                <div className="text-[10px] sm:text-[11px] text-slate-400">Monthly Views Guarantee</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mb-5 p-4 sm:p-5 rounded-3xl bg-[#090d16] border border-sky-500/30 shadow-lg">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <h3 className="text-xs sm:text-sm font-bold text-white">Customize Your Viral AI SEO Settings (Boosts Indian Shorts Feed Views)</h3>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 font-semibold">
-                AI Views Booster
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div>
-                <label className="text-[11px] text-slate-400 flex items-center gap-1 mb-1">
-                  <Layers className="w-3 h-3 text-sky-400" /> Video Category / Niche
-                </label>
-                <select
-                  value={selectedNiche}
-                  onChange={(e) => setSelectedNiche(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none focus:border-sky-500"
-                >
-                  <option>Gaming (Free Fire / BGMI / GTA)</option>
-                  <option>Facts & Amazing Knowledge</option>
-                  <option>Comedy, Memes & Entertainment</option>
-                  <option>Motivation & Success</option>
-                  <option>Daily Vlog & Lifestyle</option>
-                  <option>Tech, AI & Gadgets</option>
-                  <option>Finance, Trading & Crypto</option>
-                  <option>Devotional & Spiritual</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-400 flex items-center gap-1 mb-1">
-                  <Languages className="w-3 h-3 text-pink-400" /> Title & Hook Language
-                </label>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none focus:border-pink-500"
-                >
-                  <option>Hinglish (India Viral)</option>
-                  <option>Pure English (Global)</option>
-                  <option>Hindi + Hinglish Mix</option>
-                  <option>Marathi + Hinglish</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-400 flex items-center gap-1 mb-1">
-                  <Flame className="w-3 h-3 text-amber-400" /> Viral Hook Angle
-                </label>
-                <select
-                  value={selectedHookStyle}
-                  onChange={(e) => setSelectedHookStyle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none focus:border-amber-500"
-                >
-                  <option>Curiosity & Suspense 😱</option>
-                  <option>Shocking Fact / Secret 🔥</option>
-                  <option>Wait For The End Twist 🤯</option>
-                  <option>Emotional / Relatable Story ❤️</option>
-                  <option>High-Energy Action / Challenge ⚡</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-400 flex items-center gap-1 mb-1">
-                  <MessageSquare className="w-3 h-3 text-emerald-400" /> Viewer Call-To-Action (CTA)
-                </label>
-                <select
-                  value={selectedCtaStyle}
-                  onChange={(e) => setSelectedCtaStyle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none focus:border-emerald-500"
-                >
-                  <option>Comment Your Reaction 👇</option>
-                  <option>Subscribe For Daily Shorts 🔔</option>
-                  <option>Like & Share With Friends 🔥</option>
-                  <option>Comment "PART 2" For Next Video 💬</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              processBatchFiles(Array.from(e.dataTransfer.files || []));
-            }}
-            className={`relative rounded-3xl p-6 sm:p-10 text-center transition-all border-2 border-dashed mb-6 ${
-              isDragging
-                ? 'border-pink-500 bg-pink-500/15'
-                : 'border-emerald-500/45 bg-gradient-to-b from-[#0a1220] to-[#070b14]'
-            }`}
-          >
-            <input ref={fileInputRef} type="file" accept="video/*" multiple onChange={handleFileUpload} className="hidden" />
-
-            <div className="flex flex-col items-center justify-center gap-3 mb-5">
-              <div className="inline-flex flex-wrap justify-center p-1.5 rounded-2xl bg-[#0c1220] border border-slate-800 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setAutoPostCadence('3_daily')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
-                    autoPostCadence === '3_daily'
-                      ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-600 text-white shadow-lg'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5" /> Auto-Post 3x/Day (Main • 9 AM, 2 PM, 7:30 PM)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAutoPostCadence('2_daily')}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
-                    autoPostCadence === '2_daily'
-                      ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Calendar className="w-3.5 h-3.5" /> Auto 2x/Day
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAutoPostCadence('manual_hold')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
-                    autoPostCadence === 'manual_hold'
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-black shadow-lg'
-                      : 'text-amber-300 border border-amber-500/30 hover:bg-amber-500/10'
-                  }`}
-                >
-                  <Edit3 className="w-3.5 h-3.5" /> ✋ Manual Mode (Review & Post Yourself)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAutoPostCadence('custom_manual')}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
-                    autoPostCadence === 'custom_manual'
-                      ? 'bg-purple-600 text-white shadow'
-                      : 'text-purple-300 hover:text-white'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5" /> Manual Custom Time
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAutoPostCadence('instant')}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
-                    autoPostCadence === 'instant' ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Zap className="w-3.5 h-3.5" /> Instant Post Now
-                </button>
-              </div>
-
-              {autoPostCadence === 'custom_manual' && (
-                <div className="flex flex-wrap items-center justify-center gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/40">
-                  <span className="text-xs font-bold text-amber-300">🕒 Select Exact Schedule Date & Time:</span>
-                  <input
-                    type="datetime-local"
-                    value={customScheduleTime}
-                    onChange={(e) => setCustomScheduleTime(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg bg-[#05070c] border border-amber-500/50 text-xs text-white outline-none"
-                  />
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-600 via-pink-500 to-sky-400 p-[1px] flex items-center justify-center shadow-lg shadow-pink-500/30">
+                <div className="w-full h-full bg-[#070913] rounded-[11px] flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-pink-400" />
                 </div>
-              )}
-
-              <div className="w-full max-w-md mx-auto">
-                <input
-                  type="text"
-                  value={customVideoTopic}
-                  onChange={(e) => setCustomVideoTopic(e.target.value)}
-                  placeholder="🎯 Video Topic for 10x Views (e.g. Free Fire 1v4 Clutch / Amazing Fact)"
-                  className="w-full px-3.5 py-2 rounded-xl bg-[#05070c] border border-sky-500/40 text-xs text-white placeholder-slate-500 outline-none focus:border-emerald-400 text-center"
-                />
+              </div>
+              <div>
+                <h1 className="font-extrabold text-base tracking-tight bg-gradient-to-r from-white via-pink-200 to-sky-300 bg-clip-text text-transparent leading-none">
+                  ShortsPilot AI
+                </h1>
+                <p className="text-[9px] text-slate-400">YouTube Shorts Automation</p>
               </div>
             </div>
+          </div>
 
-            <div className="inline-flex flex-wrap justify-center p-1 rounded-xl bg-[#0c1220] border border-slate-800 mb-5 gap-1">
-              <button
-                type="button"
-                onClick={() => setClipMode('fullshort')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${clipMode === 'fullshort' ? 'bg-emerald-600 text-white' : 'text-emerald-300'}`}
-              >
-                Full Short (No Cut)
-              </button>
-              <button
-                type="button"
-                onClick={() => setClipMode('1clip')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${clipMode === '1clip' ? 'bg-sky-600 text-white' : 'text-slate-400'}`}
-              >
-                1 Clip Cut (Free)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (tier !== 'pro') {
-                    openProModalWithReason('Extract & Auto-Schedule 3 Viral Shorts + 50K Views/Mo Guarantee with Monthly Pro!', 'monthly');
-                    return;
-                  }
-                  setClipMode('3clips');
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${clipMode === '3clips' ? 'bg-blue-600 text-white' : 'text-sky-300'}`}
-              >
-                {tier !== 'pro' ? <Lock className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />} 3x Clips (PRO)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (tier !== 'pro' || activePlanType !== 'yearly') {
-                    openProModalWithReason('1 Video → 5 Viral Shorts + 100K Views/Mo Guarantee is exclusive to Yearly Studio Pro!', 'yearly');
-                    return;
-                  }
-                  setClipMode('5clips');
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                  clipMode === '5clips' ? 'bg-gradient-to-r from-amber-500 to-pink-600 text-white' : 'text-amber-300'
+          <div className="flex items-center gap-2.5">
+            <button onClick={() => openProModalWithReason('Upgrade to Pro!')} className="px-3 py-1 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-extrabold text-[11px] flex items-center gap-1 shadow-md shadow-amber-500/20">
+              <Crown className="w-3 h-3 fill-black" /> Pro
+            </button>
+            <button onClick={() => setIsConnectModalOpen(true)} className="relative p-2 rounded-full bg-[#121829] border border-slate-800 text-slate-300 hover:text-white">
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-pink-500 animate-pulse" />
+            </button>
+            <div onClick={() => setShowAiSupport(true)} className="w-8 h-8 rounded-full bg-gradient-to-r from-sky-500 to-purple-600 p-0.5 flex items-center justify-center cursor-pointer shadow-lg shadow-sky-500/30">
+              <Bot className="w-5 h-5 text-white" />
+            </div>
+          </div>
+        </div>
+
+        <div className="px-4 pb-28 pt-2 space-y-4 overflow-y-auto flex-1">
+
+          {/* HERO BANNER CARD */}
+          <div className="relative rounded-3xl p-5 bg-gradient-to-r from-[#180d35] via-[#10132b] to-[#0a182f] border border-pink-500/40 shadow-2xl overflow-hidden">
+            <div className="absolute -right-6 -bottom-6 w-32 h-32 rounded-full bg-pink-500/20 blur-2xl pointer-events-none" />
+            <div className="relative z-10 flex items-center justify-between">
+              <div className="max-w-[200px]">
+                <h2 className="text-xl font-extrabold text-white leading-tight mb-1">
+                  Automate Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">Shorts</span>
+                </h2>
+                <p className="text-[10px] text-slate-300 mb-3 leading-relaxed">
+                  Upload • Auto Edit • Auto Post • Grow Faster
+                </p>
+                <input ref={fileInputRef} type="file" accept="video/*" multiple onChange={handleFileUpload} className="hidden" />
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-sky-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-purple-600/40 hover:scale-105 transition-transform"
+                >
+                  <Play className="w-3.5 h-3.5 fill-white" /> Start Automation
+                </button>
+              </div>
+              <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-pink-600/30 to-sky-500/30 border border-pink-500/50 flex items-center justify-center relative shadow-inner">
+                <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-pink-600 text-[8px] font-bold">AI</div>
+                <Youtube className="w-12 h-12 text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.7)]" />
+              </div>
+            </div>
+          </div>
+
+          {/* STATS 4-GRID CARDS */}
+          <div className="grid grid-cols-4 gap-2">
+            <div className="p-2.5 rounded-2xl bg-[#101528] border border-sky-500/20 text-center shadow-lg">
+              <div className="w-7 h-7 mx-auto mb-1 rounded-xl bg-sky-500/15 flex items-center justify-center text-sky-400">
+                <Play className="w-3.5 h-3.5 fill-sky-400" />
+              </div>
+              <div className="text-sm font-extrabold text-white">{ytStats.videoCount !== '—' ? ytStats.videoCount : '247'}</div>
+              <div className="text-[9px] text-slate-400">Videos Posted</div>
+            </div>
+
+            <div className="p-2.5 rounded-2xl bg-[#101528] border border-emerald-500/20 text-center shadow-lg">
+              <div className="w-7 h-7 mx-auto mb-1 rounded-xl bg-emerald-500/15 flex items-center justify-center text-emerald-400">
+                <Users className="w-3.5 h-3.5" />
+              </div>
+              <div className="text-sm font-extrabold text-emerald-400">{ytStats.subscribers}</div>
+              <div className="text-[9px] text-slate-400">Subs <span className="text-emerald-400 font-bold">↑18%</span></div>
+            </div>
+
+            <div className="p-2.5 rounded-2xl bg-[#101528] border border-purple-500/20 text-center shadow-lg">
+              <div className="w-7 h-7 mx-auto mb-1 rounded-xl bg-purple-500/15 flex items-center justify-center text-purple-400">
+                <Eye className="w-3.5 h-3.5" />
+              </div>
+              <div className="text-sm font-extrabold text-purple-400">{ytStats.totalViews}</div>
+              <div className="text-[9px] text-slate-400">Views <span className="text-purple-400 font-bold">↑46%</span></div>
+            </div>
+
+            <div className="p-2.5 rounded-2xl bg-[#101528] border border-amber-500/20 text-center shadow-lg">
+              <div className="w-7 h-7 mx-auto mb-1 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-400">
+                <Star className="w-3.5 h-3.5 fill-amber-400" />
+              </div>
+              <div className="text-sm font-extrabold text-amber-400">9.8/10</div>
+              <div className="text-[9px] text-slate-400">Viral Score</div>
+            </div>
+          </div>
+
+          {/* AUTO-POST 3X / DAY WIDGET + MANUAL MODE TOGGLE */}
+          <div className="p-4 rounded-3xl bg-[#101528] border border-purple-500/30 shadow-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-white">Auto-Post 3x / Day</h3>
+                  <p className="text-[10px] text-slate-400">Your Shorts are posted at peak Indian times:</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setAutoPostCadence(autoPostCadence === 'manual_hold' ? '3_daily' : 'manual_hold')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold transition-all ${
+                  autoPostCadence === 'manual_hold' 
+                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' 
+                    : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                 }`}
               >
-                {tier !== 'pro' || activePlanType !== 'yearly' ? <Lock className="w-3 h-3" /> : <Crown className="w-3 h-3" />} 5x Clips (YEARLY VIP)
+                <span>{autoPostCadence === 'manual_hold' ? 'Manual Hold' : 'Active'}</span>
+                <div className={`w-3 h-3 rounded-full ${autoPostCadence === 'manual_hold' ? 'bg-amber-400' : 'bg-emerald-400 animate-ping'}`} />
               </button>
             </div>
 
-            <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-emerald-500/20 via-sky-500/20 to-pink-500/20 border border-emerald-400/40 flex items-center justify-center">
-              <Upload className="w-7 h-7 text-emerald-400" />
-            </div>
-
-            <h2 className="text-lg sm:text-2xl font-bold text-white mb-1.5">
-              {autoUploadBannerStatus === 'processing'
-                ? '⏳ AI Analyzing Video & Preparing Shorts...'
-                : autoPostCadence === 'manual_hold'
-                ? '✋ Manual Mode Active — Select Video(s) to Prepare in Vault'
-                : 'Select Video(s) — Auto-Schedule or Instant Manual Post'}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
-              {autoPostCadence === '3_daily'
-                ? `Auto-schedules 3 videos/day: Morning (09:00 AM), Afternoon (02:00 PM) & Night (${audienceInsight.peakHourLabel.split('(')[0].trim()}).`
-                : autoPostCadence === '2_daily'
-                ? `Auto-schedules 2 videos/day: Morning (09:00 AM) & Night (${audienceInsight.peakHourLabel.split('(')[0].trim()}).`
-                : autoPostCadence === 'manual_hold'
-                ? 'Prepares AI Title, Tags & 9:16 Video in your Vault so you can review and click Post Now or Schedule manually.'
-                : autoPostCadence === 'custom_manual'
-                ? 'Schedules your video at the exact custom Date & Time selected above.'
-                : 'Publishes your Short Publicly right now with AI Viral Title, Tags & Indian Feed Metadata.'}
-            </p>
-
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full sm:w-auto justify-center px-8 py-4 rounded-xl font-extrabold text-sm text-white bg-gradient-to-r from-emerald-500 via-sky-500 to-blue-600 flex items-center gap-2 mx-auto shadow-lg hover:scale-[1.01] transition-transform"
-            >
-              <Upload className="w-5 h-5" />
-              {autoPostCadence === 'manual_hold'
-                ? 'Select Videos (Prepare for Manual Post)'
-                : autoPostCadence === 'instant'
-                ? 'Select Videos & Post Public Now'
-                : 'Select Videos & Auto-Schedule'}
-            </button>
-          </div>
-
-          {(ytChannel || gmailUser) && (
-            <div className="mb-6 p-3 px-4 rounded-2xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
-                {gmailUser?.picture ? (
-                  <img src={sanitizeMediaUrl(gmailUser.picture)} alt="Gmail" className="w-7 h-7 rounded-full shrink-0" />
-                ) : (
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
-                )}
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs sm:text-sm font-semibold text-white truncate">{ytChannel?.handle || gmailUser?.name}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                      Auto-Pilot Ready • {tier === 'pro' ? `PRO (${activePlanType || 'Active'})` : 'Free'}
-                    </span>
-                  </div>
-                  {gmailUser?.email && <div className="text-[11px] text-slate-400 truncate">{gmailUser.email}</div>}
-                </div>
-              </div>
-              <button onClick={() => setIsConnectModalOpen(true)} className="text-xs text-sky-400 font-medium shrink-0">
-                Account / Logout
-              </button>
-            </div>
-          )}
-
-          {videoQueue.length > 0 && (
-            <section className="mb-10">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-                  <h3 className="text-base sm:text-lg font-bold text-white">Auto-Schedule & Manual Post Vault ({videoQueue.length})</h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">Offline Safe</span>
-                </div>
-                <button onClick={handleClearAllClips} className="text-xs text-slate-400 hover:text-pink-400">Clear All</button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {videoQueue.map((clip) => {
-                  const safeClipUrl = sanitizeMediaUrl(clip.croppedUrl);
-                  const safeYtUrl = sanitizeMediaUrl(clip.youtubeUrl);
-                  return (
-                    <div key={clip.id} className="p-4 rounded-2xl bg-[#090d16] border border-sky-500/25 flex flex-col gap-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                            <span className="text-[11px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30 font-semibold">
-                              Viral Score {clip.hookScore}
-                            </span>
-                            <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                              <Volume2 className="w-3 h-3" /> {clip.isFullShort ? 'Original HD' : 'Audio ON'}
-                            </span>
-                          </div>
-
-                          {editingClipId === clip.id ? (
-                            <div className="space-y-2 mt-2 p-2.5 rounded-xl bg-[#05070c] border border-sky-500/40">
-                              <input
-                                type="text"
-                                value={editTitleValue}
-                                onChange={(e) => setEditTitleValue(e.target.value)}
-                                className="w-full px-2.5 py-1.5 rounded-lg bg-[#090d16] border border-slate-700 text-xs text-white"
-                                placeholder="Edit Viral Title"
-                              />
-                              <input
-                                type="text"
-                                value={editTagsValue}
-                                onChange={(e) => setEditTagsValue(e.target.value)}
-                                className="w-full px-2.5 py-1.5 rounded-lg bg-[#090d16] border border-slate-700 text-xs text-sky-300"
-                                placeholder="Edit #Hashtags"
-                              />
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveEditedClip(clip)}
-                                  className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold"
-                                >
-                                  Save Changes
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingClipId(null)}
-                                  className="px-3 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px]"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <h4 className="font-semibold text-white text-sm leading-snug">{clip.title}</h4>
-                              <p className="text-[11px] text-sky-400 mt-0.5 truncate">{clip.hashtags}</p>
-                            </>
-                          )}
-
-                          {clip.scheduledFor && (
-                            <p className="text-[11px] text-amber-300 mt-1 font-medium">
-                              📅 Scheduled: {new Date(clip.scheduledFor).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingClipId(clip.id);
-                              setEditTitleValue(clip.title);
-                              setEditTagsValue(clip.hashtags);
-                            }}
-                            className="text-slate-400 hover:text-sky-400 p-1"
-                            title="Edit Title & Hashtags"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDeleteClip(clip.id)} className="text-slate-500 hover:text-pink-400 p-1" title="Delete clip">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {clip.fullSeoReport && (
-                        <button
-                          type="button"
-                          onClick={() => setActiveSeoModalClip(clip)}
-                          className="w-full py-2 px-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-[11px] font-semibold flex items-center justify-center gap-1 hover:bg-sky-500/20"
-                        >
-                          <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                          <span>View Full Viral SEO Pack</span>
-                        </button>
-                      )}
-
-                      {safeClipUrl && (
-                        <div
-                          onClick={() => setPreviewClip(clip)}
-                          className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-[9/16] h-52 mx-auto w-28 cursor-pointer"
-                        >
-                          <video src={safeClipUrl} className="w-full h-full object-cover" muted playsInline />
-                          <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                            <Play className="w-6 h-6 text-white fill-white" />
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
-                        {safeClipUrl ? (
-                          <a href={safeClipUrl} download={`${(clip.title || 'short').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 25)}.mp4`} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 flex items-center gap-1">
-                            <Download className="w-3.5 h-3.5 text-sky-400" /> Save
-                          </a>
-                        ) : (
-                          <span className="text-slate-400">Processing {clip.progress}%...</span>
-                        )}
-
-                        {clip.status === 'uploading' && <span className="text-emerald-400 font-bold animate-pulse">Uploading to YouTube...</span>}
-
-                        {clip.status === 'scheduled' && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-sky-400 font-semibold flex items-center gap-1">
-                              <Clock className="w-3.5 h-3.5" /> Scheduled ✓
-                            </span>
-                            {safeYtUrl && (
-                              <a href={safeYtUrl} target="_blank" rel="noreferrer" className="text-[11px] text-amber-300 underline">
-                                Check YT ↗
-                              </a>
-                            )}
-                          </div>
-                        )}
-
-                        {clip.status === 'published' && (
-                          <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                            <CheckCircle2 className="w-4 h-4" />
-                            {safeYtUrl ? (
-                              <a href={safeYtUrl} target="_blank" rel="noreferrer" className="underline">Live on YT ↗</a>
-                            ) : (
-                              'Live ✓'
-                            )}
-                          </span>
-                        )}
-                      </div>
-
-                      {clip.status === 'ready' && (
-                        <div className="w-full flex flex-col gap-2 pt-2 border-t border-slate-800/80">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <button
-                              type="button"
-                              onClick={() => uploadClipToYouTubeAPI(clip, null)}
-                              className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-extrabold flex items-center justify-center gap-1.5 text-xs shadow-md"
-                            >
-                              <Zap className="w-3.5 h-3.5" /> Manual Post Public Now
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                uploadClipToYouTubeAPI(
-                                  clip,
-                                  clip.scheduledFor || getMultiSlotScheduleIso(0, '3_daily', audienceInsight.peakHour, audienceInsight.peakMinute)
-                                )
-                              }
-                              className="py-2 px-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold flex items-center justify-center gap-1 text-xs"
-                            >
-                              <Clock className="w-3.5 h-3.5" /> Auto-Schedule Peak
-                            </button>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 bg-[#05070c] p-1.5 rounded-xl border border-slate-800">
-                            <input
-                              type="datetime-local"
-                              defaultValue={clip.scheduledFor ? clip.scheduledFor.slice(0, 16) : ''}
-                              onChange={(e) => {
-                                const pickedIso = e.target.value ? new Date(e.target.value).toISOString() : null;
-                                setVideoQueue((prev) =>
-                                  prev.map((item) => (item.id === clip.id ? { ...item, scheduledFor: pickedIso } : item))
-                                );
-                              }}
-                              className="flex-1 bg-transparent text-[11px] text-amber-300 px-2 py-1 outline-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!clip.scheduledFor) {
-                                  alert('Please pick a Date & Time in the box first!');
-                                  return;
-                                }
-                                uploadClipToYouTubeAPI(clip, clip.scheduledFor);
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-amber-500 text-black font-extrabold text-[11px] shrink-0"
-                            >
-                              Set Manual Schedule
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          <section className="mb-10">
-            <div className="text-center mb-5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400">100% Hands-Free or Full Manual Control</span>
-              <h3 className="text-lg sm:text-2xl font-extrabold text-white mt-0.5">How ShortsPilot Grows Your Channel in 3 Steps</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-5 rounded-3xl bg-[#090d16] border border-sky-500/25 relative">
-                <div className="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/40 text-sky-300 font-extrabold text-xs flex items-center justify-center mb-3">
-                  01
-                </div>
-                <h4 className="text-sm font-bold text-white mb-1">Enter Topic & Select Videos</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Type a 2-word topic, choose your niche, and select single or batch videos.
-                </p>
-              </div>
-              <div className="p-5 rounded-3xl bg-[#090d16] border border-pink-500/25 relative">
-                <div className="w-8 h-8 rounded-xl bg-pink-500/20 border border-pink-500/40 text-pink-300 font-extrabold text-xs flex items-center justify-center mb-3">
-                  02
-                </div>
-                <h4 className="text-sm font-bold text-white mb-1">AI Indian Shorts Feed SEO</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Our AI sets the exact YouTube Category ID, Hindi/Hinglish audio tags & high-CTR curiosity titles.
-                </p>
-              </div>
-              <div className="p-5 rounded-3xl bg-[#090d16] border border-emerald-500/25 relative">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs flex items-center justify-center mb-3">
-                  03
-                </div>
-                <h4 className="text-sm font-bold text-white mb-1">3x Daily Auto-Post or Manual Control</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Auto-schedules for 9:00 AM, 2:00 PM & 7:30 PM on YouTube servers—or review & post manually anytime.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {tier !== 'pro' && (
-            <section className="mb-10">
-              <div className="text-center mb-5">
-                <h3 className="text-lg sm:text-2xl font-extrabold text-white">Choose Your Guaranteed Growth Plan</h3>
-                <p className="text-xs text-slate-400">Backed by our 30-Day Minimum Views Guarantee (T&C Apply)</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-5 rounded-3xl bg-[#090d16] border border-sky-500/35 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">Monthly Creator</span>
-                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
-                        🛡️ {globalConfig.monthlyGuaranteeViews}+ Views/Mo
-                      </span>
-                    </div>
-                    <div className="text-3xl font-extrabold text-white mb-1">
-                      ₹{globalConfig.monthlyPrice} <span className="text-xs font-normal text-slate-400">/ month</span>
-                    </div>
-                    <p className="text-xs text-slate-400 mb-4">Use code SAVE200 for ₹200 OFF • Ideal for growing channels</p>
-                    <ul className="space-y-2 text-xs text-slate-300 mb-5">
-                      <li className="flex items-center gap-2 text-emerald-300 font-semibold">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Minimum {globalConfig.monthlyGuaranteeViews} Views in 30 Days Guarantee (T&C)
-                      </li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 3x Daily Batch Auto-Scheduler (9 AM, 2 PM, 7:30 PM)</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> 1 Video → 3 Viral Shorts Extraction</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Full AI Viral SEO Pack</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-sky-400 shrink-0" /> Zero Watermark Export</li>
-                    </ul>
-                  </div>
-                  <button
-                    onClick={() => openProModalWithReason(`Monthly Pro (${globalConfig.monthlyGuaranteeViews}+ Views/Mo Guarantee)`, 'monthly')}
-                    className="w-full py-3 rounded-xl font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-sky-500 to-blue-600"
-                  >
-                    Start Monthly (₹{globalConfig.monthlyPrice}) →
-                  </button>
-                </div>
-
-                <div className="p-5 rounded-3xl bg-gradient-to-br from-[#140b24] via-[#090d16] to-[#1f0b18] border-2 border-amber-400/50 flex flex-col justify-between relative">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
-                        <Crown className="w-3.5 h-3.5" /> Yearly Studio VIP
-                      </span>
-                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-extrabold">
-                        🔥 SAVE ₹{yearlySavings.toLocaleString()} OFFER
-                      </span>
-                    </div>
-
-                    <div className="flex items-baseline gap-2.5 mb-1">
-                      <span className="text-base sm:text-lg font-bold text-slate-500 line-through">
-                        ₹{Number(globalConfig.yearlyOriginalPrice || 5999).toLocaleString()}
-                      </span>
-                      <span className="text-3xl font-extrabold text-white">
-                        ₹{Number(globalConfig.yearlyPrice || 3999).toLocaleString()}
-                      </span>
-                      <span className="text-xs font-normal text-slate-400">/ year</span>
-                    </div>
-
-                    <p className="text-xs text-amber-200/90 mb-4">Most Popular • 100K+ Views/Mo Guarantee + VIP Automation</p>
-                    <ul className="space-y-2 text-xs text-slate-200 mb-5">
-                      <li className="flex items-center gap-2 text-amber-300 font-bold">
-                        <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" /> Minimum {globalConfig.yearlyGuaranteeViews} Views Every Month Guarantee (T&C)
-                      </li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1 Video → 5 Viral Shorts</strong> (Exclusive 5x Extractor)</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>3x Daily Auto-Scheduler</strong> (Morning, Afternoon & Night)</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>1-Click Live Short Re-Optimizer</strong> (Boost old Shorts)</li>
-                      <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong>VIP Priority Support</strong></li>
-                    </ul>
-                  </div>
-                  <button
-                    onClick={() => openProModalWithReason(`Special Offer: Yearly Studio VIP at ₹${globalConfig.yearlyPrice} (Original ₹${globalConfig.yearlyOriginalPrice})!`, 'yearly')}
-                    className="w-full py-3 rounded-xl font-extrabold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-500 via-pink-600 to-rose-600 shadow-lg"
-                  >
-                    Grab Offer: ₹{Number(globalConfig.yearlyPrice || 3999).toLocaleString()} (Save ₹{yearlySavings.toLocaleString()}) →
-                  </button>
-                </div>
-              </div>
-            </section>
-          )}
-
-          <section className="mb-6 max-w-3xl mx-auto">
-            <div className="text-center mb-4">
-              <h3 className="text-base sm:text-xl font-extrabold text-white flex items-center justify-center gap-1.5">
-                <HelpCircle className="w-5 h-5 text-sky-400" /> Frequently Asked Questions
-              </h3>
-            </div>
-            <div className="space-y-2.5">
-              {faqItems.map((item, idx) => (
-                <div key={idx} className="rounded-2xl bg-[#090d16] border border-slate-800 overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setOpenFaqIndex(openFaqIndex === idx ? -1 : idx)}
-                    className="w-full px-4 py-3.5 text-left flex items-center justify-between gap-2 text-xs sm:text-sm font-bold text-white"
-                  >
-                    <span>{item.q}</span>
-                    <ChevronDown className={`w-4 h-4 text-sky-400 transition-transform ${openFaqIndex === idx ? 'rotate-180' : ''}`} />
-                  </button>
-                  {openFaqIndex === idx && (
-                    <div className="px-4 pb-3.5 text-xs text-slate-300 leading-relaxed border-t border-slate-800/60 pt-2.5">
-                      {item.a}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        </main>
-      )}
-
-      {activeTab === 'analytics' && (
-        <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 pb-16 flex-1">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-white">24h–36h Audience & Shorts Analytics</h2>
-              <p className="text-xs text-slate-400">Tracks peak view hours & viewer region, and lets AI re-optimize live Short titles & tags.</p>
-            </div>
-            <button
-              onClick={() => fetchYouTubeAnalytics()}
-              className="px-3 py-2 rounded-xl bg-[#0c1220] border border-sky-500/30 text-xs text-sky-300 flex items-center gap-1.5"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${ytStats.loading ? 'animate-spin' : ''}`} /> Refresh
-            </button>
-          </div>
-
-          {!ytChannel?.accessToken && !localStorage.getItem('sp_yt_access_token') ? (
-            <div className="p-8 rounded-3xl bg-[#090d16] border border-rose-500/30 text-center">
-              <Youtube className="w-10 h-10 text-rose-400 mx-auto mb-3" />
-              <h3 className="text-base font-bold text-white mb-1">Connect YouTube to View Live Stats</h3>
-              <p className="text-xs text-slate-400 mb-4">Connect your YouTube account to analyze 24h–36h view velocity, peak hours & audience region.</p>
-              <button onClick={handleConnectYouTubeOAuth} className="px-5 py-2.5 rounded-xl bg-rose-500 text-white text-xs font-semibold">
-                Connect YouTube
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-5">
-                <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-sky-500/25">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1"><Users className="w-3.5 h-3.5 text-sky-400" /> Subscribers</div>
-                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.subscribers}</div>
-                </div>
-                <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-pink-500/25">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1"><Eye className="w-3.5 h-3.5 text-pink-400" /> Total Views</div>
-                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.totalViews}</div>
-                </div>
-                <div className="p-3.5 sm:p-5 rounded-2xl bg-[#090d16] border border-emerald-500/25">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1"><Globe className="w-3.5 h-3.5 text-emerald-400" /> Audience Region</div>
-                  <div className="text-lg sm:text-2xl font-bold text-white">{ytStats.country}</div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-300">Recent Uploads & 1-Click AI Title/Tag Boost</h3>
-                {ytStats.recentVideos.length === 0 ? (
-                  <div className="p-6 rounded-2xl bg-[#090d16] border border-slate-800 text-xs text-slate-400 text-center">
-                    {ytStats.loading ? 'Loading YouTube stats...' : 'No videos found on this channel yet.'}
-                  </div>
-                ) : (
-                  ytStats.recentVideos.map((vid) => (
-                    <div key={vid.id} className="p-3 sm:p-4 rounded-2xl bg-[#090d16] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {vid.thumbnail && <img src={sanitizeMediaUrl(vid.thumbnail)} alt={vid.title} className="w-16 h-10 rounded-lg object-cover shrink-0" />}
-                        <div className="min-w-0">
-                          <div className="text-xs sm:text-sm font-semibold text-white truncate">{vid.title}</div>
-                          <div className="text-[11px] text-slate-500">Posted: {vid.publishedAt}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-3 text-xs shrink-0">
-                        <div className="flex items-center gap-2.5">
-                          <span className="flex items-center gap-1 text-sky-300 font-semibold"><Eye className="w-3.5 h-3.5" /> {vid.views}</span>
-                          <span className="flex items-center gap-1 text-pink-300 font-semibold"><ThumbsUp className="w-3.5 h-3.5" /> {vid.likes}</span>
-                        </div>
-                        <button
-                          onClick={() => handleReOptimizeLiveVideo(vid)}
-                          className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-500/20 to-pink-500/20 border border-pink-500/40 text-pink-300 text-[11px] font-semibold flex items-center gap-1"
-                        >
-                          <Bot className="w-3.5 h-3.5" /> AI Boost Title/Tags
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
-          )}
-        </main>
-      )}
-
-      <footer className="relative z-10 border-t border-slate-800/80 bg-[#05070c] py-6 px-4 text-center text-xs text-slate-400">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <ShortsPilotLogo className="w-4 h-4" />
-            <span className="font-semibold text-slate-300">ShortsPilot AI Studio</span>
-            <span>© {new Date().getFullYear()}</span>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
-            <button onClick={() => setActiveInfoPage('about')} className="hover:text-sky-400">About Us</button>
-            <button onClick={() => setActiveInfoPage('privacy')} className="hover:text-sky-400">Privacy Policy</button>
-            <button onClick={() => setActiveInfoPage('terms')} className="hover:text-amber-300 text-amber-300/90 font-semibold">Terms & 50K/100K Guarantee T&C</button>
-            <button onClick={() => setActiveInfoPage('refund')} className="hover:text-sky-400">Refund & Cancellation</button>
-            <a href={`mailto:${globalConfig.supportEmail}`} className="hover:text-sky-400 flex items-center gap-1">
-              <Mail className="w-3 h-3" /> {globalConfig.supportEmail}
-            </a>
-          </div>
-        </div>
-      </footer>
-
-      {activeSeoModalClip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-xl rounded-3xl bg-[#080c15] border border-sky-500/40 p-5 sm:p-6 max-h-[88vh] flex flex-col gap-3">
-            <button onClick={() => setActiveSeoModalClip(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white">
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2 text-sky-400 font-bold text-base">
-              <Bot className="w-5 h-5 text-pink-400" />
-              <span>Viral Video SEO Pack</span>
-            </div>
-            <div className="p-3 rounded-2xl bg-[#05070c] border border-slate-800 overflow-y-auto flex-1">
-              <pre className="text-xs text-slate-200 whitespace-pre-wrap font-sans leading-relaxed">
-                {activeSeoModalClip.fullSeoReport}
-              </pre>
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(activeSeoModalClip.fullSeoReport || '');
-                  alert('✅ Full Viral SEO Pack Copied!');
-                }}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-600 text-white text-xs font-bold"
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <div 
+                onClick={() => setAutoPostCadence('3_daily')}
+                className={`p-2.5 rounded-2xl bg-[#070913] border text-center cursor-pointer transition-all ${autoPostCadence === '3_daily' ? 'border-sky-500 shadow-lg shadow-sky-500/20' : 'border-slate-800'}`}
               >
-                Copy Complete SEO Pack
-              </button>
+                <div className="text-amber-400 text-xs mb-0.5">☀️</div>
+                <div className="text-xs font-bold text-white">9:00 AM</div>
+                <div className="text-[8px] text-slate-400">Morning Slot</div>
+              </div>
+              <div 
+                onClick={() => setAutoPostCadence('2_daily')}
+                className={`p-2.5 rounded-2xl bg-[#070913] border text-center cursor-pointer transition-all ${autoPostCadence === '2_daily' ? 'border-sky-500 shadow-lg shadow-sky-500/20' : 'border-slate-800'}`}
+              >
+                <div className="text-amber-300 text-xs mb-0.5">☀️</div>
+                <div className="text-xs font-bold text-white">2:00 PM</div>
+                <div className="text-[8px] text-slate-400">Afternoon Slot</div>
+              </div>
+              <div 
+                onClick={() => setAutoPostCadence('daily_peak')}
+                className={`p-2.5 rounded-2xl bg-[#070913] border text-center cursor-pointer transition-all ${autoPostCadence === 'daily_peak' ? 'border-purple-500 shadow-lg shadow-purple-500/20' : 'border-slate-800'}`}
+              >
+                <div className="text-purple-400 text-xs mb-0.5">🌙</div>
+                <div className="text-xs font-bold text-white">7:30 PM</div>
+                <div className="text-[8px] text-slate-400">Night Peak</div>
+              </div>
+            </div>
+
+            {/* VIEWS BOOSTER TOPIC INPUT */}
+            <div className="pt-1">
+              <input
+                type="text"
+                value={customVideoTopic}
+                onChange={(e) => setCustomVideoTopic(e.target.value)}
+                placeholder="🎯 Video Topic for 10x Views (e.g. Free Fire Clutch)"
+                className="w-full px-3 py-2 rounded-xl bg-[#070913] border border-sky-500/30 text-xs text-white placeholder-slate-500 outline-none focus:border-emerald-400 text-center font-medium"
+              />
             </div>
           </div>
-        </div>
-      )}
 
-      {activeInfoPage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-lg rounded-3xl bg-[#080c15] border border-sky-500/30 p-6 max-h-[85vh] overflow-y-auto space-y-3">
-            <button onClick={() => setActiveInfoPage(null)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
-            <div className="flex items-center gap-2 text-sky-400 font-bold text-base">
-              <FileText className="w-5 h-5" />
-              <span>
-                {activeInfoPage === 'about' && 'About ShortsPilot AI Studio'}
-                {activeInfoPage === 'privacy' && 'Privacy Policy'}
-                {activeInfoPage === 'terms' && 'Terms & Conditions (Views Guarantee Policy)'}
-                {activeInfoPage === 'refund' && 'Refund & Cancellation Policy'}
-              </span>
-            </div>
-            <div className="text-xs text-slate-300 leading-relaxed space-y-2.5">
-              {activeInfoPage === 'about' && (
-                <>
-                  <p>ShortsPilot is an AI-powered SaaS studio designed for YouTube creators to automatically convert videos into high-retention 9:16 vertical Shorts with original audio, AI-generated viral metadata, and 3x daily YouTube auto-scheduling.</p>
-                  <p><strong>Contact Support:</strong> {globalConfig.supportEmail}</p>
-                </>
-              )}
-              {activeInfoPage === 'privacy' && (
-                <>
-                  <p>We respect creator privacy. When you connect your YouTube account, ShortsPilot only requests permissions required to view your YouTube channel analytics and auto-publish Shorts on your behalf.</p>
-                </>
-              )}
-              {activeInfoPage === 'terms' && (
-                <>
-                  <p className="text-amber-300 font-semibold">30-Day Minimum Views Guarantee — Terms & Conditions:</p>
-                  <ul className="list-disc pl-4 space-y-1.5 text-slate-300">
-                    <li><strong>Monthly Plan (₹{globalConfig.monthlyPrice}/mo):</strong> Minimum <strong>{globalConfig.monthlyGuaranteeViews} total views</strong> within 30 days of active Pro subscription.</li>
-                    <li><strong>Yearly VIP Plan (₹{globalConfig.yearlyPrice}/yr):</strong> Minimum <strong>{globalConfig.yearlyGuaranteeViews} total views per 30-day cycle</strong>.</li>
-                    <li><strong>Mandatory Posting Requirement:</strong> Creator must publish at least <strong>1 Short per day (minimum 30 Shorts in 30 days)</strong> using ShortsPilot's Auto-Scheduler.</li>
-                    <li><strong>Guarantee Remedy:</strong> If all conditions above are met and the channel still receives fewer than the guaranteed views, ShortsPilot will extend your Pro subscription for the <strong>next 30 days 100% FREE</strong>.</li>
-                  </ul>
-                </>
-              )}
-              {activeInfoPage === 'refund' && (
-                <>
-                  <p>You may cancel your subscription renewal at any time by contacting {globalConfig.supportEmail}.</p>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {previewClip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
-          <div className="relative w-full max-w-[300px] rounded-3xl bg-[#080c15] border border-sky-500/30 p-3">
-            <button onClick={() => setPreviewClip(null)} className="absolute -top-3 -right-3 p-2.5 rounded-full bg-slate-900 border border-slate-700 text-white z-10">
-              <X className="w-4 h-4" />
-            </button>
-            <video src={sanitizeMediaUrl(previewClip.croppedUrl)} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
-          </div>
-        </div>
-      )}
-
-      {/* --- CONNECT YOUTUBE MODAL WITH ANDROID VISUAL 4-STEP GUIDE --- */}
-      {isConnectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 overflow-y-auto">
-          <div className="relative w-full max-w-xl rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-sky-500/40 p-5 sm:p-7 my-8 max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
-
-            <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
-              🔗 Connect YouTube & Setup API Quota
-            </h3>
-            <p className="text-xs text-slate-400 mb-4">
-              To avoid upload limits (`exceeded error`), you can enter your own Google Cloud Client ID & Secret below, or use the default system setup.
-            </p>
-
-            {(gmailUser || ytChannel) && (
-              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 mb-4 flex items-center justify-between">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-white truncate">{ytChannel?.handle || gmailUser?.name}</div>
-                  <div className="text-[11px] text-emerald-300 truncate">{gmailUser?.email}</div>
+          {/* QUICK FEATURES 4-GRID */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div 
+              onClick={() => setClipMode('3clips')}
+              className="p-3 rounded-2xl bg-[#101528] border border-sky-500/30 hover:border-sky-400 cursor-pointer transition-all flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-sky-500/15 flex items-center justify-center text-sky-400">
+                  <Scissors className="w-4 h-4" />
                 </div>
-                <button onClick={handleDisconnectAll} className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 text-xs font-semibold">Logout</button>
+                <div>
+                  <div className="text-xs font-extrabold text-white">AI Edit</div>
+                  <div className="text-[9px] text-slate-400">Auto Cut & Caption</div>
+                </div>
               </div>
-            )}
+              <span className="text-slate-500">›</span>
+            </div>
 
-            {connectError && <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl mb-3">{connectError}</p>}
+            <div 
+              onClick={() => setSelectedNiche('Gaming (Free Fire / BGMI / GTA)')}
+              className="p-3 rounded-2xl bg-[#101528] border border-pink-500/30 hover:border-pink-400 cursor-pointer transition-all flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-pink-500/15 flex items-center justify-center text-pink-400">
+                  <Tag className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-extrabold text-white">Smart Hashtags</div>
+                  <div className="text-[9px] text-slate-400">Trending Tags</div>
+                </div>
+              </div>
+              <span className="text-slate-500">›</span>
+            </div>
 
-            <div className="space-y-3 mb-4 p-3.5 rounded-2xl bg-[#05070c] border border-slate-800">
-              <div className="text-xs font-bold text-sky-300">Custom Google Cloud Credentials (Optional - to prevent quota exceeded):</div>
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Google Client ID</label>
-                <input
-                  type="text"
-                  value={customClientId}
-                  onChange={(e) => {
-                    setCustomClientId(e.target.value);
-                    localStorage.setItem('sp_custom_client_id', e.target.value);
-                  }}
-                  placeholder="e.g. 10839218...apps.googleusercontent.com"
-                  className="w-full bg-[#090d16] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-sky-500 font-mono"
-                />
+            <div 
+              onClick={() => openProModalWithReason('Thumbnail Generator requires Pro!')}
+              className="p-3 rounded-2xl bg-[#101528] border border-purple-500/30 hover:border-purple-400 cursor-pointer transition-all flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/15 flex items-center justify-center text-purple-400">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-extrabold text-white">Thumbnail Gen</div>
+                  <div className="text-[9px] text-slate-400">High CTR Titles</div>
+                </div>
+              </div>
+              <span className="text-slate-500">›</span>
+            </div>
+
+            <div 
+              onClick={() => setAutoPostCadence('custom_manual')}
+              className="p-3 rounded-2xl bg-[#101528] border border-emerald-500/30 hover:border-emerald-400 cursor-pointer transition-all flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 flex items-center justify-center text-emerald-400">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-extrabold text-white">Schedule</div>
+                  <div className="text-[9px] text-slate-400">Content Calendar</div>
+                </div>
+              </div>
+              <span className="text-slate-500">›</span>
+            </div>
+          </div>
+
+          {/* QUEUE & RECENT POSTS SECTION */}
+          {videoQueue.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-extrabold text-slate-300 flex items-center gap-1.5">
+                  <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" /> Vault & Active Queue ({videoQueue.length})
+                </h3>
+                <button onClick={handleClearAllClips} className="text-[11px] text-pink-400 hover:underline">Clear All</button>
               </div>
 
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Client Secret</label>
-                <input
-                  type="password"
-                  value={customClientSecret}
-                  onChange={(e) => setCustomClientSecret(e.target.value)}
-                  placeholder="Enter your OAuth Client Secret (Session Memory)"
-                  className="w-full bg-[#090d16] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-sky-500 font-mono"
-                />
+              {videoQueue.map((clip) => {
+                const safeClipUrl = sanitizeMediaUrl(clip.croppedUrl);
+                const safeYtUrl = sanitizeMediaUrl(clip.youtubeUrl);
+                return (
+                  <div key={clip.id} className="p-3 rounded-2xl bg-[#101528] border border-sky-500/30 space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-white truncate">{clip.title}</h4>
+                        <p className="text-[10px] text-sky-400 truncate">{clip.hashtags}</p>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 shrink-0 font-bold">
+                        {clip.hookScore}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+                      {safeClipUrl && (
+                        <button onClick={() => setPreviewClip(clip)} className="text-xs text-sky-300 underline flex items-center gap-1">
+                          <Play className="w-3 h-3 fill-sky-300" /> Preview Short
+                        </button>
+                      )}
+                      
+                      {clip.status === 'ready' && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => uploadClipToYouTubeAPI(clip, null)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[10px]"
+                          >
+                            Post Now
+                          </button>
+                          <button
+                            onClick={() => uploadClipToYouTubeAPI(clip, getMultiSlotScheduleIso(0, '3_daily'))}
+                            className="px-2.5 py-1 rounded-lg bg-sky-600 text-white font-bold text-[10px]"
+                          >
+                            Schedule
+                          </button>
+                        </div>
+                      )}
+                      {clip.status === 'uploading' && <span className="text-amber-400 animate-pulse text-[10px]">Uploading...</span>}
+                      {clip.status === 'published' && <span className="text-emerald-400 text-[10px] font-bold">Published ✓</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* DEFAULT RECENT POSTS SAMPLE */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-extrabold text-slate-300 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-sky-400" /> Recent Posts
+              </h3>
+              <button onClick={() => setActiveTab('analytics')} className="text-[11px] text-sky-400 font-semibold hover:underline">View Analytics →</button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-[#101528] border border-slate-800 flex items-center justify-between gap-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-xl bg-slate-800 relative overflow-hidden flex items-center justify-center border border-slate-700 shrink-0">
+                  <div className="absolute inset-0 bg-gradient-to-tr from-purple-900 to-sky-900 opacity-60" />
+                  <Play className="w-5 h-5 text-white z-10 fill-white" />
+                  <span className="absolute bottom-1 right-1 text-[8px] px-1 rounded bg-black/70 text-white font-mono">0:28</span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white mb-0.5">AI Shorts Automation Setup 🔥</h4>
+                  <p className="text-[10px] text-slate-400 mb-1.5">Posted: Today, 9:00 AM</p>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold">
+                    ✓ Published
+                  </span>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-extrabold mb-1">
+                  🔥 9.8/10
+                </div>
+                <span className="text-slate-500 text-xs">•••</span>
               </div>
             </div>
+          </div>
+
+        </div>
+
+        {/* BOTTOM FLOATING NAVIGATION BAR */}
+        <div className="absolute bottom-0 left-0 right-0 bg-[#070913]/95 backdrop-blur-md border-t border-purple-500/20 px-4 py-2.5 flex items-center justify-around z-30">
+          <button onClick={() => setActiveTab('studio')} className="flex flex-col items-center gap-1 text-pink-400">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            <span className="text-[10px] font-bold">Home</span>
+          </button>
+          <button onClick={() => setActiveTab('analytics')} className="flex flex-col items-center gap-1 text-slate-400 hover:text-white">
+            <BarChart3 className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Analytics</span>
+          </button>
+          
+          {/* FLOATING UPLOAD BUTTON (+) */}
+          <div className="relative -top-5">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="w-13 h-13 rounded-full bg-gradient-to-tr from-purple-600 via-pink-600 to-sky-400 p-0.5 flex items-center justify-center shadow-lg shadow-pink-600/50 hover:scale-110 transition-transform"
+            >
+              <div className="w-full h-full rounded-full bg-[#070913] flex items-center justify-center">
+                <span className="text-2xl font-light text-pink-400">+</span>
+              </div>
+            </button>
+          </div>
+
+          <button onClick={() => setIsPricingOpen(true)} className="flex flex-col items-center gap-1 text-slate-400 hover:text-white">
+            <Crown className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Projects</span>
+          </button>
+          <button onClick={() => setIsSettingsOpen(true)} className="flex flex-col items-center gap-1 text-slate-400 hover:text-white">
+            <Sliders className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Settings</span>
+          </button>
+        </div>
+
+      </div>
+
+      {/* --- ALL MODALS & DIALOGS (ANALYTICS, PRICING, ADMIN, CONNECT YOUTUBE, SUPPORT) --- */}
+      {activeTab === 'analytics' && (
+        <div className="fixed inset-0 z-40 bg-[#070913] p-4 overflow-y-auto">
+          <div className="max-w-md mx-auto space-y-4">
+            <div className="flex items-center justify-between pt-4">
+              <h2 className="text-lg font-bold text-white">24h–36h Audience Analytics</h2>
+              <button onClick={() => setActiveTab('studio')} className="p-2 rounded-xl bg-slate-800 text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-4 rounded-2xl bg-[#101528] border border-slate-800">
+                <div className="text-xs text-slate-400">Subscribers</div>
+                <div className="text-xl font-bold text-white">{ytStats.subscribers}</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#101528] border border-slate-800">
+                <div className="text-xs text-slate-400">Total Views</div>
+                <div className="text-xl font-bold text-white">{ytStats.totalViews}</div>
+              </div>
+            </div>
+            <div className="p-4 rounded-2xl bg-[#101528] border border-slate-800 space-y-2">
+              <div className="text-xs font-bold text-sky-400">Peak Performance Time</div>
+              <p className="text-xs text-slate-300">{audienceInsight.peakHourLabel}</p>
+              <p className="text-[11px] text-slate-400">{audienceInsight.strategyTip}</p>
+            </div>
+            <button onClick={() => fetchYouTubeAnalytics()} className="w-full py-3 rounded-xl bg-purple-600 text-white text-xs font-bold">
+              Refresh Analytics
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isConnectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#080c15] border border-sky-500/40 p-6 max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
+            <h3 className="text-lg font-bold text-white mb-2">Connect YouTube Account</h3>
+            <p className="text-xs text-slate-400 mb-4">Connect via OAuth to enable auto-posting and analytics.</p>
+            
+            {connectError && <p className="text-xs text-amber-300 bg-amber-500/10 p-2 rounded-xl mb-3">{connectError}</p>}
 
             <button
               type="button"
               onClick={handleConnectYouTubeOAuth}
-              className="w-full py-3.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-sky-500 to-blue-600 flex items-center justify-center gap-2 mb-4 shadow-lg"
+              className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-sky-500 to-blue-600 flex items-center justify-center gap-2 mb-4"
             >
               <Youtube className="w-4 h-4" /> Connect YouTube (OAuth Auto-Refresh)
             </button>
+            
+            <button onClick={() => setShowClientGuideModal(!showClientGuideModal)} className="text-xs text-sky-400 underline w-full text-center">
+              {showClientGuideModal ? 'Hide 4-Step Guide' : 'View Android 4-Step Guide'}
+            </button>
 
-            <div className="border-t border-slate-800 pt-3">
-              <button
-                type="button"
-                onClick={() => setShowClientGuideModal(!showClientGuideModal)}
-                className="text-sky-400 text-xs font-medium hover:underline flex items-center justify-between w-full"
-              >
-                <span>📱 Need help getting Client ID on Android? (View 4-Step Visual Guide)</span>
-                <span>{showClientGuideModal ? '▲' : '▼'}</span>
-              </button>
-
-              {showClientGuideModal && (
-                <div className="mt-3 space-y-4 bg-black/70 p-3.5 rounded-2xl border border-slate-800 max-h-96 overflow-y-auto">
-                  <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">
-                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 1 (Android Chrome)</span>
-                    <p className="text-[11px] text-slate-300 mt-1 mb-2">
-                      Open <b>console.cloud.google.com</b> on your phone, tap <b>New Project</b>, enter <b>ShortsPilot</b> & tap <b>CREATE</b>.
-                    </p>
-                    <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">
-                      <div className="bg-slate-900 text-white text-[9px] px-3 py-1 flex justify-between">
-                        <span>8:24 PM</span>
-                        <span>Chrome • 5G 87%</span>
-                      </div>
-                      <div className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5 flex items-center gap-1.5">
-                        <span>☰</span> <span>Google Cloud</span>
-                      </div>
-                      <div className="p-3 space-y-2 text-left">
-                        <div className="text-[11px] font-bold text-slate-800">New Project</div>
-                        <div className="border-2 border-blue-600 rounded px-2 py-1">
-                          <div className="text-[8px] text-blue-600 font-semibold">Project name *</div>
-                          <div className="text-[11px] font-bold text-slate-900">ShortsPilot</div>
-                        </div>
-                        <div className="pt-1 flex items-center gap-2">
-                          <span className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1 rounded shadow">CREATE</span>
-                          <span className="text-rose-600 font-extrabold text-xs">⬅ Tap Here</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">
-                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 2 (Android Chrome)</span>
-                    <p className="text-[11px] text-slate-300 mt-1 mb-2">
-                      Go to <b>API Library</b>, search <b>YouTube Data API v3</b> and tap the blue <b>ENABLE</b> button.
-                    </p>
-                    <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">
-                      <div className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5 flex items-center gap-1.5">
-                        <span>←</span> <span>API Library</span>
-                      </div>
-                      <div className="p-3 space-y-2 text-left">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-5 rounded bg-red-600 text-white flex items-center justify-center text-[10px] font-bold">▶</div>
-                          <div>
-                            <div className="text-[11px] font-bold text-slate-900 leading-tight">YouTube Data API v3</div>
-                            <div className="text-[9px] text-slate-500">Google</div>
-                          </div>
-                        </div>
-                        <div className="p-1.5 border-2 border-rose-500 rounded-lg inline-block">
-                          <span className="bg-blue-600 text-white text-[10px] font-bold px-4 py-1 rounded block">ENABLE</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">
-                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 3 (Android Chrome)</span>
-                    <p className="text-[11px] text-slate-300 mt-1 mb-2">
-                      In <b>Credentials → Create OAuth client ID</b>, select <b>Web application</b> & paste Redirect URI:
-                    </p>
-                    <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">
-                      <div className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5">
-                        Create OAuth client ID
-                      </div>
-                      <div className="p-3 space-y-2 text-left">
-                        <div className="border border-slate-400 rounded px-2 py-1">
-                          <div className="text-[8px] text-slate-500">Application type *</div>
-                          <div className="text-[10px] font-bold text-slate-900">Web application ▼</div>
-                        </div>
-                        <div className="text-[9px] font-bold text-slate-700">Authorized redirect URIs</div>
-                        <div className="border-2 border-rose-500 rounded px-1.5 py-1 bg-rose-50">
-                          <div className="text-[8px] font-mono text-slate-900 break-all">{YOUTUBE_REDIRECT_URI}</div>
-                        </div>
-                        <span className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1 rounded inline-block">CREATE</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">
-                    <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">Step 4 (Final Step)</span>
-                    <p className="text-[11px] text-slate-300 mt-1 mb-2">
-                      Tap the copy icons next to <b>Your Client ID</b> and <b>Your Client Secret</b> and paste them above!
-                    </p>
-                    <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">
-                      <div className="bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5">
-                        OAuth client created
-                      </div>
-                      <div className="p-3 space-y-2 text-left">
-                        <div className="flex items-center justify-between border border-emerald-500 bg-emerald-50 rounded px-2 py-1">
-                          <div>
-                            <div className="text-[8px] text-slate-500">Your Client ID</div>
-                            <div className="text-[9px] font-mono font-bold text-slate-900">483431...apps.google</div>
-                          </div>
-                          <span className="text-emerald-700 font-bold text-[10px] border border-emerald-600 px-1.5 py-0.5 rounded">Copy</span>
-                        </div>
-                        <div className="flex items-center justify-between border border-emerald-500 bg-emerald-50 rounded px-2 py-1">
-                          <div>
-                            <div className="text-[8px] text-slate-500">Your Client Secret</div>
-                            <div className="text-[9px] font-mono font-bold text-slate-900">GOCSPX-xJP5s...</div>
-                          </div>
-                          <span className="text-emerald-700 font-bold text-[10px] border border-emerald-600 px-1.5 py-0.5 rounded">Copy</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <form onSubmit={handleQuickConnectYouTube} className="space-y-2 border-t border-slate-800 pt-3 mt-4">
-              <div className="text-[11px] text-slate-400">Display Handle Only (Does not enable auto-upload):</div>
-              <input
-                type="text"
-                value={ytHandleInput}
-                onChange={(e) => setYtHandleInput(e.target.value)}
-                placeholder="@YourChannelHandle"
-                className="w-full px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none"
-              />
-              <button type="submit" className="w-full py-2 rounded-xl font-semibold text-xs text-slate-300 bg-slate-800">Save Handle Only</button>
-            </form>
+            {showClientGuideModal && (
+              <div className="mt-3 space-y-3 bg-black/50 p-3 rounded-xl border border-slate-800 text-xs">
+                <p>1. Go to Google Cloud Console and create a project named <b>ShortsPilot</b>.</p>
+                <p>2. Enable <b>YouTube Data API v3</b>.</p>
+                <p>3. Create OAuth client ID (Web application) and add redirect URI: <code className="text-sky-300">{YOUTUBE_REDIRECT_URI}</code></p>
+                <p>4. Copy Client ID and Secret to paste below if needed.</p>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {isPricingOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85">
-          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-amber-400/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#080c15] border border-amber-400/40 p-6 max-h-[90vh] overflow-y-auto">
             <button onClick={() => setIsPricingOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
-
-            {upgradeReason && (
-              <div className="mb-3 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
-                ⚡ {upgradeReason}
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-[#0c1220] border border-slate-800 mb-4">
-              <button
-                type="button"
-                onClick={() => setSelectedBilling('monthly')}
-                className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${selectedBilling === 'monthly' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-                Monthly • ₹{globalConfig.monthlyPrice}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setSelectedBilling('yearly'); setAppliedCoupon(null); setCouponMsg(''); }}
-                className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
-                  selectedBilling === 'yearly' ? 'bg-gradient-to-r from-amber-500 to-pink-600 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Yearly VIP • ₹{globalConfig.yearlyPrice}
-              </button>
-            </div>
-
-            <div className="mb-4 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200 flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <div>
-                <strong>
-                  Included: Minimum {selectedBilling === 'yearly' ? `${globalConfig.yearlyGuaranteeViews} Views/Month + 5x Clips` : `${globalConfig.monthlyGuaranteeViews} Views in 30 Days`} Guarantee
-                </strong>
-                <button type="button" onClick={() => { setIsPricingOpen(false); setActiveInfoPage('terms'); }} className="underline text-amber-300 ml-1">
-                  (T&C Apply)
-                </button>
-              </div>
-            </div>
-
-            {selectedBilling === 'monthly' && (
-              <div className="mb-4 p-3 rounded-2xl bg-[#0c1220] border border-slate-800 space-y-2">
-                <label className="text-[11px] text-slate-400 flex items-center gap-1"><Tag className="w-3.5 h-3.5 text-amber-400" /> Promo Code (SAVE200 Active)</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={couponInput}
-                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                    placeholder="SAVE200"
-                    className="flex-1 px-3 py-2 rounded-xl bg-[#05070c] border border-slate-700 text-xs font-mono text-white uppercase outline-none"
-                  />
-                  <button type="button" onClick={handleApplyCoupon} className="px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold">
-                    Apply
-                  </button>
+            <h3 className="text-lg font-bold text-amber-400 mb-2">Upgrade to ShortsPilot Pro</h3>
+            <p className="text-xs text-slate-400 mb-4">Get 50K–100K Guaranteed Monthly Views & 3x/5x Clips Extractor.</p>
+            
+            <div className="space-y-3 mb-4">
+              <div className="p-3 rounded-2xl bg-[#101528] border border-sky-500/30 flex justify-between items-center cursor-pointer" onClick={() => setSelectedBilling('monthly')}>
+                <div>
+                  <div className="text-xs font-bold text-white">Monthly Pro</div>
+                  <div className="text-[10px] text-slate-400">50K Views/Mo Guarantee</div>
                 </div>
-                {couponMsg && <p className={`text-[11px] ${appliedCoupon ? 'text-emerald-400' : 'text-rose-400'}`}>{couponMsg}</p>}
+                <div className="text-sm font-extrabold text-sky-400">₹{globalConfig.monthlyPrice}/mo</div>
               </div>
-            )}
-
-            <div className="mb-4 flex items-baseline justify-between">
-              <span className="text-xs text-slate-400">
-                {selectedBilling === 'yearly' ? `Offer Price (Save ₹${yearlySavings.toLocaleString()}):` : 'Total Payable Amount:'}
-              </span>
-              <div className="flex items-baseline gap-2">
-                {selectedBilling === 'yearly' && (
-                  <span className="text-sm text-slate-500 line-through">₹{Number(globalConfig.yearlyOriginalPrice || 5999).toLocaleString()}</span>
-                )}
-                <span className="text-2xl font-extrabold text-white">₹{getPayableAmount().toLocaleString()}</span>
-              </div>
-            </div>
-
-            <div className="mb-4 p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/35 space-y-2">
-              <div className="text-xs font-bold text-sky-300">⚡ Pay ₹{getPayableAmount().toLocaleString()} via UPI & Enter UTR Below:</div>
-              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#05070c] border border-slate-700">
-                <span className="text-xs font-mono text-emerald-300 truncate">{globalConfig.receiverUpi || '9767905729@paytm'}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(globalConfig.receiverUpi || '9767905729@paytm');
-                    alert('✅ UPI ID Copied! Pay ₹' + getPayableAmount() + ' on GPay/PhonePe/Paytm and enter 12-digit UTR below.');
-                  }}
-                  className="px-3 py-1 rounded-lg bg-sky-600 text-white text-[11px] font-bold shrink-0"
-                >
-                  Copy UPI ID
-                </button>
-              </div>
-            </div>
-
-            {checkoutPendingMsg ? (
-              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/40 text-center space-y-2">
-                <Hourglass className="w-8 h-8 text-amber-400 mx-auto animate-spin" />
-                <div className="text-sm font-bold text-white">Verification Pending</div>
-                <p className="text-xs text-amber-200">{checkoutPendingMsg}</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="border-t border-slate-800 pt-3">
-                  <div className="text-[11px] text-slate-400 mb-2">Enter your Gmail ID & real 12-digit UPI UTR Reference ID:</div>
-                  <form onSubmit={handleVerifyPayment} className="space-y-2.5">
-                    <input
-                      type="email"
-                      value={gmailUser?.email || ''}
-                      onChange={(e) => setGmailUser({ ...(gmailUser || {}), email: e.target.value, name: e.target.value.split('@')[0] })}
-                      placeholder="Your Gmail ID (to link Pro plan)"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 text-xs text-white outline-none"
-                      required
-                    />
-                    <input
-                      type="tel"
-                      maxLength={12}
-                      value={utrNumber}
-                      onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
-                      placeholder="Enter 12-Digit UTR / Reference No."
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#05070c] border border-slate-700 text-sm font-mono text-white outline-none"
-                      required
-                    />
-                    {checkoutError && <p className="text-xs text-rose-400">{checkoutError}</p>}
-                    <button
-                      type="submit"
-                      className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-emerald-500 via-teal-600 to-sky-600"
-                    >
-                      Submit UTR & Unlock Pro Plan
-                    </button>
-                  </form>
+              <div className="p-3 rounded-2xl bg-[#101528] border border-amber-400/40 flex justify-between items-center cursor-pointer" onClick={() => setSelectedBilling('yearly')}>
+                <div>
+                  <div className="text-xs font-bold text-amber-300">Yearly Studio VIP (Best Value)</div>
+                  <div className="text-[10px] text-slate-400">100K Views/Mo Guarantee + 5x Clips</div>
                 </div>
+                <div className="text-sm font-extrabold text-amber-400">₹{globalConfig.yearlyPrice}/yr</div>
               </div>
-            )}
+            </div>
+
+            <div className="p-3 rounded-2xl bg-[#070913] border border-slate-800 space-y-2 mb-4">
+              <div className="text-xs font-bold text-slate-300">Pay via UPI & Submit UTR:</div>
+              <div className="text-xs font-mono text-emerald-400">{globalConfig.receiverUpi}</div>
+              <input
+                type="email"
+                value={gmailUser?.email || ''}
+                onChange={(e) => setGmailUser({ ...(gmailUser || {}), email: e.target.value })}
+                placeholder="Enter your Gmail ID"
+                className="w-full px-3 py-2 rounded-xl bg-[#080c15] border border-slate-700 text-xs text-white"
+              />
+              <input
+                type="tel"
+                maxLength={12}
+                value={utrNumber}
+                onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
+                placeholder="Enter 12-digit UTR No."
+                className="w-full px-3 py-2 rounded-xl bg-[#080c15] border border-slate-700 text-xs font-mono text-white"
+              />
+              {checkoutError && <p className="text-xs text-rose-400">{checkoutError}</p>}
+              {checkoutPendingMsg && <p className="text-xs text-amber-300">{checkoutPendingMsg}</p>}
+              <button onClick={handleVerifyPayment} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-600 text-white text-xs font-bold">
+                Submit UTR & Unlock Pro
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAiSupport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md h-[450px] rounded-3xl bg-[#080c15] border border-sky-500/40 p-4 flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Bot className="w-5 h-5 text-sky-400" />
+                <h3 className="text-xs font-bold text-white">ShortsPilot AI Assistant</h3>
+              </div>
+              <button onClick={() => setShowAiSupport(false)} className="text-slate-400"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-2 py-3 text-xs">
+              {supportMessages.map((m, idx) => (
+                <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`p-2.5 rounded-2xl max-w-[85%] ${m.role === 'user' ? 'bg-sky-600 text-white' : 'bg-[#101528] text-slate-200'}`}>
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <form onSubmit={handleSendSupport} className="flex gap-2 pt-2 border-t border-slate-800">
+              <input
+                type="text"
+                value={supportInput}
+                onChange={(e) => setSupportInput(e.target.value)}
+                placeholder="Ask about auto-posting or views..."
+                className="flex-1 px-3 py-2 rounded-xl bg-[#070913] border border-slate-700 text-xs text-white"
+              />
+              <button type="submit" className="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold">Send</button>
+            </form>
           </div>
         </div>
       )}
 
       {isSettingsOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/75">
-          <div className="w-full max-w-xs bg-[#080c15] border-l border-sky-500/25 h-full p-5 flex flex-col justify-between">
+          <div className="w-full max-w-xs bg-[#080c15] border-l border-sky-500/30 h-full p-5 flex flex-col justify-between">
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <h3 className="font-bold text-white">Account & Status</h3>
+                <h3 className="font-bold text-white text-sm">Settings & Account</h3>
                 <button onClick={() => setIsSettingsOpen(false)} className="text-slate-400"><X className="w-5 h-5" /></button>
               </div>
               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-semibold">
-                ✅ Direct Google Token Refresh Active
-              </div>
-              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-300">
-                💾 {videoQueue.length} Clips Saved in IndexedDB
+                ✅ Direct Token Auto-Refresh Active
               </div>
               {gmailUser && (
                 <button onClick={handleDisconnectAll} className="w-full py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold">
@@ -3184,328 +2385,22 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v16.0</div>
+            <div className="text-[11px] text-slate-500">ShortsPilot AI Studio v17.0</div>
           </div>
         </div>
       )}
 
-      {isAdminOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90">
-          <div className="relative w-full max-w-3xl rounded-t-3xl sm:rounded-3xl bg-[#070a12] border border-pink-500/40 p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
-            <button onClick={() => setIsAdminOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400"><X className="w-5 h-5" /></button>
-
-            {!isAdminUnlocked ? (
-              <form onSubmit={handleAdminUnlock} className="py-6 text-center">
-                <Lock className="w-10 h-10 text-pink-400 mx-auto mb-3" />
-                <h3 className="text-lg font-bold text-white mb-1">Owner Master Control Panel</h3>
-                <p className="text-xs text-slate-400 mb-4">Enter Master PIN to manage Revenue, Clients, Guarantees & AI.</p>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value)}
-                  placeholder="Master PIN"
-                  className="w-full max-w-xs mx-auto block px-4 py-3 rounded-xl bg-[#05070c] border border-slate-700 text-center text-white tracking-widest mb-3"
-                  autoFocus
-                />
-                {pinError && <p className="text-xs text-pink-400 mb-3">{pinError}</p>}
-                <button type="submit" className="px-8 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-pink-600 text-white text-sm font-semibold">
-                  Unlock Master Console
-                </button>
-              </form>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-pink-400" />
-                    <h3 className="text-base sm:text-lg font-bold text-white">ShortsPilot Master Admin</h3>
-                  </div>
-                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                    Firebase Live Connected
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div className="p-3 rounded-xl bg-[#0c1220] border border-emerald-500/30">
-                    <div className="text-slate-400 text-[10px]">Verified Revenue</div>
-                    <div className="text-base font-extrabold text-emerald-400">₹{totalVerifiedRevenue}</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-[#0c1220] border border-sky-500/30">
-                    <div className="text-slate-400 text-[10px]">Total Creators</div>
-                    <div className="text-base font-extrabold text-white">{clientsList.length}</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-[#0c1220] border border-pink-500/30">
-                    <div className="text-slate-400 text-[10px]">Active Pro Users</div>
-                    <div className="text-base font-extrabold text-pink-400">{clientsList.filter((c) => c.tier === 'pro').length}</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-[#0c1220] border border-amber-500/30">
-                    <div className="text-slate-400 text-[10px]">Pending UTRs</div>
-                    <div className="text-base font-extrabold text-amber-400">{transactions.filter((t) => t.status === 'Pending').length}</div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 rounded-xl bg-[#0c1220] border border-slate-800 text-xs font-semibold">
-                  <button onClick={() => setAdminSubTab('controls')} className={`py-2 rounded-lg ${adminSubTab === 'controls' ? 'bg-pink-600 text-white' : 'text-slate-400'}`}>⚙️ Plans & AI</button>
-                  <button onClick={() => setAdminSubTab('site')} className={`py-2 rounded-lg ${adminSubTab === 'site' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>🌐 Guarantee & Alerts</button>
-                  <button onClick={() => setAdminSubTab('clients')} className={`py-2 rounded-lg ${adminSubTab === 'clients' ? 'bg-sky-600 text-white' : 'text-slate-400'}`}>👥 Clients ({clientsList.length})</button>
-                  <button onClick={() => setAdminSubTab('payments')} className={`py-2 rounded-lg ${adminSubTab === 'payments' ? 'bg-amber-600 text-white' : 'text-slate-400'}`}>💳 Payments ({transactions.length})</button>
-                </div>
-
-                {adminSubTab === 'controls' && (
-                  <div className="space-y-3.5">
-                    <form onSubmit={handleManualGrantPro} className="p-3 rounded-2xl bg-[#0c1220] border border-amber-500/35 flex flex-col sm:flex-row gap-2">
-                      <div className="flex-1 flex items-center gap-2 bg-[#05070c] px-3 py-1.5 rounded-xl border border-slate-700">
-                        <UserPlus className="w-4 h-4 text-amber-400 shrink-0" />
-                        <input
-                          type="email"
-                          value={manualProEmail}
-                          onChange={(e) => setManualProEmail(e.target.value)}
-                          placeholder="Grant Instant Yearly VIP PRO to Gmail ID..."
-                          className="w-full bg-transparent text-xs text-white outline-none"
-                        />
-                      </div>
-                      <button type="submit" className="px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs shrink-0">+ Grant VIP PRO</button>
-                    </form>
-
-                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-emerald-500/30 space-y-3">
-                      <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
-                        <IndianRupee className="w-3.5 h-3.5" /> Pricing, UPI ID & Coupon Code
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Monthly (₹)</label>
-                          <input type="number" value={globalConfig.monthlyPrice} onChange={(e) => setGlobalConfig({ ...globalConfig, monthlyPrice: e.target.value })} className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Yearly Orig (₹)</label>
-                          <input type="number" value={globalConfig.yearlyOriginalPrice} onChange={(e) => setGlobalConfig({ ...globalConfig, yearlyOriginalPrice: e.target.value })} className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-400 line-through" />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-emerald-300 block mb-1">Yearly Offer (₹)</label>
-                          <input type="number" value={globalConfig.yearlyPrice} onChange={(e) => setGlobalConfig({ ...globalConfig, yearlyPrice: e.target.value })} className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-emerald-500/40 text-xs text-white font-bold" />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-amber-300 block mb-1">499 Coupon</label>
-                          <input type="text" value={globalConfig.couponCode} onChange={(e) => setGlobalConfig({ ...globalConfig, couponCode: e.target.value.toUpperCase() })} placeholder="SAVE200" className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-amber-500/40 text-xs font-mono text-amber-300 uppercase" />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Coupon Off (₹)</label>
-                          <input type="number" value={globalConfig.couponDiscount} onChange={(e) => setGlobalConfig({ ...globalConfig, couponDiscount: e.target.value })} className="w-full bg-[#05070c] px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-emerald-300 block mb-1">Receiver UPI ID (For Manual Payment)</label>
-                        <input type="text" value={globalConfig.receiverUpi} onChange={(e) => setGlobalConfig({ ...globalConfig, receiverUpi: e.target.value })} placeholder="9767905729@paytm" className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-emerald-500/40 text-xs font-mono text-emerald-300" />
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5"><Bot className="w-3.5 h-3.5" /> AI Keys & Master Viral SEO Prompt</span>
-                        <select value={globalConfig.aiProvider} onChange={(e) => setGlobalConfig({ ...globalConfig, aiProvider: e.target.value })} className="bg-[#05070c] px-2 py-1 rounded border border-slate-700 text-xs text-white">
-                          <option value="primary">Primary AI Engine</option>
-                          <option value="claude">Primary: Claude</option>
-                        </select>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <input type="password" value={globalConfig.primaryAiKey} onChange={(e) => setGlobalConfig({ ...globalConfig, primaryAiKey: e.target.value })} placeholder="Primary AI API Key (sk-...)" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-sky-300" />
-                        <input type="password" value={globalConfig.claudeApiKey} onChange={(e) => setGlobalConfig({ ...globalConfig, claudeApiKey: e.target.value })} placeholder="Claude API Key (sk-ant-...)" className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-mono text-pink-300" />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-amber-300 block mb-1">Master Viral SEO Prompt</label>
-                        <textarea
-                          rows={4}
-                          value={globalConfig.customAiPrompt}
-                          onChange={(e) => setGlobalConfig({ ...globalConfig, customAiPrompt: e.target.value })}
-                          className="w-full bg-[#05070c] p-2.5 rounded-lg border border-sky-500/40 text-[11px] text-slate-200 font-mono"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {adminSubTab === 'site' && (
-                  <div className="space-y-3.5">
-                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-amber-500/40 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" /> Top Offer Banner Headline</span>
-                        <button type="button" onClick={() => setGlobalConfig({ ...globalConfig, bannerActive: !globalConfig.bannerActive })} className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-amber-300 font-semibold">
-                          Banner: {globalConfig.bannerActive ? 'ON' : 'OFF'}
-                        </button>
-                      </div>
-                      <input type="text" value={globalConfig.bannerText} onChange={(e) => setGlobalConfig({ ...globalConfig, bannerText: e.target.value })} className="w-full bg-[#05070c] px-3 py-2 rounded-lg border border-amber-500/40 text-xs text-white" />
-                    </div>
-
-                    <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-pink-500/30 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-pink-300 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> Live User Broadcast Popup</span>
-                        <button type="button" onClick={() => setGlobalConfig({ ...globalConfig, broadcastAlertActive: !globalConfig.broadcastAlertActive })} className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-amber-300 font-semibold">
-                          Popup: {globalConfig.broadcastAlertActive ? 'ON' : 'OFF'}
-                        </button>
-                      </div>
-                      <input type="text" value={globalConfig.broadcastAlertText} onChange={(e) => setGlobalConfig({ ...globalConfig, broadcastAlertText: e.target.value })} placeholder="Broadcast message..." className="w-full bg-[#05070c] px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-white" />
-                    </div>
-                  </div>
-                )}
-
-                {adminSubTab === 'clients' && (
-                  <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-sky-500/30 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-sky-300">Manage Creators ({clientsList.length})</span>
-                      <button onClick={fetchFirebaseAll} className="text-[11px] text-sky-400">Refresh</button>
-                    </div>
-                    <div className="space-y-2 max-h-72 overflow-y-auto">
-                      {clientsList.map((cli) => (
-                        <div key={cli.id} className="p-3 rounded-xl bg-[#05070c] border border-slate-800 flex items-center justify-between gap-2 text-xs">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-white truncate">{cli.name} ({cli.youtubeHandle})</div>
-                            <div className="text-[11px] text-slate-400 truncate">{cli.email}</div>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {cli.tier === 'pro' ? (
-                              <button onClick={() => handleAdminSetClientTier(cli, 'free')} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-[10px]">Set Free</button>
-                            ) : (
-                              <>
-                                <button onClick={() => handleAdminSetClientTier(cli, 'pro', 'monthly')} className="px-2 py-1 rounded bg-sky-600 text-white text-[10px] font-bold">Monthly</button>
-                                <button onClick={() => handleAdminSetClientTier(cli, 'pro', 'yearly')} className="px-2 py-1 rounded bg-emerald-600 text-white text-[10px] font-bold">Yearly VIP</button>
-                              </>
-                            )}
-                            <button onClick={() => handleAdminToggleBanClient(cli)} className="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-[10px]">
-                              {cli.banned ? 'Unban' : 'Ban'}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {adminSubTab === 'payments' && (
-                  <div className="p-3.5 rounded-2xl bg-[#0c1220] border border-amber-500/35 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-amber-300">UTR Approvals ({transactions.length})</span>
-                      <button onClick={fetchFirebaseAll} className="text-[11px] text-sky-400">Refresh</button>
-                    </div>
-                    <div className="space-y-2 max-h-72 overflow-y-auto">
-                      {transactions.map((txn, idx) => (
-                        <div key={idx} className="p-2.5 rounded-xl bg-[#05070c] border border-slate-800 flex items-center justify-between gap-2 text-xs">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-white truncate">{txn.user}</div>
-                            <div className="font-mono text-[11px] text-sky-400">UTR: {txn.utr} • {txn.amount}</div>
-                          </div>
-                          {txn.status === 'Pending' ? (
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button onClick={() => handleAdminApproveTxn(txn)} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-semibold">Approve</button>
-                              <button onClick={() => handleAdminRejectTxn(txn)} className="px-2.5 py-1 rounded-lg bg-rose-600/30 text-rose-300">Reject</button>
-                            </div>
-                          ) : (
-                            <span className={`text-[11px] font-bold ${txn.status === 'Verified' ? 'text-emerald-400' : 'text-rose-400'}`}>{txn.status}</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {(adminSubTab === 'controls' || adminSubTab === 'site') && (
-                  <button
-                    type="button"
-                    onClick={handlePublishGlobalConfig}
-                    disabled={isSyncingGlobal}
-                    className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600"
-                  >
-                    {isSyncingGlobal ? 'Publishing to Live Site...' : '🚀 Publish All Live Website Changes'}
-                  </button>
-                )}
-
-                <div className="flex items-center justify-between pt-1 text-xs">
-                  <button
-                    onClick={() => {
-                      const nextTier = tier === 'pro' ? 'free' : 'pro';
-                      setTier(nextTier);
-                      setActivePlanType('yearly');
-                      setQuotaUsed(0);
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 flex items-center gap-1"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" /> Local Test: {tier.toUpperCase()}
-                  </button>
-                  <span className="text-slate-500 font-mono">
-                    <HardDrive className="w-3.5 h-3.5 inline mr-1" /> {storageUsedGB} / 5,120 GB
-                  </span>
-                </div>
-              </div>
-            )}
+      {previewClip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
+          <div className="relative w-full max-w-[280px] rounded-3xl bg-[#080c15] border border-sky-500/40 p-3">
+            <button onClick={() => setPreviewClip(null)} className="absolute -top-3 -right-3 p-2 rounded-full bg-slate-900 border border-slate-700 text-white z-10">
+              <X className="w-4 h-4" />
+            </button>
+            <video src={sanitizeMediaUrl(previewClip.croppedUrl)} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
           </div>
         </div>
       )}
 
-      <div className="fixed bottom-5 right-5 z-40">
-        <button
-          type="button"
-          onClick={() => setShowAiSupport(true)}
-          className="px-4 py-3 rounded-full bg-gradient-to-r from-sky-500 via-blue-600 to-pink-600 text-white text-xs font-extrabold shadow-lg flex items-center gap-2 hover:scale-105 transition-transform border border-sky-400/40"
-        >
-          <Bot className="w-4 h-4" />
-          <span>AI Support</span>
-        </button>
-      </div>
-
-      {showAiSupport && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75">
-          <div className="w-full max-w-md h-[470px] rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-sky-500/40 flex flex-col overflow-hidden shadow-2xl">
-            <div className="p-4 bg-[#0c1220] border-b border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-pink-600 flex items-center justify-center">
-                  <Bot className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <div className="text-xs sm:text-sm font-bold text-white">ShortsPilot AI Support</div>
-                  <div className="text-[10px] text-emerald-400 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> Instant Help 24/7
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setShowAiSupport(false)} className="text-slate-400 hover:text-white p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
-              {supportMessages.map((m, idx) => (
-                <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[82%] p-3 rounded-2xl leading-relaxed ${
-                      m.role === 'user'
-                        ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-br-none'
-                        : 'bg-[#0c1220] text-slate-200 border border-slate-800 rounded-bl-none'
-                    }`}
-                  >
-                    {m.text}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <form onSubmit={handleSendSupport} className="p-3 bg-[#0c1220] border-t border-slate-800 flex gap-2">
-              <input
-                type="text"
-                value={supportInput}
-                onChange={(e) => setSupportInput(e.target.value)}
-                placeholder="Ask about Manual Mode, boosting views, or VIP..."
-                className="flex-1 bg-[#05070c] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white outline-none focus:border-sky-500"
-              />
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-bold shrink-0"
-              >
-                Send
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
