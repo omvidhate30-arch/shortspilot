@@ -15,7 +15,6 @@ const DEFAULT_GOOGLE_CLIENT_ID =
   '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
 const DEFAULT_GOOGLE_SECRET = ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-');
 
-// Works automatically on both shortspilot.in and vercel.app
 const YOUTUBE_REDIRECT_URI =
   typeof window !== 'undefined' && window.location.origin.includes('shortspilot')
     ? `${window.location.origin}/api/youtube/callback`
@@ -205,7 +204,6 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [clipMode, setClipMode] = useState('fullshort');
 
-  // Auto-Post enabled by default ('3_daily' = Morning 9 AM, Afternoon 2 PM, Night 7:30 PM) + Manual & Instant options
   const [autoPostCadence, setAutoPostCadence] = useState('3_daily');
   const [customScheduleTime, setCustomScheduleTime] = useState('');
   const [customVideoTopic, setCustomVideoTopic] = useState('');
@@ -225,7 +223,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Hi! I am your ShortsPilot AI Support Assistant. Ask me anything about 3x daily scheduling (Morning/Afternoon/Night), boosting Shorts views, or VIP plans!'
+      text: 'Hi! I am your ShortsPilot AI Support Assistant. Ask me anything about 3x daily scheduling (Morning/Afternoon/Night), Manual Mode, boosting Shorts views, or VIP plans!'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -290,8 +288,13 @@ export default function App() {
 
   const fileInputRef = useRef(null);
   const ytChannelRef = useRef(ytChannel);
+  const autoPostCadenceRef = useRef(autoPostCadence);
   const usedTitlesHistoryRef = useRef(new Set());
   const scheduleDayOffsetRef = useRef(0);
+
+  useEffect(() => {
+    autoPostCadenceRef.current = autoPostCadence;
+  }, [autoPostCadence]);
 
   const activeClientId =
     (customClientId || '').trim() ||
@@ -304,7 +307,6 @@ export default function App() {
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
   const yearlySavings = Math.max(0, Number(globalConfig.yearlyOriginalPrice || 5999) - Number(globalConfig.yearlyPrice || 3999));
 
-  // Dynamic Live Customers Counter (Randomly updates every 3 seconds)
   useEffect(() => {
     const timer = setInterval(() => {
       setLiveUsersCount((prev) => {
@@ -325,13 +327,13 @@ export default function App() {
 
     setTimeout(() => {
       const lower = userText.toLowerCase();
-      let reply = 'Tip for 10x Views: Type your exact video topic in the "Video Topic" box before selecting your video, and use 3x Daily Auto-Schedule (9 AM, 2 PM, 7:30 PM)!';
+      let reply = 'Tip for 10x Views: Type your exact video topic in the "Video Topic" box before selecting your video, and use 3x Daily Auto-Schedule (9 AM, 2 PM, 7:30 PM) or Manual Mode!';
       if (lower.includes('quota') || lower.includes('limit') || lower.includes('error') || lower.includes('client')) {
         reply = 'If you see a YouTube quota exceeded error, click "Connect YouTube" at the top right, open the 4-Step Guide, and paste your own Google Cloud Client ID & Secret!';
       } else if (lower.includes('utr') || lower.includes('payment') || lower.includes('pro') || lower.includes('vip') || lower.includes('price')) {
         reply = `Yearly Studio VIP is ₹${globalConfig.yearlyPrice}/year (100K+ Views/Mo Guarantee + 5x Clips) and Monthly Pro is ₹299 with coupon SAVE200. Submit your 12-digit UTR for instant activation!`;
-      } else if (lower.includes('view') || lower.includes('viral') || lower.includes('freeze')) {
-        reply = 'To boost views: 1) Always select your exact Niche (like Gaming or Facts) so YouTube gets the right Category ID, 2) Enter a 2-3 word Video Topic before uploading, and 3) Post consistently at 9 AM, 2 PM & 7:30 PM!';
+      } else if (lower.includes('manual') || lower.includes('schedule') || lower.includes('time')) {
+        reply = 'You can use Auto 3x/Day (Default) or switch to "Manual Mode (Hold & Post)" to review titles and click "Manual Post Public Now" or pick a custom date/time on each video card!';
       }
       setSupportMessages((prev) => [...prev, { role: 'ai', text: reply }]);
     }, 600);
@@ -348,7 +350,6 @@ export default function App() {
     return target.toISOString();
   };
 
-  // Multi-Slot Auto-Scheduler: Supports 3x Daily (9 AM, 2 PM, 7:30 PM), 2x Daily, 1x Peak & Manual Custom Time
   const getMultiSlotScheduleIso = (slotIndex = 0, mode = '3_daily', peakHour = 19, peakMinute = 30) => {
     if (mode === 'custom_manual' && customScheduleTime) {
       const manualDate = new Date(customScheduleTime);
@@ -359,20 +360,20 @@ export default function App() {
     }
 
     const now = new Date();
-    const minFuture = now.getTime() + 5 * 60 * 1000; // 5-minute buffer so 7:24 PM still schedules for 7:30 PM
+    const minFuture = now.getTime() + 5 * 60 * 1000;
 
     const dailySlots =
       mode === '2_daily'
         ? [
-            { hour: 9, minute: 0 }, // Morning 9:00 AM
-            { hour: peakHour, minute: peakMinute } // Night 7:30 PM
+            { hour: 9, minute: 0 },
+            { hour: peakHour, minute: peakMinute }
           ]
         : mode === 'daily_peak'
         ? [{ hour: peakHour, minute: peakMinute }]
         : [
-            { hour: 9, minute: 0 }, // Morning 9:00 AM
-            { hour: 14, minute: 0 }, // Afternoon 2:00 PM
-            { hour: peakHour, minute: peakMinute } // Night 7:30 PM
+            { hour: 9, minute: 0 },
+            { hour: 14, minute: 0 },
+            { hour: peakHour, minute: peakMinute }
           ];
 
     const validTargets = [];
@@ -420,10 +421,11 @@ export default function App() {
 
   useEffect(() => {
     const worker = setInterval(() => {
+      if (autoPostCadenceRef.current === 'manual_hold') return;
       const token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
       if (!token) return;
       setVideoQueue((currentQueue) => {
-        const nextPending = currentQueue.find((c) => c.status === 'ready' && c.blob);
+        const nextPending = currentQueue.find((c) => c.status === 'ready' && c.blob && !c.manualHold);
         if (nextPending) uploadClipToYouTubeAPI(nextPending, nextPending.scheduledFor || null);
         return currentQueue;
       });
@@ -1132,7 +1134,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     }
     const videoUrl = URL.createObjectURL(file);
 
-    // Preserve original high-quality MP4 for full Shorts so YouTube processes in HD without quality loss
     if (preserveFullShort) {
       return { croppedUrl: videoUrl, clipLength: Math.round(maxClipSec), blob: file, hasAudio: true };
     }
@@ -1266,7 +1267,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     });
   };
 
-  // --- YOUTUBE API UPLOADER WITH VIEWS BOOSTER & RELIABLE SCHEDULER ---
   const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null) => {
     if (!globalConfig.ytAutoUploadActive) {
       alert('YouTube Auto-Upload is currently paused by Admin.');
@@ -1289,12 +1289,11 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     if (clip.blob) {
       try {
         let validScheduleIso = null;
-        // Works for all users when a schedule slot is selected
         if (scheduledIsoTime) {
           let targetDate = new Date(scheduledIsoTime);
           const minFutureTime = new Date(Date.now() + 3 * 60 * 1000);
           if (isNaN(targetDate.getTime()) || targetDate <= minFutureTime) {
-            targetDate = new Date(getMultiSlotScheduleIso(0, autoPostCadence === 'instant' ? '3_daily' : autoPostCadence, audienceInsight.peakHour, audienceInsight.peakMinute));
+            targetDate = new Date(getMultiSlotScheduleIso(0, '3_daily', audienceInsight.peakHour, audienceInsight.peakMinute));
           }
           validScheduleIso = targetDate.toISOString();
         }
@@ -1318,7 +1317,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         const safeTitle = (clip.title || 'Viral Short').replace(/[<>]/g, '').trim().slice(0, 78);
         const safeDescription = (clip.description || `${safeTitle}\n\n${clip.hashtags || '#Shorts #YouTubeShorts'}`).replace(/[<>]/g, '').slice(0, 4000);
 
-        // Smart Niche Category Mapping so YouTube pushes the Short to the right audience feed
         const categoryMap = {
           'Gaming (Free Fire / BGMI / GTA)': '20',
           'Comedy, Memes & Entertainment': '24',
@@ -1397,6 +1395,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         const safeVideoId = String(uploadedVideo.id || '').replace(/[^a-zA-Z0-9_-]/g, '');
         const finalizedClip = {
           ...clip,
+          manualHold: false,
           status: useSchedule ? 'scheduled' : 'published',
           scheduledFor: useSchedule ? validScheduleIso : null,
           youtubeUrl: safeVideoId ? `https://youtube.com/shorts/${safeVideoId}` : null
@@ -1424,7 +1423,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     }
 
     if (!ytChannelRef.current?.accessToken && !localStorage.getItem('sp_yt_access_token')) {
-      setConnectError('Please click "Connect YouTube (OAuth Auto-Refresh)" to enable automatic uploading.');
+      setConnectError('Please click "Connect YouTube (OAuth Auto-Refresh)" to enable uploading.');
       setIsConnectModalOpen(true);
       return;
     }
@@ -1479,8 +1478,9 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         const slotOffset = scheduleDayOffsetRef.current;
         scheduleDayOffsetRef.current += 1;
 
+        const isManualHold = autoPostCadence === 'manual_hold';
         const targetIso =
-          autoPostCadence !== 'instant'
+          autoPostCadence !== 'instant' && !isManualHold
             ? getMultiSlotScheduleIso(slotOffset, autoPostCadence, audienceInsight.peakHour, audienceInsight.peakMinute)
             : null;
 
@@ -1494,6 +1494,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             hookScore: seg.score,
             duration: seg.preserveFullShort ? `${mins}:${String(secs).padStart(2, '0')}` : '0:12',
             isFullShort: seg.preserveFullShort,
+            manualHold: isManualHold,
             scheduledFor: targetIso,
             croppedUrl: null,
             blob: file,
@@ -1525,6 +1526,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
           hookScore: aiMeta.hookScore || seg.score,
           duration: `${rMins}:${String(rSecs).padStart(2, '0')}`,
           isFullShort: seg.preserveFullShort,
+          manualHold: isManualHold,
           scheduledFor: targetIso,
           croppedUrl: renderResult.croppedUrl,
           blob: renderResult.blob,
@@ -1534,7 +1536,10 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
         await idbSaveClip(readyClip);
         setVideoQueue((prev) => prev.map((item) => (item.id === clipId ? readyClip : item)));
-        // अगर 'manual_hold' चुना है तो वीडियो को Vault में तैयार रखें ताकि यूजर खुद बटन दबाकर पोस्ट करे         if (autoPostCadence !== 'manual_hold') {           await uploadClipToYouTubeAPI(readyClip, targetIso);         }
+
+        if (!isManualHold) {
+          await uploadClipToYouTubeAPI(readyClip, targetIso);
+        }
       }
     }
 
@@ -1806,8 +1811,8 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
       a: 'Haan! Jaise hi aap video select karte hain, ShortsPilot use YouTube ke official cloud server par Morning (9 AM), Afternoon (2 PM) aur Night (7:30 PM) slots mein schedule kar deta hai. Uske baad aapka phone band bhi ho, YouTube sahi time par video public kar dega.'
     },
     {
-      q: 'Shorts par zyada Views lane ke liye kya karein?',
-      a: 'Upload karne se pehle: 1) Apni exact Video Category/Niche select karein, 2) "Video Topic" box mein 2-3 words mein batayein ki video kis bare mein hai, aur 3) 3x Daily Auto-Schedule (9 AM, 2 PM, 7:30 PM) ka use karein.'
+      q: 'Manual Mode (Hold & Post) kaise kaam karta hai?',
+      a: 'Agar aap "Manual Mode" select karke video upload karte hain, toh AI uska viral title aur tags taiyar karke Vault mein rakh deta hai. Phir aap jab chahein 1-click mein "Manual Post Public Now" ya apna custom date/time chunkar post kar sakte hain.'
     },
     {
       q: '50K aur 100K Views Guarantee kaise kaam karti hai?',
@@ -1815,7 +1820,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
     },
     {
       q: 'YouTube Upload Limit / Quota Exceeded aane par kya karein?',
-      a: 'Aap ऊपर "Connect YouTube" बटन पर क्लिक करके 4-Step Guide देख सकते हैं और अपना खुद का Google Client ID & Secret डालकर अनलिमिटेड अपलोड कर सकते हैं।'
+      a: 'Aap ऊपर "Connect YouTube" बटन पर क्लिक करके Android 4-Step Guide देख सकते हैं और अपना खुद का Google Client ID & Secret डालकर अनलिमिटेड अपलोड कर सकते हैं।'
     }
   ];
 
@@ -1932,7 +1937,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         </div>
       </header>
 
-      {/* TOP NAVIGATION & LIVE CUSTOMERS PILL */}
       <div className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex p-1 rounded-2xl bg-[#090d16] border border-slate-800 w-full sm:w-auto">
           <button
@@ -1967,7 +1971,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
       {activeTab === 'studio' && (
         <main className="relative z-10 w-full max-w-5xl mx-auto px-3.5 sm:px-4 pt-5 pb-16 flex-1">
-          {/* HERO SECTION */}
           <div className="text-center max-w-3xl mx-auto mb-6">
             <div className="inline-flex flex-wrap items-center justify-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/15 via-sky-500/15 to-pink-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] sm:text-xs font-bold mb-3">
               <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -1980,10 +1983,9 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               </span>
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm max-w-xl mx-auto mb-5">
-              Smart AI watches your video context, generates viral Hook Titles, Captions & Trending Hashtags, and auto-schedules up to 3 Shorts/Day or lets you Post Manually.
+              Smart AI watches your video context, generates viral Hook Titles, Captions & Trending Hashtags, and auto-schedules 3x/Day or lets you Post Manually.
             </p>
 
-            {/* LIVE PLATFORM TRUST BAR */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 max-w-3xl mx-auto mb-6">
               <div className="p-3 rounded-2xl bg-[#090d16]/90 border border-emerald-500/30 text-center">
                 <div className="text-base sm:text-xl font-extrabold text-emerald-400">{liveUsersCount.toLocaleString()}+</div>
@@ -2004,7 +2006,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </div>
           </div>
 
-          {/* CUSTOMER AI & SEO CUSTOMIZATION BAR */}
           <div className="mb-5 p-4 sm:p-5 rounded-3xl bg-[#090d16] border border-sky-500/30 shadow-lg">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -2088,7 +2089,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </div>
           </div>
 
-          {/* MAIN UPLOAD STUDIO BOX WITH AUTO-SCHEDULE (DEFAULT) + MANUAL CUSTOM TIME + INSTANT POST */}
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
@@ -2106,59 +2106,63 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             <input ref={fileInputRef} type="file" accept="video/*" multiple onChange={handleFileUpload} className="hidden" />
 
             <div className="flex flex-col items-center justify-center gap-3 mb-5">
-              <div className="inline-flex flex-wrap justify-center p-1 rounded-xl bg-[#0c1220] border border-slate-800 gap-1">
+              <div className="inline-flex flex-wrap justify-center p-1.5 rounded-2xl bg-[#0c1220] border border-slate-800 gap-1.5">
                 <button
                   type="button"
                   onClick={() => setAutoPostCadence('3_daily')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
                     autoPostCadence === '3_daily'
-                      ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-600 text-white shadow'
+                      ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-600 text-white shadow-lg'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Clock className="w-3.5 h-3.5" /> Auto 3x/Day (9 AM • 2 PM • 7:30 PM)
+                  <Clock className="w-3.5 h-3.5" /> Auto-Post 3x/Day (Main • 9 AM, 2 PM, 7:30 PM)
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setAutoPostCadence('2_daily')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                  className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
                     autoPostCadence === '2_daily'
                       ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Calendar className="w-3.5 h-3.5" /> Auto 2x/Day (9 AM & 7:30 PM)
+                  <Calendar className="w-3.5 h-3.5" /> Auto 2x/Day
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setAutoPostCadence('daily_peak')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
-                    autoPostCadence === 'daily_peak'
-                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow'
-                      : 'text-slate-400 hover:text-white'
+                  onClick={() => setAutoPostCadence('manual_hold')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+                    autoPostCadence === 'manual_hold'
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-black shadow-lg'
+                      : 'text-amber-300 border border-amber-500/30 hover:bg-amber-500/10'
                   }`}
                 >
-                  <Calendar className="w-3.5 h-3.5" /> Auto 1x Peak (7:30 PM)
+                  <Edit3 className="w-3.5 h-3.5" /> ✋ Manual Mode (Review & Post Yourself)
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setAutoPostCadence('custom_manual')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                  className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
                     autoPostCadence === 'custom_manual'
-                      ? 'bg-amber-500 text-black shadow'
-                      : 'text-amber-300 hover:text-white'
+                      ? 'bg-purple-600 text-white shadow'
+                      : 'text-purple-300 hover:text-white'
                   }`}
                 >
-                  <Edit3 className="w-3.5 h-3.5" /> Manual Custom Time
+                  <Clock className="w-3.5 h-3.5" /> Manual Custom Time
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setAutoPostCadence('instant')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                  className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
                     autoPostCadence === 'instant' ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Zap className="w-3.5 h-3.5" /> Manual Instant Post Now
+                  <Zap className="w-3.5 h-3.5" /> Instant Post Now
                 </button>
               </div>
 
@@ -2174,7 +2178,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 </div>
               )}
 
-              {/* VIEWS BOOSTER TOPIC INPUT */}
               <div className="w-full max-w-md mx-auto">
                 <input
                   type="text"
@@ -2237,7 +2240,9 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
             <h2 className="text-lg sm:text-2xl font-bold text-white mb-1.5">
               {autoUploadBannerStatus === 'processing'
-                ? '⏳ AI Analyzing Video & Uploading to YouTube...'
+                ? '⏳ AI Analyzing Video & Preparing Shorts...'
+                : autoPostCadence === 'manual_hold'
+                ? '✋ Manual Mode Active — Select Video(s) to Prepare in Vault'
                 : 'Select Video(s) — Auto-Schedule or Instant Manual Post'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5">
@@ -2245,10 +2250,10 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 ? `Auto-schedules 3 videos/day: Morning (09:00 AM), Afternoon (02:00 PM) & Night (${audienceInsight.peakHourLabel.split('(')[0].trim()}).`
                 : autoPostCadence === '2_daily'
                 ? `Auto-schedules 2 videos/day: Morning (09:00 AM) & Night (${audienceInsight.peakHourLabel.split('(')[0].trim()}).`
+                : autoPostCadence === 'manual_hold'
+                ? 'Prepares AI Title, Tags & 9:16 Video in your Vault so you can review and click Post Now or Schedule manually.'
                 : autoPostCadence === 'custom_manual'
                 ? 'Schedules your video at the exact custom Date & Time selected above.'
-                : autoPostCadence === 'daily_peak'
-                ? `Each video is scheduled daily at ${audienceInsight.peakHourLabel.split('(')[0].trim()}.`
                 : 'Publishes your Short Publicly right now with AI Viral Title, Tags & Indian Feed Metadata.'}
             </p>
 
@@ -2257,7 +2262,11 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
               className="w-full sm:w-auto justify-center px-8 py-4 rounded-xl font-extrabold text-sm text-white bg-gradient-to-r from-emerald-500 via-sky-500 to-blue-600 flex items-center gap-2 mx-auto shadow-lg hover:scale-[1.01] transition-transform"
             >
               <Upload className="w-5 h-5" />
-              {autoPostCadence === 'instant' ? 'Select Videos & Post Public Now' : 'Select Videos & Auto-Schedule'}
+              {autoPostCadence === 'manual_hold'
+                ? 'Select Videos (Prepare for Manual Post)'
+                : autoPostCadence === 'instant'
+                ? 'Select Videos & Post Public Now'
+                : 'Select Videos & Auto-Schedule'}
             </button>
           </div>
 
@@ -2285,13 +2294,12 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </div>
           )}
 
-          {/* SAVED VIDEO QUEUE WITH BOTH MANUAL POST NOW & SCHEDULE BUTTONS */}
           {videoQueue.length > 0 && (
             <section className="mb-10">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-                  <h3 className="text-base sm:text-lg font-bold text-white">Auto-Schedule & Viral SEO Vault ({videoQueue.length})</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-white">Auto-Schedule & Manual Post Vault ({videoQueue.length})</h3>
                   <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">Offline Safe</span>
                 </div>
                 <button onClick={handleClearAllClips} className="text-xs text-slate-400 hover:text-pink-400">Clear All</button>
@@ -2412,31 +2420,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                           <span className="text-slate-400">Processing {clip.progress}%...</span>
                         )}
 
-                        {clip.status === 'ready' && (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => uploadClipToYouTubeAPI(clip, null)}
-                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1 text-[11px]"
-                              title="Publish immediately as Public Short"
-                            >
-                              <Zap className="w-3 h-3" /> Post Now
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                uploadClipToYouTubeAPI(
-                                  clip,
-                                  clip.scheduledFor || getMultiSlotScheduleIso(0, '3_daily', audienceInsight.peakHour, audienceInsight.peakMinute)
-                                )
-                              }
-                              className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 text-white font-semibold flex items-center gap-1 text-[11px]"
-                            >
-                              <Clock className="w-3 h-3" /> Schedule
-                            </button>
-                          </div>
-                        )}
-
                         {clip.status === 'uploading' && <span className="text-emerald-400 font-bold animate-pulse">Uploading to YouTube...</span>}
 
                         {clip.status === 'scheduled' && (
@@ -2463,6 +2446,60 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                           </span>
                         )}
                       </div>
+
+                      {clip.status === 'ready' && (
+                        <div className="w-full flex flex-col gap-2 pt-2 border-t border-slate-800/80">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => uploadClipToYouTubeAPI(clip, null)}
+                              className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-extrabold flex items-center justify-center gap-1.5 text-xs shadow-md"
+                            >
+                              <Zap className="w-3.5 h-3.5" /> Manual Post Public Now
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                uploadClipToYouTubeAPI(
+                                  clip,
+                                  clip.scheduledFor || getMultiSlotScheduleIso(0, '3_daily', audienceInsight.peakHour, audienceInsight.peakMinute)
+                                )
+                              }
+                              className="py-2 px-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold flex items-center justify-center gap-1 text-xs"
+                            >
+                              <Clock className="w-3.5 h-3.5" /> Auto-Schedule Peak
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 bg-[#05070c] p-1.5 rounded-xl border border-slate-800">
+                            <input
+                              type="datetime-local"
+                              defaultValue={clip.scheduledFor ? clip.scheduledFor.slice(0, 16) : ''}
+                              onChange={(e) => {
+                                const pickedIso = e.target.value ? new Date(e.target.value).toISOString() : null;
+                                setVideoQueue((prev) =>
+                                  prev.map((item) => (item.id === clip.id ? { ...item, scheduledFor: pickedIso } : item))
+                                );
+                              }}
+                              className="flex-1 bg-transparent text-[11px] text-amber-300 px-2 py-1 outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!clip.scheduledFor) {
+                                  alert('Please pick a Date & Time in the box first!');
+                                  return;
+                                }
+                                uploadClipToYouTubeAPI(clip, clip.scheduledFor);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-amber-500 text-black font-extrabold text-[11px] shrink-0"
+                            >
+                              Set Manual Schedule
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -2470,10 +2507,9 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </section>
           )}
 
-          {/* 3-STEP VISUAL HOW IT WORKS SECTION */}
           <section className="mb-10">
             <div className="text-center mb-5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400">100% Hands-Free Automation</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400">100% Hands-Free or Full Manual Control</span>
               <h3 className="text-lg sm:text-2xl font-extrabold text-white mt-0.5">How ShortsPilot Grows Your Channel in 3 Steps</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2499,15 +2535,14 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs flex items-center justify-center mb-3">
                   03
                 </div>
-                <h4 className="text-sm font-bold text-white mb-1">3x Daily Auto-Schedule or Instant Post</h4>
+                <h4 className="text-sm font-bold text-white mb-1">3x Daily Auto-Post or Manual Control</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Auto-schedules for 9:00 AM, 2:00 PM & 7:30 PM on YouTube servers—or publish manually in 1 click.
+                  Auto-schedules for 9:00 AM, 2:00 PM & 7:30 PM on YouTube servers—or review & post manually anytime.
                 </p>
               </div>
             </div>
           </section>
 
-          {/* PRICING PLANS */}
           {tier !== 'pro' && (
             <section className="mb-10">
               <div className="text-center mb-5">
@@ -2589,7 +2624,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
             </section>
           )}
 
-          {/* INTERACTIVE FAQ ACCORDION */}
           <section className="mb-6 max-w-3xl mx-auto">
             <div className="text-center mb-4">
               <h3 className="text-base sm:text-xl font-extrabold text-white flex items-center justify-center gap-1.5">
@@ -2701,7 +2735,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <ShortsPilotLogo className="w-4 h-4" />
-            <span className="font-semibold text-slate-300">ShortsPilot AI Studio (shortspilot.in)</span>
+            <span className="font-semibold text-slate-300">ShortsPilot AI Studio</span>
             <span>© {new Date().getFullYear()}</span>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
@@ -2804,7 +2838,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         </div>
       )}
 
-      {/* --- CONNECT YOUTUBE MODAL WITH BYOC & 4-STEP GUIDE --- */}
+      {/* --- CONNECT YOUTUBE MODAL WITH ANDROID VISUAL 4-STEP GUIDE --- */}
       {isConnectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 overflow-y-auto">
           <div className="relative w-full max-w-xl rounded-t-3xl sm:rounded-3xl bg-[#080c15] border border-sky-500/40 p-5 sm:p-7 my-8 max-h-[90vh] overflow-y-auto">
@@ -2871,31 +2905,112 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 onClick={() => setShowClientGuideModal(!showClientGuideModal)}
                 className="text-sky-400 text-xs font-medium hover:underline flex items-center justify-between w-full"
               >
-                <span>❓ Need help getting your Client ID & Secret? (View 4-Step Guide)</span>
+                <span>📱 Need help getting Client ID on Android? (View 4-Step Visual Guide)</span>
                 <span>{showClientGuideModal ? '▲' : '▼'}</span>
               </button>
 
-              {{showClientGuideModal && (                 <div className="mt-3 space-y-4 bg-black/70 p-3.5 rounded-2xl border border-slate-800 max-h-96 overflow-y-auto">                   {/* STEP 1 ANDROID SCREEN */}                   <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 1 (Android Chrome)</span>                     <p className="text-[11px] text-slate-300 mt-1 mb-2">                       Open <b>console.cloud.google.com</b> on your phone, tap <b>New Project</b>, enter <b>ShortsPilot</b> & tap <b>CREATE</b>.                     </p>                     <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">                       <div className="bg-slate-900 text-white text-[9px] px-3 py-1 flex justify-between">                         <span>8:24 PM</span>                         <span>Chrome • 5G 87%</span>                       </div>                       <div className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5 flex items-center gap-1.5">                         <span>☰</span> <span>Google Cloud</span>                       </div>                       <div className="p-3 space-y-2 text-left">                         <div className="text-[11px] font-bold text-slate-800">New Project</div>                         <div className="border-2 border-blue-600 rounded px-2 py-1">                           <div className="text-[8px] text-blue-600 font-semibold">Project name *</div>                           <div className="text-[11px] font-bold text-slate-900">ShortsPilot</div>                         </div>                         <div className="pt-1 flex items-center gap-2">                           <span className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1 rounded shadow">CREATE</span>                           <span className="text-rose-600 font-extrabold text-xs">⬅ Tap Here</span>                         </div>                       </div>                     </div>                   </div>                    {/* STEP 2 ANDROID SCREEN */}                   <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 2 (Android Chrome)</span>                     <p className="text-[11px] text-slate-300 mt-1 mb-2">                       Go to <b>API Library</b>, search <b>YouTube Data API v3</b> and tap the blue <b>ENABLE</b> button.                     </p>                     <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">                       <div className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5 flex items-center gap-1.5">                         <span>←</span> <span>API Library</span>                       </div>                       <div className="p-3 space-y-2 text-left">                         <div className="flex items-center gap-2">                           <div className="w-7 h-5 rounded bg-red-600 text-white flex items-center justify-center text-[10px] font-bold">▶</div>                           <div>                             <div className="text-[11px] font-bold text-slate-900 leading-tight">YouTube Data API v3</div>                             <div className="text-[9px] text-slate-500">Google</div>                           </div>                         </div>                         <div className="p-1.5 border-2 border-rose-500 rounded-lg inline-block">                           <span className="bg-blue-600 text-white text-[10px] font-bold px-4 py-1 rounded block">ENABLE</span>                         </div>                       </div>                     </div>                   </div>                    {/* STEP 3 ANDROID SCREEN */}                   <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">                     <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 3 (Android Chrome)</span>                     <p className="text-[11px] text-slate-300 mt-1 mb-2">                       In <b>Credentials → Create OAuth client ID</b>, select <b>Web application</b> & paste Redirect URI:                     </p>                     <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">                       <div className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5">                         Create OAuth client ID                       </div>                       <div className="p-3 space-y-2 text-left">                         <div className="border border-slate-400 rounded px-2 py-1">                           <div className="text-[8px] text-slate-500">Application type *</div>                           <div className="text-[10px] font-bold text-slate-900">Web application ▼</div>                         </div>                         <div className="text-[9px] font-bold text-slate-700">Authorized redirect URIs</div>                         <div className="border-2 border-rose-500 rounded px-1.5 py-1 bg-rose-50">                           <div className="text-[8px] font-mono text-slate-900 break-all">{YOUTUBE_REDIRECT_URI}</div>                         </div>                         <span className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1 rounded inline-block">CREATE</span>                       </div>                     </div>                   </div>                    {/* STEP 4 ANDROID SCREEN */}                   <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">                     <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">Step 4 (Final Step)</span>                     <p className="text-[11px] text-slate-300 mt-1 mb-2">                       Tap the copy icons next to <b>Your Client ID</b> and <b>Your Client Secret</b> and paste them above!                     </p>                     <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">                       <div className="bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5">                         OAuth client created                       </div>                       <div className="p-3 space-y-2 text-left">                         <div className="flex items-center justify-between border border-emerald-500 bg-emerald-50 rounded px-2 py-1">                           <div>                             <div className="text-[8px] text-slate-500">Your Client ID</div>                             <div className="text-[9px] font-mono font-bold text-slate-900">483431...apps.google</div>                           </div>                           <span className="text-emerald-700 font-bold text-[10px] border border-emerald-600 px-1.5 py-0.5 rounded">Copy</span>                         </div>                         <div className="flex items-center justify-between border border-emerald-500 bg-emerald-50 rounded px-2 py-1">                           <div>                             <div className="text-[8px] text-slate-500">Your Client Secret</div>                             <div className="text-[9px] font-mono font-bold text-slate-900">GOCSPX-xJP5s...</div>                           </div>                           <span className="text-emerald-700 font-bold text-[10px] border border-emerald-600 px-1.5 py-0.5 rounded">Copy</span>                         </div>                       </div>                     </div>                   </div>                 </div>               )}
-                <div className="mt-3 space-y-4 bg-black/60 p-3 rounded-xl border border-slate-800 max-h-72 overflow-y-auto">
-                  <div>
-                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 1</span>
-                    <p className="text-[11px] text-slate-300 mt-1">Go to Google Cloud Console and click <b>Create Project</b>.</p>
-                    <img src="32044c42.png" alt="Step 1" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+              {showClientGuideModal && (
+                <div className="mt-3 space-y-4 bg-black/70 p-3.5 rounded-2xl border border-slate-800 max-h-96 overflow-y-auto">
+                  <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">
+                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 1 (Android Chrome)</span>
+                    <p className="text-[11px] text-slate-300 mt-1 mb-2">
+                      Open <b>console.cloud.google.com</b> on your phone, tap <b>New Project</b>, enter <b>ShortsPilot</b> & tap <b>CREATE</b>.
+                    </p>
+                    <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">
+                      <div className="bg-slate-900 text-white text-[9px] px-3 py-1 flex justify-between">
+                        <span>8:24 PM</span>
+                        <span>Chrome • 5G 87%</span>
+                      </div>
+                      <div className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5 flex items-center gap-1.5">
+                        <span>☰</span> <span>Google Cloud</span>
+                      </div>
+                      <div className="p-3 space-y-2 text-left">
+                        <div className="text-[11px] font-bold text-slate-800">New Project</div>
+                        <div className="border-2 border-blue-600 rounded px-2 py-1">
+                          <div className="text-[8px] text-blue-600 font-semibold">Project name *</div>
+                          <div className="text-[11px] font-bold text-slate-900">ShortsPilot</div>
+                        </div>
+                        <div className="pt-1 flex items-center gap-2">
+                          <span className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1 rounded shadow">CREATE</span>
+                          <span className="text-rose-600 font-extrabold text-xs">⬅ Tap Here</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 2</span>
-                    <p className="text-[11px] text-slate-300 mt-1">Search for <b>YouTube Data API v3</b> in Library and click <b>Enable</b>.</p>
-                    <img src="e1a30950.png" alt="Step 2" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+
+                  <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">
+                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 2 (Android Chrome)</span>
+                    <p className="text-[11px] text-slate-300 mt-1 mb-2">
+                      Go to <b>API Library</b>, search <b>YouTube Data API v3</b> and tap the blue <b>ENABLE</b> button.
+                    </p>
+                    <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">
+                      <div className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5 flex items-center gap-1.5">
+                        <span>←</span> <span>API Library</span>
+                      </div>
+                      <div className="p-3 space-y-2 text-left">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-5 rounded bg-red-600 text-white flex items-center justify-center text-[10px] font-bold">▶</div>
+                          <div>
+                            <div className="text-[11px] font-bold text-slate-900 leading-tight">YouTube Data API v3</div>
+                            <div className="text-[9px] text-slate-500">Google</div>
+                          </div>
+                        </div>
+                        <div className="p-1.5 border-2 border-rose-500 rounded-lg inline-block">
+                          <span className="bg-blue-600 text-white text-[10px] font-bold px-4 py-1 rounded block">ENABLE</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 3</span>
-                    <p className="text-[11px] text-slate-300 mt-1">Go to Credentials - Create Credentials - <b>OAuth client ID</b> (Web application) & add Redirect URI: <code className="text-sky-300">{YOUTUBE_REDIRECT_URI}</code></p>
-                    <img src="bec526d9.png" alt="Step 3" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+
+                  <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">
+                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 3 (Android Chrome)</span>
+                    <p className="text-[11px] text-slate-300 mt-1 mb-2">
+                      In <b>Credentials → Create OAuth client ID</b>, select <b>Web application</b> & paste Redirect URI:
+                    </p>
+                    <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">
+                      <div className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5">
+                        Create OAuth client ID
+                      </div>
+                      <div className="p-3 space-y-2 text-left">
+                        <div className="border border-slate-400 rounded px-2 py-1">
+                          <div className="text-[8px] text-slate-500">Application type *</div>
+                          <div className="text-[10px] font-bold text-slate-900">Web application ▼</div>
+                        </div>
+                        <div className="text-[9px] font-bold text-slate-700">Authorized redirect URIs</div>
+                        <div className="border-2 border-rose-500 rounded px-1.5 py-1 bg-rose-50">
+                          <div className="text-[8px] font-mono text-slate-900 break-all">{YOUTUBE_REDIRECT_URI}</div>
+                        </div>
+                        <span className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1 rounded inline-block">CREATE</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">Step 4</span>
-                    <p className="text-[11px] text-slate-300 mt-1">Copy your <b>Client ID</b> and <b>Client Secret</b> and paste them above!</p>
-                    <img src="4c658f97.png" alt="Step 4" className="rounded-lg mt-1 border border-slate-800 w-full object-cover" />
+
+                  <div className="p-3 rounded-xl bg-[#090d16] border border-slate-800">
+                    <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">Step 4 (Final Step)</span>
+                    <p className="text-[11px] text-slate-300 mt-1 mb-2">
+                      Tap the copy icons next to <b>Your Client ID</b> and <b>Your Client Secret</b> and paste them above!
+                    </p>
+                    <div className="mx-auto max-w-[230px] rounded-2xl border-2 border-slate-700 bg-white text-slate-900 overflow-hidden shadow-lg">
+                      <div className="bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5">
+                        OAuth client created
+                      </div>
+                      <div className="p-3 space-y-2 text-left">
+                        <div className="flex items-center justify-between border border-emerald-500 bg-emerald-50 rounded px-2 py-1">
+                          <div>
+                            <div className="text-[8px] text-slate-500">Your Client ID</div>
+                            <div className="text-[9px] font-mono font-bold text-slate-900">483431...apps.google</div>
+                          </div>
+                          <span className="text-emerald-700 font-bold text-[10px] border border-emerald-600 px-1.5 py-0.5 rounded">Copy</span>
+                        </div>
+                        <div className="flex items-center justify-between border border-emerald-500 bg-emerald-50 rounded px-2 py-1">
+                          <div>
+                            <div className="text-[8px] text-slate-500">Your Client Secret</div>
+                            <div className="text-[9px] font-mono font-bold text-slate-900">GOCSPX-xJP5s...</div>
+                          </div>
+                          <span className="text-emerald-700 font-bold text-[10px] border border-emerald-600 px-1.5 py-0.5 rounded">Copy</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -3069,7 +3184,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 </button>
               )}
             </div>
-            <div className="text-xs text-slate-500">ShortsPilot AI Studio v15.0</div>
+            <div className="text-xs text-slate-500">ShortsPilot AI Studio v16.0</div>
           </div>
         </div>
       )}
@@ -3326,7 +3441,6 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
         </div>
       )}
 
-      {/* --- FLOATING AI SUPPORT BUTTON & CHAT MODAL --- */}
       <div className="fixed bottom-5 right-5 z-40">
         <button
           type="button"
@@ -3379,7 +3493,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
                 type="text"
                 value={supportInput}
                 onChange={(e) => setSupportInput(e.target.value)}
-                placeholder="Ask about boosting views, scheduling, or VIP..."
+                placeholder="Ask about Manual Mode, boosting views, or VIP..."
                 className="flex-1 bg-[#05070c] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white outline-none focus:border-sky-500"
               />
               <button
