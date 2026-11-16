@@ -129,12 +129,17 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('sp_yt_channel') || 'null'); } catch { return null; }
   });
 
-  const [ytStats, setYtStats] = useState({
-    subscribers: '12.4K',
-    totalViews: '1.8M',
-    videoCount: '247',
+const [ytStats, setYtStats] = useState({
+    title: '',
+    customUrl: '',
+    avatar: '',
+    subscribers: '0',
+    totalViews: '0',
+    videoCount: '0',
     country: 'IN',
-    loading: false
+    recentVideos: [],
+    loading: false,
+    isConnected: false
   });
 
   const [ytHandleInput, setYtHandleInput] = useState('');
@@ -414,6 +419,124 @@ export default function App() {
   };
 
   const handleFetchChannelViaApiKey = async (e) => {
+const fetchConnectedChannelAnalytics = async () => {
+    const token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
+    const handle = ytChannelRef.current?.handle;
+    const apiKey = customYtApiKey.trim();
+
+    if (!token && (!handle || !apiKey)) {
+      setYtStats((prev) => ({ ...prev, isConnected: false, loading: false }));
+      return;
+    }
+
+    setYtStats((prev) => ({ ...prev, loading: true }));
+
+    try {
+      let ch = null;
+
+      // 1. अगर यूज़र ने OAuth से लॉगिन किया है, तो सिर्फ उसी का चैनल (mine=true) लाएं
+      if (token) {
+        const res = await fetchWithAuth(
+          'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true'
+        );
+        if (res.ok) {
+          const data = await res.json();
+          ch = data?.items?.[0];
+        }
+      }
+
+      // 2. अगर API Key और Handle से जोड़ा है, तो सिर्फ उसी Handle का डेटा लाएं
+      if (!ch && handle && apiKey) {
+        const cleanH = handle.startsWith('@') ? handle : `@${handle}`;
+        const res = await fetch(
+          `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&forHandle=${encodeURIComponent(cleanH)}&key=${encodeURIComponent(apiKey)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          ch = data?.items?.[0];
+        }
+      }
+
+      if (!ch) {
+        setYtStats((prev) => ({ ...prev, loading: false, isConnected: false }));
+        return;
+      }
+
+      const uploadsPlaylistId = ch?.contentDetails?.relatedPlaylists?.uploads;
+      let videosList = [];
+
+      // यूज़र के खुद के चैनल के लेटेस्ट 10 वीडियोज़ और उनके असली व्यूज/लाइक्स लाएं
+      if (uploadsPlaylistId && (token || apiKey)) {
+        const plUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=10&playlistId=${uploadsPlaylistId}${
+          !token && apiKey ? `&key=${encodeURIComponent(apiKey)}` : ''
+        }`;
+        const plRes = token ? await fetchWithAuth(plUrl) : await fetch(plUrl);
+        if (plRes.ok) {
+          const plData = await plRes.json();
+          const videoIds = (plData?.items || [])
+            .map((v) => v?.snippet?.resourceId?.videoId)
+            .filter(Boolean)
+            .join(',');
+
+          if (videoIds) {
+            const vidUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}${
+              !token && apiKey ? `&key=${encodeURIComponent(apiKey)}` : ''
+            }`;
+            const vidRes = token ? await fetchWithAuth(vidUrl) : await fetch(vidUrl);
+            if (vidRes.ok) {
+              const vidData = await vidRes.json();
+              videosList = (vidData?.items || []).map((v) => ({
+                id: v.id,
+                title: v.snippet?.title || 'Untitled Short',
+                thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || '',
+                views: Number(v.statistics?.viewCount || 0).toLocaleString(),
+                likes: Number(v.statistics?.likeCount || 0).toLocaleString(),
+                comments: Number(v.statistics?.commentCount || 0).toLocaleString(),
+                publishedAt: new Date(v.snippet?.publishedAt).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric'
+                })
+              }));
+            }
+          }
+        }
+      }
+
+      const formattedHandle = ch.snippet?.customUrl
+        ? ch.snippet.customUrl.startsWith('@')
+          ? ch.snippet.customUrl
+          : `@${ch.snippet.customUrl}`
+        : `@${ch.snippet?.title?.replace(/\s+/g, '') || 'MyChannel'}`;
+
+      setYtChannel((prev) => ({
+        ...(prev || {}),
+        handle: formattedHandle,
+        channelId: ch.id,
+        title: ch.snippet?.title || '',
+        avatar: ch.snippet?.thumbnails?.default?.url || ''
+      }));
+
+      setYtStats({
+        title: ch.snippet?.title || 'My YouTube Channel',
+        customUrl: formattedHandle,
+        avatar: ch.snippet?.thumbnails?.medium?.url || ch.snippet?.thumbnails?.default?.url || '',
+        subscribers: Number(ch.statistics?.subscriberCount || 0).toLocaleString(),
+        totalViews: Number(ch.statistics?.viewCount || 0).toLocaleString(),
+        videoCount: Number(ch.statistics?.videoCount || 0).toLocaleString(),
+        country: ch.snippet?.country || 'IN',
+        recentVideos: videosList,
+        loading: false,
+        isConnected: true
+      });
+    } catch {
+      setYtStats((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  useEffect(() => {
+    fetchConnectedChannelAnalytics();
+  }, [ytChannel?.accessToken, activeTab]);
     if (e) e.preventDefault();
     setConnectError('');
     handleSaveUserYoutubeApi();
@@ -934,23 +1057,118 @@ export default function App() {
             </>
           )}
 
-          {activeTab === 'analytics' && (
+{activeTab === 'analytics' && (
             <div className="space-y-4 pt-2">
-              <h2 className="text-lg font-extrabold text-white">Channel Analytics</h2>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-4 rounded-2xl bg-[#110c22] border border-emerald-500/30">
-                  <div className="text-xs text-slate-400">Subscribers</div>
-                  <div className="text-2xl font-extrabold text-white mt-1">{ytStats.subscribers}</div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-extrabold text-white">My Channel Analytics</h2>
+                  <p className="text-[11px] text-slate-400">Live data exclusively from your connected channel</p>
                 </div>
-                <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/30">
-                  <div className="text-xs text-slate-400">Total Shorts Views</div>
-                  <div className="text-2xl font-extrabold text-cyan-300 mt-1">{ytStats.totalViews}</div>
+                {ytStats.isConnected && (
+                  <button
+                    onClick={fetchConnectedChannelAnalytics}
+                    className="px-3 py-1.5 rounded-xl bg-purple-600/25 border border-purple-400/40 text-xs font-bold text-purple-200 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${ytStats.loading ? 'animate-spin' : ''}`} />
+                    <span>Refresh</span>
+                  </button>
+                )}
+              </div>
+
+              {!ytStats.isConnected ? (
+                <div className="p-6 rounded-3xl bg-[#110c22] border border-dashed border-cyan-500/40 text-center space-y-3">
+                  <Youtube className="w-12 h-12 text-red-500 mx-auto" />
+                  <div className="text-sm font-extrabold text-white">No YouTube Channel Connected</div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Apne channel ke real subscribers, total views aur recent Shorts ki performance dekhne ke liye apna YouTube account connect karein.
+                  </p>
+                  <button
+                    onClick={() => setIsConnectModalOpen(true)}
+                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-red-600 via-pink-600 to-purple-600 text-xs font-extrabold text-white shadow-lg cursor-pointer"
+                  >
+                    Connect My YouTube Channel
+                  </button>
                 </div>
-              </div>
-              <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-1">
-                <div className="text-xs font-extrabold text-pink-400">🇮🇳 Peak Audience Window</div>
-                <p className="text-xs text-slate-200">{audienceInsight.peakHourLabel}</p>
-              </div>
+              ) : (
+                <>
+                  {/* CONNECTED CHANNEL PROFILE CARD */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-[#1a0f36] to-[#110c22] border border-purple-400/40 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {ytStats.avatar ? (
+                        <img src={ytStats.avatar} alt={ytStats.title} className="w-12 h-12 rounded-full border-2 border-cyan-400 object-cover shrink-0" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-purple-600 flex items-center justify-center font-extrabold text-sm">YT</div>
+                      )}
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-extrabold text-white truncate">{ytStats.title}</h3>
+                        <p className="text-xs text-cyan-300 font-mono truncate">{ytStats.customUrl}</p>
+                        <span className="inline-block mt-1 text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
+                          ✓ Official Live Sync ({ytStats.country})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* REAL CHANNEL STATS */}
+                  <div className="grid grid-cols-3 gap-2.5">
+                    <div className="p-3.5 rounded-2xl bg-[#110c22] border border-emerald-500/30 text-center">
+                      <div className="text-[10px] text-slate-400">Subscribers</div>
+                      <div className="text-lg font-extrabold text-emerald-400 mt-1">{ytStats.subscribers}</div>
+                    </div>
+                    <div className="p-3.5 rounded-2xl bg-[#110c22] border border-cyan-500/30 text-center">
+                      <div className="text-[10px] text-slate-400">Total Views</div>
+                      <div className="text-lg font-extrabold text-cyan-300 mt-1">{ytStats.totalViews}</div>
+                    </div>
+                    <div className="p-3.5 rounded-2xl bg-[#110c22] border border-purple-500/30 text-center">
+                      <div className="text-[10px] text-slate-400">Total Videos</div>
+                      <div className="text-lg font-extrabold text-purple-300 mt-1">{ytStats.videoCount}</div>
+                    </div>
+                  </div>
+
+                  {/* RECENT VIDEOS FROM THIS CHANNEL ONLY */}
+                  <div className="space-y-2.5">
+                    <h3 className="text-xs font-extrabold text-slate-300">
+                      Your Channel's Recent Uploads ({ytStats.recentVideos.length})
+                    </h3>
+
+                    {ytStats.recentVideos.length === 0 ? (
+                      <div className="p-4 rounded-2xl bg-[#110c22] border border-slate-800 text-xs text-slate-400 text-center">
+                        Is channel par abhi koi public video nahi mila.
+                      </div>
+                    ) : (
+                      ytStats.recentVideos.map((vid) => (
+                        <div
+                          key={vid.id}
+                          className="p-3 rounded-2xl bg-[#110c22] border border-purple-500/30 flex items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {vid.thumbnail && (
+                              <img src={vid.thumbnail} alt="" className="w-16 h-12 rounded-xl object-cover shrink-0 border border-slate-700" />
+                            )}
+                            <div className="min-w-0">
+                              <div className="text-xs font-extrabold text-white truncate">{vid.title}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5">Published: {vid.publishedAt}</div>
+                              <div className="flex items-center gap-3 mt-1 text-[10px] font-bold">
+                                <span className="text-cyan-300">👁️ {vid.views} views</span>
+                                <span className="text-pink-400">👍 {vid.likes}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <a
+                            href={`https://youtube.com/shorts/${vid.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-[10px] font-bold text-white shrink-0"
+                          >
+                            Watch ↗
+                          </a>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
