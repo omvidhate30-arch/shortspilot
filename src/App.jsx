@@ -3,8 +3,8 @@ import {
   Sparkles, Upload, Play, CheckCircle2, Shield,
   Youtube, X, Trash2, RefreshCw, Calendar,
   Clock, Eye, Users, Bot, Crown, Tag,
-  Bell, Flame, Star, ChevronDown, Edit3, Layers,
-  Home, MoreVertical, Sun, Moon, Copy, TrendingUp, KeyRound
+  Bell, Flame, Star, Layers,
+  Home, Sun, Moon, Copy, KeyRound
 } from 'lucide-react';
 
 import Header from './Header';
@@ -115,12 +115,6 @@ export default function App() {
   ]);
   const [supportInput, setSupportInput] = useState('');
 
-  const [audienceInsight] = useState({
-    peakHour: 19,
-    peakMinute: 30,
-    peakHourLabel: '07:30 PM IST (High Evening Engagement)'
-  });
-
   const [gmailUser, setGmailUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('sp_gmail_user') || 'null'); } catch { return null; }
   });
@@ -129,7 +123,8 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('sp_yt_channel') || 'null'); } catch { return null; }
   });
 
-const [ytStats, setYtStats] = useState({
+  // REAL CONNECTED CHANNEL STATE (NO FAKE DATA)
+  const [ytStats, setYtStats] = useState({
     title: '',
     customUrl: '',
     avatar: '',
@@ -163,7 +158,7 @@ const [ytStats, setYtStats] = useState({
   const [liveDbUrl, setLiveDbUrl] = useState(() => localStorage.getItem('sp_firebase_url') || FIREBASE_DB_URL);
   const [transactions, setTransactions] = useState([]);
   const [clientsList, setClientsList] = useState([]);
-  const [storageUsedGB, setStorageUsedGB] = useState(14.8);
+  const [storageUsedGB, setStorageUsedGB] = useState(0);
 
   const fileInputRef = useRef(null);
   const ytChannelRef = useRef(ytChannel);
@@ -263,7 +258,7 @@ const [ytStats, setYtStats] = useState({
         window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
 
         const updatedCh = {
-          handle: ytChannelRef.current?.handle || '@ConnectedChannel',
+          handle: ytChannelRef.current?.handle || '',
           accessToken: newAccessToken,
           refreshToken: newRefreshToken || localStorage.getItem('sp_yt_refresh_token') || null,
           isRealOAuth: true
@@ -419,7 +414,28 @@ const [ytStats, setYtStats] = useState({
   };
 
   const handleFetchChannelViaApiKey = async (e) => {
-const fetchConnectedChannelAnalytics = async () => {
+    if (e) e.preventDefault();
+    setConnectError('');
+    handleSaveUserYoutubeApi();
+
+    const cleanedHandle = ytHandleInput.trim().replace(/^https?:\/\/(www\.)?youtube\.com\//i, '');
+    if (!cleanedHandle) return setConnectError('Please enter your YouTube @handle.');
+    const formattedHandle = cleanedHandle.startsWith('@') ? cleanedHandle : `@${cleanedHandle}`;
+
+    const chObj = {
+      handle: formattedHandle,
+      accessToken: localStorage.getItem('sp_yt_access_token') || null,
+      isRealOAuth: Boolean(localStorage.getItem('sp_yt_access_token'))
+    };
+    setYtChannel(chObj);
+    ytChannelRef.current = chObj;
+    setYtHandleInput('');
+    setIsConnectModalOpen(false);
+    setTimeout(() => fetchConnectedChannelAnalytics(), 200);
+  };
+
+  // --- FETCH ONLY CONNECTED USER'S REAL YOUTUBE CHANNEL ANALYTICS ---
+  const fetchConnectedChannelAnalytics = async () => {
     const token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
     const handle = ytChannelRef.current?.handle;
     const apiKey = customYtApiKey.trim();
@@ -434,7 +450,7 @@ const fetchConnectedChannelAnalytics = async () => {
     try {
       let ch = null;
 
-      // 1. अगर यूज़र ने OAuth से लॉगिन किया है, तो सिर्फ उसी का चैनल (mine=true) लाएं
+      // 1. OAuth Token असल्यास फक्त लॉगिन केलेल्या युझरचेच चॅनल (mine=true) आणा
       if (token) {
         const res = await fetchWithAuth(
           'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true'
@@ -445,7 +461,7 @@ const fetchConnectedChannelAnalytics = async () => {
         }
       }
 
-      // 2. अगर API Key और Handle से जोड़ा है, तो सिर्फ उसी Handle का डेटा लाएं
+      // 2. API Key आणि @Handle असल्यास फक्त त्याच चॅनलचा डेटा आणा
       if (!ch && handle && apiKey) {
         const cleanH = handle.startsWith('@') ? handle : `@${handle}`;
         const res = await fetch(
@@ -465,7 +481,7 @@ const fetchConnectedChannelAnalytics = async () => {
       const uploadsPlaylistId = ch?.contentDetails?.relatedPlaylists?.uploads;
       let videosList = [];
 
-      // यूज़र के खुद के चैनल के लेटेस्ट 10 वीडियोज़ और उनके असली व्यूज/लाइक्स लाएं
+      // युझरच्या स्वतःच्या चॅनलचे लेटेस्ट 10 व्हिडिओ आणि व्ह्यूज/लाइक्स आणा
       if (uploadsPlaylistId && (token || apiKey)) {
         const plUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=10&playlistId=${uploadsPlaylistId}${
           !token && apiKey ? `&key=${encodeURIComponent(apiKey)}` : ''
@@ -537,42 +553,25 @@ const fetchConnectedChannelAnalytics = async () => {
   useEffect(() => {
     fetchConnectedChannelAnalytics();
   }, [ytChannel?.accessToken, activeTab]);
-    if (e) e.preventDefault();
-    setConnectError('');
-    handleSaveUserYoutubeApi();
 
-    const cleanedHandle = ytHandleInput.trim().replace(/^https?:\/\/(www\.)?youtube\.com\//i, '');
-    if (!cleanedHandle) return setConnectError('Please enter your YouTube @handle.');
-    const formattedHandle = cleanedHandle.startsWith('@') ? cleanedHandle : `@${cleanedHandle}`;
-
-    if (customYtApiKey.trim()) {
-      try {
-        const apiUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forHandle=${encodeURIComponent(
-          formattedHandle
-        )}&key=${encodeURIComponent(customYtApiKey.trim())}`;
-        const res = await fetch(apiUrl);
-        const data = await res.json();
-        const ch = data?.items?.[0];
-        if (ch) {
-          setYtStats({
-            subscribers: Number(ch.statistics?.subscriberCount || 0).toLocaleString(),
-            totalViews: Number(ch.statistics?.viewCount || 0).toLocaleString(),
-            videoCount: Number(ch.statistics?.videoCount || 0).toLocaleString(),
-            country: ch.snippet?.country || 'IN',
-            loading: false
-          });
-        }
-      } catch {}
-    }
-
-    const chObj = {
-      handle: formattedHandle,
-      accessToken: localStorage.getItem('sp_yt_access_token') || null,
-      isRealOAuth: Boolean(localStorage.getItem('sp_yt_access_token'))
-    };
-    setYtChannel(chObj);
-    setYtHandleInput('');
-    setIsConnectModalOpen(false);
+  const handleDisconnectChannel = () => {
+    localStorage.removeItem('sp_yt_access_token');
+    localStorage.removeItem('sp_yt_refresh_token');
+    localStorage.removeItem('sp_yt_channel');
+    setYtChannel(null);
+    ytChannelRef.current = null;
+    setYtStats({
+      title: '',
+      customUrl: '',
+      avatar: '',
+      subscribers: '0',
+      totalViews: '0',
+      videoCount: '0',
+      country: 'IN',
+      recentVideos: [],
+      loading: false,
+      isConnected: false
+    });
   };
 
   const uploadClipToYouTubeAPI = async (clip, scheduledIsoTime = null) => {
@@ -624,6 +623,7 @@ const fetchConnectedChannelAnalytics = async () => {
       const finalizedClip = { ...clip, status: useSchedule ? 'scheduled' : 'published', scheduledFor: scheduledIsoTime };
       await idbSaveClip(finalizedClip);
       setVideoQueue((prev) => prev.map((item) => (item.id === clip.id ? finalizedClip : item)));
+      fetchConnectedChannelAnalytics();
     } catch (err) {
       const fallbackReady = { ...clip, status: 'ready' };
       await idbSaveClip(fallbackReady);
@@ -848,15 +848,17 @@ const fetchConnectedChannelAnalytics = async () => {
                 </div>
               </div>
 
-              {/* 4 STATS CARDS */}
+              {/* 4 STATS CARDS (ONLY REAL CHANNEL DATA OR QUEUE COUNT) */}
               <div className="grid grid-cols-4 gap-2">
                 <div onClick={() => setActiveTab('projects')} className="p-2.5 rounded-2xl bg-[#0e0a1c] border border-blue-500/40 flex items-center gap-2 cursor-pointer">
                   <div className="w-8 h-8 rounded-full bg-blue-500/15 border border-blue-400/40 flex items-center justify-center shrink-0">
                     <Play className="w-3.5 h-3.5 text-cyan-400 fill-cyan-400 ml-0.5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-extrabold text-white leading-tight">{Number(ytStats.videoCount.replace(/,/g, '') || 247) + videoQueue.length}</div>
-                    <div className="text-[8.5px] text-slate-400 leading-tight truncate">Videos Posted</div>
+                    <div className="text-sm font-extrabold text-white leading-tight">
+                      {ytStats.isConnected ? Number(ytStats.videoCount.replace(/,/g, '') || 0) + videoQueue.length : videoQueue.length}
+                    </div>
+                    <div className="text-[8.5px] text-slate-400 leading-tight truncate">Videos</div>
                   </div>
                 </div>
 
@@ -865,9 +867,10 @@ const fetchConnectedChannelAnalytics = async () => {
                     <Users className="w-3.5 h-3.5 text-emerald-400" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-extrabold text-white leading-tight">{ytStats.subscribers}</div>
+                    <div className="text-sm font-extrabold text-white leading-tight">
+                      {ytStats.isConnected ? ytStats.subscribers : '--'}
+                    </div>
                     <div className="text-[8.5px] text-slate-400 leading-tight truncate">Subscribers</div>
-                    <div className="text-[8.5px] font-extrabold text-emerald-400 leading-tight">↑ +18%</div>
                   </div>
                 </div>
 
@@ -876,9 +879,10 @@ const fetchConnectedChannelAnalytics = async () => {
                     <Eye className="w-3.5 h-3.5 text-purple-400" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-extrabold text-white leading-tight">{ytStats.totalViews}</div>
+                    <div className="text-sm font-extrabold text-white leading-tight">
+                      {ytStats.isConnected ? ytStats.totalViews : '--'}
+                    </div>
                     <div className="text-[8.5px] text-slate-400 leading-tight truncate">Total Views</div>
-                    <div className="text-[8.5px] font-extrabold text-emerald-400 leading-tight">↑ +46%</div>
                   </div>
                 </div>
 
@@ -888,7 +892,7 @@ const fetchConnectedChannelAnalytics = async () => {
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs font-extrabold text-white leading-tight">9.8/10</div>
-                    <div className="text-[8.5px] text-slate-400 leading-tight truncate">Viral Score</div>
+                    <div className="text-[8.5px] text-slate-400 leading-tight truncate">AI Score</div>
                   </div>
                 </div>
               </div>
@@ -993,15 +997,15 @@ const fetchConnectedChannelAnalytics = async () => {
                 </button>
               </div>
 
-              {/* RECENT POSTS */}
+              {/* RECENT POSTS (ONLY USER'S OWN UPLOADED OR CONNECTED CHANNEL VIDEOS) */}
               <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-pink-400" />
-                    <h3 className="text-sm font-extrabold text-white">Recent Posts</h3>
+                    <h3 className="text-sm font-extrabold text-white">Your Recent Posts</h3>
                   </div>
-                  <button onClick={() => setActiveTab('projects')} className="text-xs font-bold text-slate-300 hover:text-white cursor-pointer">
-                    View All →
+                  <button onClick={() => setActiveTab('analytics')} className="text-xs font-bold text-slate-300 hover:text-white cursor-pointer">
+                    Channel Analytics →
                   </button>
                 </div>
 
@@ -1018,7 +1022,7 @@ const fetchConnectedChannelAnalytics = async () => {
                           <h4 className="text-xs font-extrabold text-white truncate">{clip.title}</h4>
                           <p className="text-[10px] text-slate-400 truncate">Slot: Today, {selectedTimeSlot}</p>
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[9.5px] font-bold">
-                            <CheckCircle2 className="w-3 h-3" /> Published
+                            <CheckCircle2 className="w-3 h-3" /> {clip.status === 'uploading' ? 'Uploading...' : 'Scheduled'}
                           </span>
                         </div>
                       </div>
@@ -1029,35 +1033,42 @@ const fetchConnectedChannelAnalytics = async () => {
                   );
                 })}
 
-                <div className="p-3 rounded-2xl bg-gradient-to-r from-[#140e28] via-[#100b20] to-[#140e28] border border-purple-500/40 shadow-xl flex items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="relative w-20 h-14 rounded-xl overflow-hidden bg-slate-800 border border-purple-400/30 shrink-0">
-                      <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=240&auto=format&fit=crop&q=80" alt="Pune" className="w-full h-full object-cover" />
-                      <span className="absolute bottom-1 right-1 text-[9px] px-1.5 rounded bg-black/80 text-white font-mono font-bold">0:28</span>
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="text-[13px] font-extrabold text-white truncate">Hidden Places in Pune 🌱</h4>
-                      <p className="text-[10.5px] text-slate-300 mt-0.5">Posted: Today, 9:00 AM</p>
-                      <div className="inline-flex items-center gap-1 px-2.5 py-0.5 mt-1 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-bold">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                        <span>Published</span>
+                {videoQueue.length === 0 && ytStats.recentVideos.length > 0 && (
+                  ytStats.recentVideos.slice(0, 2).map((vid) => (
+                    <div key={vid.id} className="p-3 rounded-2xl bg-[#140e28] border border-purple-500/40 flex items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {vid.thumbnail && (
+                          <img src={vid.thumbnail} alt="" className="w-20 h-14 rounded-xl object-cover shrink-0 border border-purple-400/30" />
+                        )}
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-extrabold text-white truncate">{vid.title}</h4>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{vid.publishedAt} • {vid.views} views</p>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[9.5px] font-bold">
+                            <CheckCircle2 className="w-3 h-3" /> Live on Channel
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ))
+                )}
 
-                  <div className="px-3 py-1.5 rounded-2xl bg-[#1a1033] border border-cyan-400/40 text-center shrink-0">
-                    <div className="text-[9px] text-slate-200 font-bold flex items-center justify-center gap-1">
-                      <Flame className="w-3 h-3 text-orange-400 fill-orange-400" />
-                      <span>Viral Score</span>
-                    </div>
-                    <div className="text-sm font-extrabold text-cyan-300 leading-tight mt-0.5">9.8/10</div>
+                {videoQueue.length === 0 && ytStats.recentVideos.length === 0 && (
+                  <div className="p-4 rounded-2xl bg-[#110c22] border border-slate-800 text-center space-y-2">
+                    <p className="text-xs text-slate-400">Abhi tak koi video queue mein nahi hai.</p>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 rounded-xl bg-purple-600/30 border border-purple-400/40 text-xs font-bold text-purple-200 cursor-pointer"
+                    >
+                      + Upload Your First Short
+                    </button>
                   </div>
-                </div>
+                )}
               </div>
             </>
           )}
 
-{activeTab === 'analytics' && (
+          {/* ================= ANALYTICS TAB: ONLY CONNECTED CHANNEL DATA ================= */}
+          {activeTab === 'analytics' && (
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between">
                 <div>
@@ -1080,7 +1091,7 @@ const fetchConnectedChannelAnalytics = async () => {
                   <Youtube className="w-12 h-12 text-red-500 mx-auto" />
                   <div className="text-sm font-extrabold text-white">No YouTube Channel Connected</div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Apne channel ke real subscribers, total views aur recent Shorts ki performance dekhne ke liye apna YouTube account connect karein.
+                    Yahan sirf aapke connect kiye gaye YouTube channel ke real subscribers, total views aur recent Shorts dikhenge. Kisi doosre channel ka data nahi dikhaya jayega.
                   </p>
                   <button
                     onClick={() => setIsConnectModalOpen(true)}
@@ -1107,6 +1118,13 @@ const fetchConnectedChannelAnalytics = async () => {
                         </span>
                       </div>
                     </div>
+
+                    <button
+                      onClick={handleDisconnectChannel}
+                      className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-[10px] font-bold text-rose-300 shrink-0 cursor-pointer"
+                    >
+                      Disconnect
+                    </button>
                   </div>
 
                   {/* REAL CHANNEL STATS */}
@@ -1181,6 +1199,7 @@ const fetchConnectedChannelAnalytics = async () => {
                 )}
               </div>
               <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 text-xs space-y-2">
+                <div className="flex justify-between"><span>Connected Channel:</span><span className="text-cyan-300 font-bold">{ytStats.isConnected ? ytStats.title : 'Not Connected'}</span></div>
                 <div className="flex justify-between"><span>Auto-Post 3x/Day:</span><span className="text-emerald-400 font-bold">Active (Default)</span></div>
                 <div className="flex justify-between"><span>API Mode:</span><span className="text-cyan-300 font-bold">{hasUserCustomApi ? 'User Custom API Active' : 'System Default API'}</span></div>
                 <div className="flex justify-between"><span>Vault Storage:</span><span className="text-purple-300 font-bold">{storageUsedGB} GB</span></div>
@@ -1291,7 +1310,7 @@ const fetchConnectedChannelAnalytics = async () => {
                 className="w-full py-3 rounded-2xl bg-gradient-to-r from-red-600 via-pink-600 to-purple-600 text-xs font-extrabold text-white flex items-center justify-center gap-2 shadow-lg cursor-pointer"
               >
                 <Youtube className="w-4 h-4" />
-                <span>{ytChannel ? `Connected (${ytChannel.handle}) — Reconnect` : 'Connect YouTube Channel (OAuth)'}</span>
+                <span>{ytStats.isConnected ? `Connected (${ytStats.title}) — Manage` : 'Connect YouTube Channel (OAuth)'}</span>
               </button>
 
               <button
@@ -1325,7 +1344,7 @@ const fetchConnectedChannelAnalytics = async () => {
             <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white">
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-base font-extrabold text-white">Connect YouTube & Custom API</h3>
+            <h3 className="text-base font-extrabold text-white">Connect Your YouTube Channel</h3>
             {connectError && <p className="text-xs text-amber-300 bg-amber-500/10 p-2.5 rounded-xl">{connectError}</p>}
 
             <div className="p-3.5 rounded-2xl bg-[#120d24] border border-purple-500/30 space-y-2.5">
@@ -1373,7 +1392,7 @@ const fetchConnectedChannelAnalytics = async () => {
                 </button>
               </div>
             </div>
-            <div className="text-[11px] text-slate-500">ShortsPilot AI • Full Admin Ready</div>
+            <div className="text-[11px] text-slate-500">ShortsPilot AI • Real Channel Sync</div>
           </div>
           <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
         </div>
