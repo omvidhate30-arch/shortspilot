@@ -1534,7 +1534,7 @@ VIRAL_ANALYSIS: <Brief hook, retention & improvement analysis>`;
 
         await idbSaveClip(readyClip);
         setVideoQueue((prev) => prev.map((item) => (item.id === clipId ? readyClip : item)));
-        await uploadClipToYouTubeAPI(readyClip, targetIso);
+        // अगर 'manual_hold' चुना है तो वीडियो को Vault में तैयार रखें ताकि यूजर खुद बटन दबाकर पोस्ट करे         if (autoPostCadence !== 'manual_hold') {           await uploadClipToYouTubeAPI(readyClip, targetIso);         }
       }
     }
 
