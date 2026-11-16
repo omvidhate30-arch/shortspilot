@@ -1304,30 +1304,20 @@ export default function App() {
         </div>
       )}
 
-      {/* ADMIN MODAL */}
-      {isAdminOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
-          <div className="relative w-full max-w-md rounded-3xl bg-[#090714] border border-pink-500/50 p-6 space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-base font-extrabold text-white">Master Owner Admin</h3>
-              <button onClick={() => setIsAdminOpen(false)} className="text-slate-400"><X className="w-5 h-5" /></button>
-            </div>
-            {!isAdminUnlocked ? (
-              <form onSubmit={handleAdminUnlock} className="space-y-3">
-                <input type="password" value={pinInput} onChange={(e) => setPinInput(e.target.value)} placeholder="Enter Master PIN" className="w-full px-3 py-2.5 rounded-xl bg-[#05040a] border border-slate-700 text-xs text-center text-white" />
-                {pinError && <p className="text-xs text-rose-400">{pinError}</p>}
-                <button type="submit" className="w-full py-2.5 rounded-xl bg-pink-600 text-white text-xs font-extrabold">Unlock</button>
-              </form>
-            ) : (
-              <div className="space-y-2 text-xs text-slate-200">
-                <div className="p-3 rounded-xl bg-emerald-500/15 text-emerald-300 font-bold">✅ Admin Unlocked</div>
-                <div>UPI: {globalConfig.receiverUpi}</div>
-                <div>Yearly VIP Price: ₹{globalConfig.yearlyPrice}</div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+{/* FULL OWNER MASTER ADMIN CONSOLE */}
+      <AdminConsole
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
+        globalConfig={globalConfig}
+        setGlobalConfig={setGlobalConfig}
+        liveDbUrl={liveDbUrl}
+        setLiveDbUrl={(url) => localStorage.setItem('sp_firebase_url', url)}
+        transactions={typeof transactions !== 'undefined' ? transactions : []}
+        setTransactions={typeof setTransactions !== 'undefined' ? setTransactions : () => {}}
+        clientsList={typeof clientsList !== 'undefined' ? clientsList : []}
+        setClientsList={typeof setClientsList !== 'undefined' ? setClientsList : () => {}}
+        fetchFirebaseAll={typeof fetchFirebaseAll !== 'undefined' ? fetchFirebaseAll : () => {}}
+        gmailUser={gmailUser}
+        setTier={setTier}
+        setActivePlanType={typeof setActivePlanType !== 'undefined' ? setActivePlanType : () => {}}
+      />
