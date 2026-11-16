@@ -341,7 +341,7 @@ export default function App() {
   };
 
   // Multi-Slot Auto-Scheduler: Morning (9:00 AM), Afternoon (2:00 PM), Night (7:30 PM / Peak)
-  const getMultiSlotScheduleIso = (slotIndex = 0, mode = '3_daily', peakHour = 19, peakMinute = 30) => {
+  // Multi-Slot Auto-Scheduler: Morning (9:00 AM), Afternoon (2:00 PM), Night (7:30 PM)   const getMultiSlotScheduleIso = (slotIndex = 0, mode = '3_daily', peakHour = 19, peakMinute = 30) => {     const now = new Date();     const minFuture = now.getTime() + 5 * 60 * 1000; // सिर्फ 5 मिनट का बफर (ताकि 7:24 पर भी 7:30 का शेड्यूल लग जाए)      const dailySlots =       mode === '2_daily'         ? [             { hour: 9, minute: 0 },             { hour: peakHour, minute: peakMinute }           ]         : mode === 'daily_peak'         ? [{ hour: peakHour, minute: peakMinute }]         : [             { hour: 9, minute: 0 },             { hour: 14, minute: 0 },             { hour: peakHour, minute: peakMinute }           ];      const validTargets = [];     let dayCounter = 0;      while (validTargets.length <= slotIndex) {       for (const s of dailySlots) {         const candidate = new Date();         candidate.setDate(now.getDate() + dayCounter);         candidate.setHours(s.hour, s.minute, 0, 0);         if (candidate.getTime() > minFuture) {           validTargets.push(candidate);         }       }       dayCounter += 1;     }      // YouTube API को एकदम सटीक UTC ISO String चाहिए होती है     return validTargets[slotIndex].toISOString();   }; = (slotIndex = 0, mode = '3_daily', peakHour = 19, peakMinute = 30) => {
     const now = new Date();
     const minFuture = now.getTime() + 25 * 60 * 1000;
     const pad = (n) => String(n).padStart(2, '0');
