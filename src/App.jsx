@@ -4,7 +4,7 @@ import {
   Youtube, X, Trash2, RefreshCw, Calendar,
   Clock, Eye, Users, Bot, Crown, Tag,
   Bell, Star, Layers, Home, BarChart2 as ChartIcon,
-  Plus, FolderKanban, Settings, Sun, Moon, Copy, KeyRound, Menu, Flame, Zap, TrendingUp, Check
+  Plus, FolderKanban, Settings, Sun, Moon, Copy, KeyRound, Menu, Flame, Zap, TrendingUp
 } from 'lucide-react';
 
 const DEFAULT_GOOGLE_CLIENT_ID =
@@ -137,20 +137,15 @@ const buildSmartAiVideoMetadata = (rawName, clipIndex = 0) => {
   let hashtags = '';
   const lower = cleanName.toLowerCase();
 
-  if (lower.includes('game') || lower.includes('ff') || lower.includes('freefire') || lower.includes('bgmi') || lower.includes('pubg') || lower.includes('gta') || lower.includes('clutch') || lower.includes('headshot') || lower.includes('kill')) {
+  if (lower.includes('game') || lower.includes('ff') || lower.includes('freefire') || lower.includes('bgmi') || lower.includes('clutch') || lower.includes('headshot')) {
     category = 'Gaming';
-    const hooks = [`INSANE 1v4 CLUTCH! ⚡ ${cleanName}`, `Ye Headshot Dekh Kar Shock Ho Jaoge 😱🔥`, `Impossible Gaming Moment 🎮 ${cleanName}`];
+    const hooks = [`INSANE 1v4 CLUTCH! ⚡ ${cleanName}`, `Ye Headshot Dekh Kar Shock Ho Jaoge 😱🔥`];
     title = hooks[clipIndex % hooks.length].slice(0, 75);
     hashtags = '#FreeFire #BGMI #GamingShorts #ClutchMoment #Shorts';
-  } else if (lower.includes('tech') || lower.includes('phone') || lower.includes('unboxing') || lower.includes('review') || lower.includes('ai')) {
-    category = 'Tech & Gadgets';
-    const hooks = [`Secret Tech Trick You Didn't Know 💡 ${cleanName}`, `Ye Feature Aapke Phone Mein Hai? 🤯`];
-    title = hooks[clipIndex % hooks.length].slice(0, 75);
-    hashtags = '#TechShorts #Gadgets #TechHacks #Shorts';
   } else {
     category = 'Viral Content';
     const smartTopic = cleanName.length > 2 ? cleanName : 'Viral Moment';
-    const hooks = [`${smartTopic} 😱 Wait For End!`, `99% Log Ye Nahi Jante 🔥 ${smartTopic}`, `Aakhir Mein Kya Hua? 🤯 ${smartTopic}`];
+    const hooks = [`${smartTopic} 😱 Wait For End!`, `99% Log Ye Nahi Jante 🔥 ${smartTopic}`];
     title = hooks[clipIndex % hooks.length].slice(0, 75);
     hashtags = '#Shorts #YouTubeShorts #ViralShorts #TrendingIndia #MustWatch';
   }
@@ -610,9 +605,17 @@ export default function App() {
   const [quotaUsed, setQuotaUsed] = useState(0);
   const [videoQueue, setVideoQueue] = useState([]);
 
-  const [autoPostCadence, setAutoPostCadence] = useState('3_daily');
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState('9:00 AM');
+  // Nearest Time Slot Calculation
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState(() => {
+    const now = new Date();
+    const h = now.getHours();
+    if (h < 13) return '9:00 AM (Nearest)';
+    if (h < 18) return '2:00 PM (Nearest)';
+    return '7:30 PM (Nearest)';
+  });
+
   const [customVideoTopic, setCustomVideoTopic] = useState('');
+  const [manualPostMode, setManualPostMode] = useState(false);
 
   const [activeToolModal, setActiveToolModal] = useState(null);
   const [thumbnailTopicInput, setThumbnailTopicInput] = useState('');
@@ -623,13 +626,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList] = useState([
-    { id: 1, title: '50K & 100K Views Guarantee Active 🚀', desc: 'New VIP terms & conditions added. Check pricing banner.', unread: true },
-    { id: 2, title: 'Smart AI Category Analysis Active 🤖', desc: 'Every uploaded video is analyzed for category-specific tags.', unread: true }
+    { id: 1, title: 'Nearest Slot & Manual Post Active ⚡', desc: 'Videos now auto-assign to the nearest active time slot with manual post override.', unread: true },
+    { id: 2, title: '50K & 100K Views Guarantee Active 🚀', desc: 'VIP pricing terms & conditions updated.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! Front page par 50K aur 100K Views Guarantee ke terms & conditions add kar diye gaye hain!' }
+    { role: 'ai', text: 'Namaste! Nearest time slot aur Manual Post ka option add kar diya gaya hai.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -667,7 +670,6 @@ export default function App() {
 
   const fileInputRef = useRef(null);
   const ytChannelRef = useRef(ytChannel);
-  const scheduleDayOffsetRef = useRef(0);
 
   const activeClientId = globalConfig.googleClientId || DEFAULT_GOOGLE_CLIENT_ID;
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
@@ -804,6 +806,7 @@ export default function App() {
     setYtStats({ title: '', customUrl: '', avatar: '', subscribers: '0', totalViews: '0', videoCount: '0', country: 'IN', recentVideos: [], loading: false, isConnected: false });
   };
 
+  // IMMEDIATE UPLOAD WITH NEAREST TIME SLOT & MANUAL POSTING
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
@@ -821,8 +824,7 @@ export default function App() {
 
       const vidInfo = await inspectVideoFast(file);
       const clipId = Date.now() + Math.random();
-      const slotOffset = scheduleDayOffsetRef.current++;
-      const aiMeta = buildSmartAiVideoMetadata(rawName, slotOffset);
+      const aiMeta = buildSmartAiVideoMetadata(rawName);
 
       const mins = Math.floor(vidInfo.duration / 60);
       const secs = Math.round(vidInfo.duration % 60);
@@ -833,7 +835,8 @@ export default function App() {
         category: aiMeta.category,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
-        status: 'scheduled',
+        status: manualPostMode ? 'manual_ready' : 'scheduled',
+        slot: manualPostMode ? 'Manual Post' : selectedTimeSlot,
         hookScore: aiMeta.hookScore,
         duration: `${mins}:${String(secs).padStart(2, '0')}`,
         croppedUrl: URL.createObjectURL(file),
@@ -842,6 +845,11 @@ export default function App() {
 
       await idbSaveClip(readyClip);
       setVideoQueue((prev) => [readyClip, ...prev]);
+
+      // If manual post mode is active, simulate instant publish/ready state
+      if (manualPostMode && ytStats.isConnected) {
+        alert(`✅ Video "${aiMeta.title}" is ready for Manual Post! Check Queue Vault.`);
+      }
     }
   };
 
@@ -948,21 +956,19 @@ export default function App() {
                 )}
               </div>
 
-              {/* AMAZING NEW REDESIGNED HERO BANNER */}
+              {/* HERO BANNER */}
               <div className="rounded-[28px] p-5 bg-gradient-to-br from-[#2a104e] via-[#150a2e] to-[#0c071d] border border-purple-500/40 shadow-[0_0_30px_rgba(168,85,247,0.2)] relative overflow-hidden space-y-4">
-                <div className="absolute -top-10 -right-10 w-32 h-32 bg-pink-500/20 rounded-full blur-2xl pointer-events-none" />
-                
                 <div className="flex items-center justify-between gap-2">
                   <div className="max-w-[62%] space-y-1.5">
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-400/40 text-[9.5px] font-extrabold text-pink-300">
-                      <Zap className="w-3 h-3 text-pink-400" /> AI Growth Engine
+                      <Zap className="w-3 h-3 text-pink-400" /> Nearest Slot Engine
                     </span>
                     <h2 className="text-[22px] font-extrabold text-white leading-[1.15] tracking-tight">
                       Automate Your <br />
                       YouTube <span className="bg-gradient-to-r from-pink-400 to-cyan-400 bg-clip-text text-transparent">Shorts</span>
                     </h2>
                     <p className="text-[10.5px] text-slate-300 font-medium">
-                      Smart Category AI Detect • 3x Daily Auto-Post
+                      Auto Nearest Slot ({selectedTimeSlot}) • Manual Post
                     </p>
                   </div>
 
@@ -979,11 +985,11 @@ export default function App() {
                   className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(56,189,248,0.4)] border border-white/20 active:scale-95 transition-all cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-white" />
-                  <span>Start Video Automation Now</span>
+                  <span>Upload & Auto-Post to Nearest Slot</span>
                 </button>
               </div>
 
-              {/* 50K & 100K VIEWS GUARANTEE & TERMS CARDS */}
+              {/* 50K & 100K VIEWS GUARANTEE CARDS */}
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2 px-1">
                   <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
@@ -991,34 +997,28 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5">
-                  {/* 50K Views Card */}
                   <div className="p-3.5 rounded-2xl bg-gradient-to-b from-[#16102b] to-[#0c0818] border border-cyan-500/40 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold text-cyan-300 uppercase tracking-wider">Monthly Plan</span>
+                      <span className="text-[10px] font-extrabold text-cyan-300 uppercase">Monthly Plan</span>
                       <span className="text-xs font-extrabold text-white">₹499/mo</span>
                     </div>
                     <div className="text-sm font-extrabold text-white flex items-center gap-1">
                       <TrendingUp className="w-4 h-4 text-emerald-400" />
                       <span>50K+ Views</span>
                     </div>
-                    <p className="text-[9.5px] text-slate-300 leading-relaxed">
-                      <b>Terms:</b> Consistent 3x daily uploads required. AI viral SEO tags enabled.
-                    </p>
+                    <p className="text-[9.5px] text-slate-300"><b>Terms:</b> Consistent uploads & AI tags enabled.</p>
                   </div>
 
-                  {/* 100K Views Card */}
                   <div className="p-3.5 rounded-2xl bg-gradient-to-b from-[#221033] to-[#11081f] border border-amber-500/50 space-y-2 shadow-lg">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold text-amber-300 uppercase tracking-wider">Yearly VIP</span>
+                      <span className="text-[10px] font-extrabold text-amber-300 uppercase">Yearly VIP</span>
                       <span className="text-xs font-extrabold text-amber-400">₹3,999/yr</span>
                     </div>
                     <div className="text-sm font-extrabold text-white flex items-center gap-1">
                       <Crown className="w-4 h-4 text-amber-400 fill-amber-400" />
                       <span>100K+ Views</span>
                     </div>
-                    <p className="text-[9.5px] text-slate-300 leading-relaxed">
-                      <b>Terms:</b> Priority auto-posting slot, custom hooks & 5x multi-part splitter.
-                    </p>
+                    <p className="text-[9.5px] text-slate-300"><b>Terms:</b> Priority slots & 5x multi-part splitter.</p>
                   </div>
                 </div>
               </div>
@@ -1043,7 +1043,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* AUTO-POST 3X / DAY CARD */}
+              {/* AUTO-POST & MANUAL POST CONTROLS CARD */}
               <div className="p-4 rounded-[24px] bg-[#130c26] border border-purple-400/35 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
@@ -1051,67 +1051,46 @@ export default function App() {
                       <Calendar className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-extrabold text-white">Auto-Post 3x / Day</h3>
-                      <p className="text-[10.5px] text-slate-300">Your Shorts will be automatically posted at:</p>
+                      <h3 className="text-sm font-extrabold text-white">Posting Mode</h3>
+                      <p className="text-[10.5px] text-slate-300">Current Slot: <span className="text-cyan-300 font-bold">{selectedTimeSlot}</span></p>
                     </div>
                   </div>
+
                   <button
-                    onClick={() => setAutoPostCadence((p) => (p === 'manual_hold' ? '3_daily' : 'manual_hold'))}
-                    className={`px-2.5 py-1 rounded-full border text-[10.5px] font-extrabold cursor-pointer ${
-                      autoPostCadence !== 'manual_hold' ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300' : 'bg-slate-800 border-slate-600 text-slate-400'
+                    onClick={() => setManualPostMode(!manualPostMode)}
+                    className={`px-3 py-1.5 rounded-full border text-[11px] font-extrabold cursor-pointer transition-all ${
+                      manualPostMode ? 'bg-amber-500/25 border-amber-400 text-amber-300' : 'bg-emerald-500/25 border-emerald-400 text-emerald-300'
                     }`}
                   >
-                    {autoPostCadence !== 'manual_hold' ? '● Active' : 'Paused'}
+                    {manualPostMode ? '⚡ Manual Post Mode' : '🤖 Nearest Slot Auto'}
                   </button>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  {['9:00 AM', '2:00 PM', '7:30 PM'].map((slot) => (
-                    <button
-                      key={slot}
-                      onClick={() => { setSelectedTimeSlot(slot); setAutoPostCadence('3_daily'); }}
-                      className={`py-2 rounded-full border text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1 ${
-                        selectedTimeSlot === slot ? 'bg-cyan-500/20 border-cyan-400 text-white' : 'bg-[#090614] border-slate-800 text-slate-300'
-                      }`}
-                    >
-                      {slot === '7:30 PM' ? <Moon className="w-3.5 h-3.5 text-purple-300" /> : <Sun className="w-3.5 h-3.5 text-amber-400" />}
-                      <span>{slot}</span>
-                    </button>
-                  ))}
                 </div>
               </div>
 
-{/* 4 NON-CLICKABLE STATIC TOOL BADGES */}
+              {/* 4 CLICKABLE TOOL CARDS */}
               <div className="grid grid-cols-4 gap-2">
-                <div className="p-2.5 rounded-2xl bg-[#130c26] border border-purple-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
+                <button onClick={() => setActiveToolModal('aiEdit')} className="p-2.5 rounded-2xl bg-[#130c26] border border-purple-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
                   <Sparkles className="w-5 h-5 text-purple-300 mt-1" />
                   <div>
-                    <div className="text-[10.5px] font-extrabold text-white">AI Edit</div>
+                    <div className="text-[10.5px] font-extrabold text-white">AI Edit ›</div>
                     <div className="text-[8px] text-slate-400">Auto Cut</div>
                   </div>
-                </div>
-
-                <div className="p-2.5 rounded-2xl bg-[#0c192c] border border-cyan-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
+                </button>
+                <button onClick={() => setActiveToolModal('hashtags')} className="p-2.5 rounded-2xl bg-[#0c192c] border border-cyan-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
                   <Tag className="w-5 h-5 text-cyan-300 mt-1" />
                   <div>
-                    <div className="text-[10.5px] font-extrabold text-white">Hashtags</div>
+                    <div className="text-[10.5px] font-extrabold text-white">Hashtags ›</div>
                     <div className="text-[8px] text-slate-400">Trending</div>
                   </div>
-                </div>
-
-                <div className="p-2.5 rounded-2xl bg-[#190c2c] border border-pink-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
+                </button>
+                <button onClick={() => setActiveToolModal('thumbnail')} className="p-2.5 rounded-2xl bg-[#190c2c] border border-pink-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
                   <Layers className="w-5 h-5 text-pink-300 mt-1" />
-                  <div>
-                    <div className="text-[10px] font-extrabold text-white">Thumbnail Gen</div>
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-2xl bg-[#0b1c29] border border-teal-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
+                  <div className="text-[10px] font-extrabold text-white">Thumbnail Gen ›</div>
+                </button>
+                <button onClick={() => setActiveToolModal('schedule')} className="p-2.5 rounded-2xl bg-[#0b1c29] border border-teal-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
                   <Calendar className="w-5 h-5 text-teal-300 mt-1" />
-                  <div>
-                    <div className="text-[10px] font-extrabold text-white">Schedule</div>
-                  </div>
-                </div>
+                  <div className="text-[10px] font-extrabold text-white">Schedule ›</div>
+                </button>
               </div>
 
               {/* RECENT POSTS */}
@@ -1135,6 +1114,7 @@ export default function App() {
                         <h4 className="text-xs font-extrabold text-white truncate">{clip.title}</h4>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold">{clip.category || 'General'}</span>
+                          <span className="text-[9px] text-cyan-300">{clip.slot}</span>
                         </div>
                       </div>
                     </div>
@@ -1236,7 +1216,7 @@ export default function App() {
                       </div>
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-white truncate">{clip.title}</div>
-                        <div className="text-[10px] text-cyan-300">Scheduled • {clip.duration}</div>
+                        <div className="text-[10px] text-cyan-300">{clip.slot} • {clip.duration}</div>
                       </div>
                     </div>
                     <button onClick={() => handleDeleteClip(clip.id)} className="p-1.5 text-rose-400 cursor-pointer shrink-0">
@@ -1304,7 +1284,7 @@ export default function App() {
                 <button onClick={() => { setIsAdminOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-pink-400">🔐 Owner Admin Console</button>
               </div>
             </div>
-            <div className="text-[10px] text-slate-500">Smart AI Categorization Build</div>
+            <div className="text-[10px] text-slate-500">Nearest Slot & Manual Mode</div>
           </div>
           <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
         </div>
@@ -1318,17 +1298,17 @@ export default function App() {
             {activeToolModal === 'aiEdit' && (
               <>
                 <h3 className="text-sm font-extrabold text-white">AI Edit & Category Detection</h3>
-                <input type="text" value={customVideoTopic} onChange={(e) => setCustomVideoTopic(e.target.value)} placeholder="Enter custom topic or leave blank for AI auto-detect..." className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-purple-500/40 text-xs text-white" />
+                <input type="text" value={customVideoTopic} onChange={(e) => setCustomVideoTopic(e.target.value)} placeholder="Enter custom topic or leave blank..." className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-purple-500/40 text-xs text-white" />
                 <button onClick={() => { setActiveToolModal(null); fileInputRef.current?.click(); }} className="w-full py-3 rounded-2xl bg-pink-600 text-xs font-extrabold text-white cursor-pointer">
-                  Select Video & Auto-Detect Category
+                  Select Video & Upload
                 </button>
               </>
             )}
             {activeToolModal === 'hashtags' && (
               <>
                 <h3 className="text-sm font-extrabold text-white">Smart Category Hashtags</h3>
-                <div className="p-3 rounded-xl bg-[#06040c] text-xs font-mono text-cyan-300">#Gaming #FreeFire #TechShorts #VlogShorts #ViralShorts #TrendingIndia #Shorts</div>
-                <button onClick={() => { navigator.clipboard.writeText('#Gaming #TechShorts #VlogShorts #ViralShorts #TrendingIndia'); alert('Hashtags Copied!'); }} className="w-full py-2.5 rounded-xl bg-cyan-500 text-black text-xs font-extrabold cursor-pointer">
+                <div className="p-3 rounded-xl bg-[#06040c] text-xs font-mono text-cyan-300">#Gaming #FreeFire #TechShorts #ViralShorts #TrendingIndia #Shorts</div>
+                <button onClick={() => { navigator.clipboard.writeText('#Gaming #FreeFire #TechShorts #ViralShorts #TrendingIndia'); alert('Hashtags Copied!'); }} className="w-full py-2.5 rounded-xl bg-cyan-500 text-black text-xs font-extrabold cursor-pointer">
                   Copy Smart Tags
                 </button>
               </>
@@ -1350,8 +1330,8 @@ export default function App() {
             )}
             {activeToolModal === 'schedule' && (
               <>
-                <h3 className="text-sm font-extrabold text-white">Auto-Post 3x/Day Schedule</h3>
-                <p className="text-xs text-slate-300">Active slots: 9:00 AM, 2:00 PM & 7:30 PM IST.</p>
+                <h3 className="text-sm font-extrabold text-white">Posting Schedule</h3>
+                <p className="text-xs text-slate-300">Active Nearest Slot: <b>{selectedTimeSlot}</b></p>
                 <button onClick={() => setActiveToolModal(null)} className="w-full py-2.5 rounded-xl bg-emerald-600 text-xs font-extrabold text-white cursor-pointer">Done</button>
               </>
             )}
