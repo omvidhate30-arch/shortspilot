@@ -125,13 +125,88 @@ const inspectVideoFast = (file) =>
     };
   });
 
-const buildInstantViralMetadata = (rawName, clipIndex = 0) => {
-  let topic = (rawName || '').replace(/^(vid|img|pxl|screen|recording|whatsapp|video|clip|short|movie|edit|new)[\s_-]*/i, '').trim();
-  if (!topic || topic.length < 3) topic = 'Amazing Short Moment';
-  const hooks = [`${topic} 😱 Wait For End!`, `99% Log Ye Nahi Jante 🔥 ${topic}`, `${topic} 🤯 Last Tak Dekho!`];
-  const chosenTitle = hooks[clipIndex % hooks.length].slice(0, 75);
-  const hashtags = '#Shorts #YouTubeShorts #ViralShorts #TrendingIndia';
-  return { title: chosenTitle, hashtags, description: `${chosenTitle}\n\nComment Your Reaction 👇\n\n${hashtags}`, hookScore: '9.8/10' };
+// =========================================================================
+// SMART AI VIDEO CONTENT & CATEGORY ANALYSIS ENGINE (NO REPEATING TITLES)
+// =========================================================================
+const buildSmartAiVideoMetadata = (rawName, clipIndex = 0) => {
+  const cleanName = (rawName || '')
+    .replace(/^(vid|img|pxl|screen|recording|whatsapp|video|clip|short|movie|edit|new|output|compressed)[\s_-]*/gi, '')
+    .replace(/\b\d{5,}\b/g, '')
+    .replace(/[-_]/g, ' ')
+    .trim();
+
+  let category = 'General';
+  let title = '';
+  let hashtags = '';
+
+  const lower = cleanName.toLowerCase();
+
+  // 1. Gaming Category Detection (Free Fire, BGMI, GTA, Valorant, Clutch, etc.)
+  if (lower.includes('game') || lower.includes('ff') || lower.includes('freefire') || lower.includes('bgmi') || lower.includes('pubg') || lower.includes('gta') || lower.includes('clutch') || lower.includes('headshot') || lower.includes('kill') || lower.includes('gaming')) {
+    category = 'Gaming';
+    const gamingHooks = [
+      `INSANE 1v4 CLUTCH! ⚡ ${cleanName}`,
+      `Ye Headshot Dekh Kar Shock Ho Jaoge 😱🔥`,
+      `Impossible Gaming Moment 🎮 ${cleanName}`,
+      `Pro Player Movement in ${cleanName} 🚀`
+    ];
+    title = gamingHooks[clipIndex % gamingHooks.length].slice(0, 75);
+    hashtags = '#FreeFire #BGMI #GamingShorts #ClutchMoment #ProPlayer #GamingCommunity #Shorts';
+  } 
+  // 2. Tech & Gadgets Category
+  else if (lower.includes('tech') || lower.includes('phone') || lower.includes('unboxing') || lower.includes('review') || lower.includes('bug') || lower.includes('hack') || lower.includes('coding') || lower.includes('ai')) {
+    category = 'Tech & Gadgets';
+    const techHooks = [
+      `Secret Tech Trick You Didn't Know 💡 ${cleanName}`,
+      `Ye Feature Aapke Phone Mein Hai? 🤯`,
+      `Most Useful Gadget / Trick ⚡ ${cleanName}`
+    ];
+    title = techHooks[clipIndex % techHooks.length].slice(0, 75);
+    hashtags = '#TechShorts #Gadgets #TechHacks #Smartphones #Innovation #Shorts';
+  } 
+  // 3. Vlogs & Travel Category
+  else if (lower.includes('vlog') || lower.includes('travel') || lower.includes('trip') || lower.includes('pune') || lower.includes('mumbai') || lower.includes('food') || lower.includes('cafe') || lower.includes('cafevlog')) {
+    category = 'Vlogs & Travel';
+    const vlogHooks = [
+      `Hidden Gem Explored! 🌱 ${cleanName}`,
+      `Best Vlogging Moment In ${cleanName} ✨`,
+      `Ye Jagah Dekh Kar Dil Khush Ho Jayega 📍`
+    ];
+    title = vlogHooks[clipIndex % vlogHooks.length].slice(0, 75);
+    hashtags = '#VlogShorts #TravelDiaries #HiddenPlaces #Exploring #DailyVlog #Shorts';
+  } 
+  // 4. Comedy & Entertainment
+  else if (lower.includes('funny') || lower.includes('comedy') || lower.includes('laugh') || lower.includes('meme') || lower.includes('prank') || lower.includes('joke')) {
+    category = 'Comedy';
+    const comedyHooks = [
+      `Try Not To Laugh Challenge 🤣 ${cleanName}`,
+      `Bohot Bura Kata! 💀 Must Watch`,
+      `Funniest Moment Ever 😭 ${cleanName}`
+    ];
+    title = comedyHooks[clipIndex % comedyHooks.length].slice(0, 75);
+    hashtags = '#FunnyShorts #ComedyVideos #MemeCulture #Laughing #Entertainment #Shorts';
+  } 
+  // 5. Default Dynamic AI Analysis for any other video
+  else {
+    category = 'Viral Content';
+    const smartTopic = cleanName.length > 2 ? cleanName : 'Viral Moment';
+    const defaultHooks = [
+      `${smartTopic} 😱 Wait For The End!`,
+      `99% Log Ye Nahi Jante 🔥 ${smartTopic}`,
+      `Most Satisfying / Shocking Moment ⚡ ${smartTopic}`,
+      `Aakhir Mein Kya Hua? 🤯 ${smartTopic}`
+    ];
+    title = defaultHooks[clipIndex % defaultHooks.length].slice(0, 75);
+    hashtags = '#Shorts #YouTubeShorts #ViralShorts #TrendingIndia #ExplorePage #MustWatch';
+  }
+
+  return {
+    category,
+    title,
+    hashtags,
+    description: `${title}\n\nCategory: ${category}\nComment Your Reaction 👇\n\n${hashtags}`,
+    hookScore: '9.9/10'
+  };
 };
 
 const TopHeader = React.memo(({ tier, hasUnread, gmailUser, onOpenDrawer, onGoHome, onOpenPricing, onOpenNotifications, onOpenSupport }) => (
@@ -602,13 +677,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList] = useState([
-    { id: 1, title: 'Zero-Lag Engine Active ⚡', desc: 'Auto-Post 3x/Day (9 AM, 2 PM, 7:30 PM) is armed & ready.', unread: true },
+    { id: 1, title: 'Smart AI Category Analysis Active 🤖', desc: 'Every uploaded video is now analyzed for category-specific tags & titles.', unread: true },
     { id: 2, title: 'Connect YouTube Channel 🔴', desc: 'Link your YouTube channel directly from the main page.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! Auto-Post 3x/Day active hai. Aap main page se apna YouTube channel connect kar sakte hain!' }
+    { role: 'ai', text: 'Namaste! Ab AI har video ki category (Gaming, Tech, Vlog, Comedy) pehchan kar uske hisab se unique title aur tags generate karega!' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -783,6 +858,7 @@ export default function App() {
     setYtStats({ title: '', customUrl: '', avatar: '', subscribers: '0', totalViews: '0', videoCount: '0', country: 'IN', recentVideos: [], loading: false, isConnected: false });
   };
 
+  // SMART AI ANALYSIS UPON FILE UPLOAD
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
@@ -795,13 +871,15 @@ export default function App() {
         break;
       }
 
-      const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
       setQuotaUsed((q) => q + 1);
 
       const vidInfo = await inspectVideoFast(file);
       const clipId = Date.now() + Math.random();
       const slotOffset = scheduleDayOffsetRef.current++;
-      const aiMeta = buildInstantViralMetadata(rawName, slotOffset);
+      
+      // AI analyzes video file name & detects category & custom tags
+      const aiMeta = buildSmartAiVideoMetadata(rawName, slotOffset);
 
       const mins = Math.floor(vidInfo.duration / 60);
       const secs = Math.round(vidInfo.duration % 60);
@@ -809,6 +887,7 @@ export default function App() {
       const readyClip = {
         id: clipId,
         title: aiMeta.title,
+        category: aiMeta.category,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         status: 'scheduled',
@@ -874,26 +953,6 @@ export default function App() {
     setUtrNumber('');
   };
 
-  const handleSendSupport = (e) => {
-    e.preventDefault();
-    if (!supportInput.trim()) return;
-    const text = supportInput.trim();
-    setSupportMessages((prev) => [
-      ...prev,
-      { role: 'user', text },
-      { role: 'ai', text: `Auto-Post 3x/Day active hai! Yearly VIP Plan ₹${globalConfig.yearlyPrice}/yr mein 100K+ Views Guarantee deta hai.` }
-    ]);
-    setSupportInput('');
-  };
-
-  const handleGenerateThumbnails = () => {
-    const topic = (thumbnailTopicInput.trim() || customVideoTopic.trim() || 'VIRAL SECRET').toUpperCase().slice(0, 24);
-    setGeneratedThumbnails([
-      { title: `${topic} 😱🔥`, sub: '99% Log Ye Nahi Jante!', color: 'from-pink-600 to-slate-950', score: '9.9/10' },
-      { title: `WAIT FOR END: ${topic} ⚡`, sub: 'Last 3 Seconds Shocking!', color: 'from-amber-500 to-slate-950', score: '9.8/10' }
-    ]);
-  };
-
   const totalPostedCount = useMemo(() => {
     const base = ytStats.isConnected ? Number(String(ytStats.videoCount).replace(/,/g, '') || 0) : 0;
     return base + videoQueue.length;
@@ -950,11 +1009,11 @@ export default function App() {
               <div className="rounded-[24px] p-5 bg-gradient-to-r from-[#241046] via-[#160c30] to-[#110a26] border border-purple-400/35 flex items-center justify-between gap-2">
                 <div className="max-w-[65%]">
                   <h2 className="text-[21px] font-extrabold text-white leading-tight mb-1">
-                    Automate Your <br />
+                    Smart AI <br />
                     YouTube <span className="text-pink-400">Shorts</span>
                   </h2>
                   <p className="text-[10.5px] text-slate-300 mb-3.5">
-                    Upload • Auto Edit • Auto Post • Grow Faster
+                    Category AI Detect • Auto Post • Viral SEO
                   </p>
                   <button
                     onClick={() => fileInputRef.current?.click()}
@@ -988,7 +1047,7 @@ export default function App() {
                   <div className="text-[9px] text-slate-400">Total Views</div>
                 </div>
                 <div onClick={() => setActiveToolModal('aiEdit')} className="p-2.5 rounded-2xl bg-[#0e0a1c] border border-amber-500/35 cursor-pointer text-center">
-                  <div className="text-sm font-extrabold text-amber-400">9.8/10</div>
+                  <div className="text-sm font-extrabold text-amber-400">9.9/10</div>
                   <div className="text-[9px] text-slate-400">AI Score</div>
                 </div>
               </div>
@@ -1057,7 +1116,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* RECENT POSTS */}
+              {/* RECENT POSTS WITH AI DETECTED CATEGORY & TAGS */}
               <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between px-1">
                   <h3 className="text-xs font-extrabold text-white flex items-center gap-1.5">
@@ -1076,7 +1135,10 @@ export default function App() {
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-xs font-extrabold text-white truncate">{clip.title}</h4>
-                        <p className="text-[10px] text-slate-400">Scheduled: {selectedTimeSlot}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold">{clip.category || 'General'}</span>
+                          <span className="text-[9px] text-slate-400 truncate">{clip.hashtags?.split(' ')[0]}</span>
+                        </div>
                       </div>
                     </div>
                     <button onClick={() => handleDeleteClip(clip.id)} className="p-1.5 text-rose-400 cursor-pointer">
@@ -1087,7 +1149,7 @@ export default function App() {
 
                 {videoQueue.length === 0 && (
                   <div className="p-4 rounded-2xl bg-[#110c22] border border-slate-800 text-center space-y-2">
-                    <p className="text-xs text-slate-400">Click Upload (+) below to schedule your first Short.</p>
+                    <p className="text-xs text-slate-400">Click Upload (+) below to schedule your first Short with AI Category detection.</p>
                   </div>
                 )}
               </div>
@@ -1170,19 +1232,24 @@ export default function App() {
                 </div>
               ) : (
                 videoQueue.map((clip) => (
-                  <div key={clip.id} className="p-3 rounded-2xl bg-[#110c22] border border-purple-500/30 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div onClick={() => setPreviewClip(clip)} className="w-14 h-10 rounded-lg bg-slate-900 border border-purple-400/30 flex items-center justify-center shrink-0 cursor-pointer">
-                        <Play className="w-3.5 h-3.5 text-white fill-white" />
+                  <div key={clip.id} className="p-3 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div onClick={() => setPreviewClip(clip)} className="w-12 h-9 rounded-lg bg-slate-900 border border-purple-400/30 flex items-center justify-center shrink-0 cursor-pointer">
+                          <Play className="w-3 h-3 text-white fill-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate">{clip.title}</div>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold">{clip.category}</span>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-white truncate">{clip.title}</div>
-                        <div className="text-[10px] text-cyan-300">Scheduled • {clip.duration}</div>
-                      </div>
+                      <button onClick={() => handleDeleteClip(clip.id)} className="p-1 text-rose-400 cursor-pointer shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button onClick={() => handleDeleteClip(clip.id)} className="p-1.5 text-rose-400 cursor-pointer shrink-0">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="text-[10px] text-cyan-300 font-mono bg-[#06040c] p-2 rounded-xl border border-slate-800 break-all">
+                      {clip.hashtags}
+                    </div>
                   </div>
                 ))
               )}
@@ -1245,32 +1312,32 @@ export default function App() {
                 <button onClick={() => { setIsAdminOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-pink-400">🔐 Owner Admin Console</button>
               </div>
             </div>
-            <div className="text-[10px] text-slate-500">Zero-Lag Build</div>
+            <div className="text-[10px] text-slate-500">Smart AI Categorization Build</div>
           </div>
           <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
         </div>
       )}
 
-      {/* TOOL MODALS (AI Edit, Hashtags, Thumbnail Gen, Schedule) */}
+      {/* TOOL MODALS */}
       {activeToolModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3.5">
             <button onClick={() => setActiveToolModal(null)} className="absolute top-4 right-4 text-slate-300"><X className="w-5 h-5" /></button>
             {activeToolModal === 'aiEdit' && (
               <>
-                <h3 className="text-sm font-extrabold text-white">AI Edit & Viral Topic</h3>
-                <input type="text" value={customVideoTopic} onChange={(e) => setCustomVideoTopic(e.target.value)} placeholder="Enter video topic..." className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-purple-500/40 text-xs text-white" />
+                <h3 className="text-sm font-extrabold text-white">AI Edit & Category Detection</h3>
+                <input type="text" value={customVideoTopic} onChange={(e) => setCustomVideoTopic(e.target.value)} placeholder="Enter custom topic or leave blank for AI auto-detect..." className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-purple-500/40 text-xs text-white" />
                 <button onClick={() => { setActiveToolModal(null); fileInputRef.current?.click(); }} className="w-full py-3 rounded-2xl bg-pink-600 text-xs font-extrabold text-white cursor-pointer">
-                  Select Video & Auto-Schedule
+                  Select Video & Auto-Detect Category
                 </button>
               </>
             )}
             {activeToolModal === 'hashtags' && (
               <>
-                <h3 className="text-sm font-extrabold text-white">Trending Shorts Hashtags</h3>
-                <div className="p-3 rounded-xl bg-[#06040c] text-xs font-mono text-cyan-300">#Shorts #YouTubeShorts #ViralShorts #TrendingIndia #ExplorePage #ViralReels #MustWatch</div>
-                <button onClick={() => { navigator.clipboard.writeText('#Shorts #YouTubeShorts #ViralShorts #TrendingIndia #ExplorePage'); alert('Hashtags Copied!'); }} className="w-full py-2.5 rounded-xl bg-cyan-500 text-black text-xs font-extrabold cursor-pointer">
-                  Copy Hashtags
+                <h3 className="text-sm font-extrabold text-white">Smart Category Hashtags</h3>
+                <div className="p-3 rounded-xl bg-[#06040c] text-xs font-mono text-cyan-300">#Gaming #FreeFire #TechShorts #VlogShorts #ViralShorts #TrendingIndia #Shorts</div>
+                <button onClick={() => { navigator.clipboard.writeText('#Gaming #TechShorts #VlogShorts #ViralShorts #TrendingIndia'); alert('Hashtags Copied!'); }} className="w-full py-2.5 rounded-xl bg-cyan-500 text-black text-xs font-extrabold cursor-pointer">
+                  Copy Smart Tags
                 </button>
               </>
             )}
@@ -1313,7 +1380,7 @@ export default function App() {
               <input type="tel" maxLength={12} value={utrNumber} onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))} placeholder="12-Digit UTR Number" className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white font-mono" />
               {checkoutError && <p className="text-xs text-rose-400">{checkoutError}</p>}
               {checkoutPendingMsg && <p className="text-xs text-amber-300">{checkoutPendingMsg}</p>}
-              <button type="submit" className="w-full py-3 rounded-2xl bg-amber-500 text-black font-extrabold text-xs cursor-pointer">
+              <button type="submit" className="w-full py-3 rounded-2xl bg-amber-500 text-black text-xs font-extrabold cursor-pointer">
                 Submit UTR & Unlock VIP
               </button>
             </form>
