@@ -605,8 +605,7 @@ export default function App() {
   const [quotaUsed, setQuotaUsed] = useState(0);
   const [videoQueue, setVideoQueue] = useState([]);
 
-  // Nearest Time Slot Calculation
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState(() => {
+  const [selectedTimeSlot] = useState(() => {
     const now = new Date();
     const h = now.getHours();
     if (h < 13) return '9:00 AM (Nearest)';
@@ -617,22 +616,15 @@ export default function App() {
   const [customVideoTopic, setCustomVideoTopic] = useState('');
   const [manualPostMode, setManualPostMode] = useState(false);
 
-  const [activeToolModal, setActiveToolModal] = useState(null);
-  const [thumbnailTopicInput, setThumbnailTopicInput] = useState('');
-  const [generatedThumbnails, setGeneratedThumbnails] = useState([
-    { title: 'WAIT FOR THE END 😱🔥', sub: '99% Log Ye Nahi Jante!', color: 'from-pink-600 to-slate-950', score: '9.9/10' },
-    { title: 'IMPOSSIBLE 1v4 CLUTCH ⚡', sub: 'Pure Goosebumps Moment', color: 'from-amber-500 to-slate-950', score: '9.8/10' }
-  ]);
-
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList] = useState([
-    { id: 1, title: 'Nearest Slot & Manual Post Active ⚡', desc: 'Videos now auto-assign to the nearest active time slot with manual post override.', unread: true },
-    { id: 2, title: '50K & 100K Views Guarantee Active 🚀', desc: 'VIP pricing terms & conditions updated.', unread: true }
+    { id: 1, title: 'Non-Clickable Tool Badges Active ⚡', desc: 'AI Edit, Hashtags, Thumbnail Gen & Schedule are now status badges.', unread: true },
+    { id: 2, title: '50K & 100K Views Guarantee Active 🚀', desc: 'VIP pricing terms & conditions updated on front page.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! Nearest time slot aur Manual Post ka option add kar diya gaya hai.' }
+    { role: 'ai', text: 'Namaste! Tools ab non-clickable status badges hain. Aap upload karke auto-post ya manual post kar sakte hain!' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -687,9 +679,9 @@ export default function App() {
         setGlobalConfig((prev) => ({ ...prev, ...cfgData }));
       }
       const txnData = await txnRes.json();
-      setTransactions(txnData && typeof txnData === 'object' ? Object.entries(txnData).map(([k, v]) => ({ firebaseKey: k, ...v })).reverse() : []);
+      setTransactions(txnData && typeof txnData === 'object' ? Object.entries(txnData).map(([k, v]) => ({ firebaseKey: k, ...v })) : []);
       const cliData = await cliRes.json();
-      setClientsList(cliData && typeof cliData === 'object' ? Object.entries(cliData).map(([k, v]) => ({ id: k, ...v })).reverse() : []);
+      setClientsList(cliData && typeof cliData === 'object' ? Object.entries(cliData).map(([k, v]) => ({ id: k, ...v })) : []);
     } catch {}
   }, [dbBase]);
 
@@ -806,7 +798,6 @@ export default function App() {
     setYtStats({ title: '', customUrl: '', avatar: '', subscribers: '0', totalViews: '0', videoCount: '0', country: 'IN', recentVideos: [], loading: false, isConnected: false });
   };
 
-  // IMMEDIATE UPLOAD WITH NEAREST TIME SLOT & MANUAL POSTING
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
@@ -845,11 +836,6 @@ export default function App() {
 
       await idbSaveClip(readyClip);
       setVideoQueue((prev) => [readyClip, ...prev]);
-
-      // If manual post mode is active, simulate instant publish/ready state
-      if (manualPostMode && ytStats.isConnected) {
-        alert(`✅ Video "${aiMeta.title}" is ready for Manual Post! Check Queue Vault.`);
-      }
     }
   };
 
@@ -1037,7 +1023,7 @@ export default function App() {
                   <div className="text-sm font-extrabold text-purple-300">{ytStats.isConnected ? ytStats.totalViews : '--'}</div>
                   <div className="text-[9px] text-slate-400">Total Views</div>
                 </div>
-                <div onClick={() => setActiveToolModal('aiEdit')} className="p-2.5 rounded-2xl bg-[#0e0a1c] border border-amber-500/35 cursor-pointer text-center">
+                <div onClick={() => setActiveTab('home')} className="p-2.5 rounded-2xl bg-[#0e0a1c] border border-amber-500/35 cursor-pointer text-center">
                   <div className="text-sm font-extrabold text-amber-400">9.9/10</div>
                   <div className="text-[9px] text-slate-400">AI Score</div>
                 </div>
@@ -1067,30 +1053,37 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 4 CLICKABLE TOOL CARDS */}
+              {/* 4 NON-CLICKABLE STATIC TOOL BADGES (OFF) */}
               <div className="grid grid-cols-4 gap-2">
-                <button onClick={() => setActiveToolModal('aiEdit')} className="p-2.5 rounded-2xl bg-[#130c26] border border-purple-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
+                <div className="p-2.5 rounded-2xl bg-[#130c26] border border-purple-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
                   <Sparkles className="w-5 h-5 text-purple-300 mt-1" />
                   <div>
-                    <div className="text-[10.5px] font-extrabold text-white">AI Edit ›</div>
+                    <div className="text-[10px] font-extrabold text-white">AI Edit</div>
                     <div className="text-[8px] text-slate-400">Auto Cut</div>
                   </div>
-                </button>
-                <button onClick={() => setActiveToolModal('hashtags')} className="p-2.5 rounded-2xl bg-[#0c192c] border border-cyan-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-[#0c192c] border border-cyan-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
                   <Tag className="w-5 h-5 text-cyan-300 mt-1" />
                   <div>
-                    <div className="text-[10.5px] font-extrabold text-white">Hashtags ›</div>
+                    <div className="text-[10px] font-extrabold text-white">Hashtags</div>
                     <div className="text-[8px] text-slate-400">Trending</div>
                   </div>
-                </button>
-                <button onClick={() => setActiveToolModal('thumbnail')} className="p-2.5 rounded-2xl bg-[#190c2c] border border-pink-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-[#190c2c] border border-pink-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
                   <Layers className="w-5 h-5 text-pink-300 mt-1" />
-                  <div className="text-[10px] font-extrabold text-white">Thumbnail Gen ›</div>
-                </button>
-                <button onClick={() => setActiveToolModal('schedule')} className="p-2.5 rounded-2xl bg-[#0b1c29] border border-teal-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
+                  <div>
+                    <div className="text-[10px] font-extrabold text-white">Thumbnail Gen</div>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-[#0b1c29] border border-teal-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
                   <Calendar className="w-5 h-5 text-teal-300 mt-1" />
-                  <div className="text-[10px] font-extrabold text-white">Schedule ›</div>
-                </button>
+                  <div>
+                    <div className="text-[10px] font-extrabold text-white">Schedule</div>
+                  </div>
+                </div>
               </div>
 
               {/* RECENT POSTS */}
@@ -1287,55 +1280,6 @@ export default function App() {
             <div className="text-[10px] text-slate-500">Nearest Slot & Manual Mode</div>
           </div>
           <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
-        </div>
-      )}
-
-      {/* TOOL MODALS */}
-      {activeToolModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3.5">
-            <button onClick={() => setActiveToolModal(null)} className="absolute top-4 right-4 text-slate-300"><X className="w-5 h-5" /></button>
-            {activeToolModal === 'aiEdit' && (
-              <>
-                <h3 className="text-sm font-extrabold text-white">AI Edit & Category Detection</h3>
-                <input type="text" value={customVideoTopic} onChange={(e) => setCustomVideoTopic(e.target.value)} placeholder="Enter custom topic or leave blank..." className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-purple-500/40 text-xs text-white" />
-                <button onClick={() => { setActiveToolModal(null); fileInputRef.current?.click(); }} className="w-full py-3 rounded-2xl bg-pink-600 text-xs font-extrabold text-white cursor-pointer">
-                  Select Video & Upload
-                </button>
-              </>
-            )}
-            {activeToolModal === 'hashtags' && (
-              <>
-                <h3 className="text-sm font-extrabold text-white">Smart Category Hashtags</h3>
-                <div className="p-3 rounded-xl bg-[#06040c] text-xs font-mono text-cyan-300">#Gaming #FreeFire #TechShorts #ViralShorts #TrendingIndia #Shorts</div>
-                <button onClick={() => { navigator.clipboard.writeText('#Gaming #FreeFire #TechShorts #ViralShorts #TrendingIndia'); alert('Hashtags Copied!'); }} className="w-full py-2.5 rounded-xl bg-cyan-500 text-black text-xs font-extrabold cursor-pointer">
-                  Copy Smart Tags
-                </button>
-              </>
-            )}
-            {activeToolModal === 'thumbnail' && (
-              <>
-                <h3 className="text-sm font-extrabold text-white">Thumbnail Hook Generator</h3>
-                <div className="flex gap-2">
-                  <input type="text" value={thumbnailTopicInput} onChange={(e) => setThumbnailTopicInput(e.target.value)} placeholder="Topic..." className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white" />
-                  <button onClick={handleGenerateThumbnails} className="px-4 py-2 rounded-xl bg-pink-600 text-xs font-bold text-white">Go</button>
-                </div>
-                {generatedThumbnails.map((t, i) => (
-                  <div key={i} className={`p-3 rounded-xl bg-gradient-to-r ${t.color} flex justify-between`}>
-                    <span className="text-xs font-extrabold text-white">{t.title}</span>
-                    <span className="text-[10px] text-emerald-300 font-bold">{t.score}</span>
-                  </div>
-                ))}
-              </>
-            )}
-            {activeToolModal === 'schedule' && (
-              <>
-                <h3 className="text-sm font-extrabold text-white">Posting Schedule</h3>
-                <p className="text-xs text-slate-300">Active Nearest Slot: <b>{selectedTimeSlot}</b></p>
-                <button onClick={() => setActiveToolModal(null)} className="w-full py-2.5 rounded-xl bg-emerald-600 text-xs font-extrabold text-white cursor-pointer">Done</button>
-              </>
-            )}
-          </div>
         </div>
       )}
 
