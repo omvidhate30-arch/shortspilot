@@ -140,17 +140,17 @@ const buildSmartAiVideoMetadata = (rawName, clipIndex = 0) => {
   if (lower.includes('game') || lower.includes('ff') || lower.includes('freefire') || lower.includes('bgmi') || lower.includes('clutch') || lower.includes('headshot')) {
     category = 'Gaming';
     const hooks = [`INSANE 1v4 CLUTCH! ⚡ ${cleanName}`, `Ye Headshot Dekh Kar Shock Ho Jaoge 😱🔥`];
-    title = hooks[clipIndex % hooks.length].slice(0, 75);
+    title = (hooks[clipIndex % hooks.length] + ' #Shorts').slice(0, 75);
     hashtags = '#FreeFire #BGMI #GamingShorts #ClutchMoment #Shorts';
   } else {
     category = 'Viral Content';
     const smartTopic = cleanName.length > 2 ? cleanName : 'Viral Moment';
     const hooks = [`${smartTopic} 😱 Wait For End!`, `99% Log Ye Nahi Jante 🔥 ${smartTopic}`];
-    title = hooks[clipIndex % hooks.length].slice(0, 75);
+    title = (hooks[clipIndex % hooks.length] + ' #Shorts').slice(0, 75);
     hashtags = '#Shorts #YouTubeShorts #ViralShorts #TrendingIndia #MustWatch';
   }
 
-  return { category, title, hashtags, description: `${title}\n\nCategory: ${category}\nComment Your Reaction 👇\n\n${hashtags}`, hookScore: '9.9/10' };
+  return { category, title, hashtags, description: `${title}\n\nCategory: ${category}\nComment Your Reaction 👇\n\n${hashtags} #Shorts`, hookScore: '9.9/10' };
 };
 
 const TopHeader = React.memo(({ tier, hasUnread, gmailUser, onOpenDrawer, onGoHome, onOpenPricing, onOpenNotifications, onOpenSupport }) => (
@@ -614,16 +614,17 @@ export default function App() {
 
   const [customVideoTopic, setCustomVideoTopic] = useState('');
   const [autoPublishStatus, setAutoPublishStatus] = useState('');
+  const [manualPostMode, setManualPostMode] = useState(false);
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList] = useState([
-    { id: 1, title: 'Pro Direct YouTube Upload Active 🚀', desc: 'Uploads now push directly to your connected YouTube channel via API.', unread: true },
+    { id: 1, title: 'Shorts Feed Optimization Active 🚀', desc: 'Uploaded videos are published strictly as YouTube Shorts.', unread: true },
     { id: 2, title: '50K & 100K Views Guarantee Active 🚀', desc: 'VIP pricing terms & conditions updated on front page.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste Pro User! Settings mein aap YouTube API connect, disconnect aur Admin Console khol sakte hain.' }
+    { role: 'ai', text: 'Namaste Pro User! Videos ab strictly Shorts feed mein post ho rahe hain.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -680,7 +681,7 @@ export default function App() {
       const txnData = await txnRes.json();
       setTransactions(txnData && typeof txnData === 'object' ? Object.entries(txnData).map(([k, v]) => ({ firebaseKey: k, ...v })).reverse() : []);
       const cliData = await cliRes.json();
-      setClientsList(cliData && typeof cliData === 'object' ? Object.entries(cliData).map(([k, v]) => ({ id: k, ...v })).reverse() : []);
+      setClientsList(cliData && typeof cliData === 'object' ? Object.entries(cliData).map(([k, v]) => ({ id: k, ...v })) : []);
     } catch {}
   }, [dbBase]);
 
@@ -802,7 +803,7 @@ export default function App() {
     e.target.value = '';
     if (files.length === 0) return;
 
-    setAutoPublishStatus('Uploading & Publishing to YouTube...');
+    setAutoPublishStatus(manualPostMode ? 'Preparing Manual Post...' : 'Publishing to YouTube Shorts Feed...');
 
     for (const file of files) {
       const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
@@ -819,8 +820,8 @@ export default function App() {
         category: aiMeta.category,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
-        status: ytStats.isConnected ? 'Published Live' : 'Queue (Connect YT)',
-        slot: selectedTimeSlot,
+        status: manualPostMode ? 'Manual Ready' : (ytStats.isConnected ? 'Published to Shorts Feed' : 'Queue (Connect YT)'),
+        slot: manualPostMode ? 'Manual Post Mode' : selectedTimeSlot,
         hookScore: aiMeta.hookScore,
         duration: `${mins}:${String(secs).padStart(2, '0')}`,
         croppedUrl: URL.createObjectURL(file),
@@ -830,10 +831,15 @@ export default function App() {
       await idbSaveClip(readyClip);
       setVideoQueue((prev) => [readyClip, ...prev]);
 
-      if (ytStats.isConnected) {
+      if (!manualPostMode && ytStats.isConnected) {
         try {
           const metadata = {
-            snippet: { title: aiMeta.title, description: aiMeta.description, categoryId: '22' },
+            snippet: {
+              title: aiMeta.title,
+              description: `${aiMeta.description}\n\n#Shorts`,
+              categoryId: '22',
+              tags: ['Shorts', 'YouTubeShorts', 'ViralShorts']
+            },
             status: { privacyStatus: 'public' }
           };
           const initRes = await fetchWithAuth('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
@@ -851,7 +857,7 @@ export default function App() {
       }
     }
     setAutoPublishStatus('');
-    alert('🎉 Video successfully processed & pushed to YouTube!');
+    alert(manualPostMode ? '✅ Video saved in Queue for Manual Post!' : '🎉 Short successfully published directly to YouTube Shorts Feed!');
   };
 
   const handleDeleteClip = async (clipId) => {
@@ -904,8 +910,8 @@ export default function App() {
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Crown className="w-6 h-6 text-amber-400 fill-amber-400 shrink-0" />
                   <div className="min-w-0">
-                    <div className="text-xs font-extrabold text-amber-300 truncate">VIP Pro Automation Unlocked</div>
-                    <div className="text-[10px] text-slate-200">100K+ Views Guarantee & Direct API Active</div>
+                    <div className="text-xs font-extrabold text-amber-300 truncate">Shorts Feed Engine Active</div>
+                    <div className="text-[10px] text-slate-200">100K+ Views Guarantee & Shorts Optimization</div>
                   </div>
                 </div>
                 <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">PRO</span>
@@ -920,7 +926,7 @@ export default function App() {
                       {ytStats.isConnected ? `Connected: ${ytStats.title}` : 'Connect YouTube Channel'}
                     </div>
                     <div className="text-[10px] text-slate-300">
-                      {ytStats.isConnected ? 'Direct API Auto-Publish Active' : 'Link account for instant publishing'}
+                      {ytStats.isConnected ? 'Shorts Feed Auto-Publish Active' : 'Link account for publishing'}
                     </div>
                   </div>
                 </div>
@@ -940,19 +946,19 @@ export default function App() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="max-w-[62%] space-y-1.5">
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-400/40 text-[9.5px] font-extrabold text-pink-300">
-                      <Zap className="w-3 h-3 text-pink-400" /> Pro Instant Engine
+                      <Zap className="w-3 h-3 text-pink-400" /> Shorts Feed Engine
                     </span>
                     <h2 className="text-[22px] font-extrabold text-white leading-[1.15] tracking-tight">
-                      Automate Your <br />
+                      Publish to <br />
                       YouTube <span className="bg-gradient-to-r from-pink-400 to-cyan-400 bg-clip-text text-transparent">Shorts</span>
                     </h2>
                     <p className="text-[10.5px] text-slate-300 font-medium">
-                      Slot: {selectedTimeSlot}
+                      Mode: {manualPostMode ? 'Manual Post' : selectedTimeSlot}
                     </p>
                   </div>
 
                   <div onClick={() => fileInputRef.current?.click()} className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-purple-600/30 to-pink-600/30 border border-purple-400/50 flex items-center justify-center relative cursor-pointer shadow-xl shrink-0 group">
-                    <span className="absolute -top-1 right-0 px-2 py-0.5 rounded-md bg-cyan-500 text-[9px] font-extrabold text-black">PRO</span>
+                    <span className="absolute -top-1 right-0 px-2 py-0.5 rounded-md bg-cyan-500 text-[9px] font-extrabold text-black">SHORT</span>
                     <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-orange-500 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
                       <Play className="w-7 h-7 text-white fill-white ml-0.5" />
                     </div>
@@ -970,8 +976,32 @@ export default function App() {
                   className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(56,189,248,0.4)] border border-white/20 active:scale-95 transition-all cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-white" />
-                  <span>Upload & Publish to YouTube Instantly</span>
+                  <span>{manualPostMode ? 'Upload to Manual Vault' : 'Upload & Publish to Shorts Feed'}</span>
                 </button>
+              </div>
+
+              {/* AUTO-POST & MANUAL POST TOGGLE CARD */}
+              <div className="p-4 rounded-[24px] bg-[#130c26] border border-purple-400/35 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-purple-600/25 border border-purple-400/40 flex items-center justify-center">
+                      <Calendar className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white">Posting Control</h3>
+                      <p className="text-[10.5px] text-slate-300">Choose auto or manual upload mode</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setManualPostMode(!manualPostMode)}
+                    className={`px-3 py-1.5 rounded-full border text-[11px] font-extrabold cursor-pointer transition-all ${
+                      manualPostMode ? 'bg-amber-500/25 border-amber-400 text-amber-300' : 'bg-emerald-500/25 border-emerald-400 text-emerald-300'
+                    }`}
+                  >
+                    {manualPostMode ? '⚡ Manual Post Active' : '🤖 Nearest Slot Auto'}
+                  </button>
+                </div>
               </div>
 
               {/* 50K & 100K VIEWS GUARANTEE CARDS */}
@@ -1012,7 +1042,7 @@ export default function App() {
               <div className="grid grid-cols-4 gap-2">
                 <div onClick={() => setActiveTab('projects')} className="p-2.5 rounded-2xl bg-[#0e0a1c] border border-blue-500/35 cursor-pointer text-center">
                   <div className="text-sm font-extrabold text-white">{totalPostedCount}</div>
-                  <div className="text-[9px] text-slate-400">Videos</div>
+                  <div className="text-[9px] text-slate-400">Shorts</div>
                 </div>
                 <div onClick={() => setActiveTab('analytics')} className="p-2.5 rounded-2xl bg-[#0e0a1c] border border-emerald-500/35 cursor-pointer text-center">
                   <div className="text-sm font-extrabold text-emerald-400">{ytStats.isConnected ? ytStats.subscribers : '--'}</div>
@@ -1117,7 +1147,7 @@ export default function App() {
                   <Youtube className="w-10 h-10 text-red-500 mx-auto" />
                   <div className="text-sm font-extrabold text-white">No YouTube Channel Connected</div>
                   <p className="text-xs text-slate-400">
-                    Connect your YouTube channel to enable direct Pro auto-publishing.
+                    Connect your YouTube channel to enable direct Shorts feed publishing.
                   </p>
                   <button onClick={() => setIsConnectModalOpen(true)} className="w-full py-3 rounded-2xl bg-red-600 text-xs font-extrabold text-white cursor-pointer">
                     Connect My YouTube Channel
@@ -1148,7 +1178,7 @@ export default function App() {
                       <div className="text-base font-extrabold text-cyan-300">{ytStats.totalViews}</div>
                     </div>
                     <div className="p-3 rounded-2xl bg-[#110c22] border border-purple-500/30 text-center">
-                      <div className="text-[10px] text-slate-400">Videos</div>
+                      <div className="text-[10px] text-slate-400">Shorts Count</div>
                       <div className="text-base font-extrabold text-purple-300">{ytStats.videoCount}</div>
                     </div>
                   </div>
@@ -1171,7 +1201,7 @@ export default function App() {
                 <div className="p-8 rounded-3xl bg-[#110c22] border border-dashed border-purple-500/30 text-center space-y-2">
                   <p className="text-xs text-slate-400">Queue Vault is currently empty.</p>
                   <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 rounded-xl bg-purple-600/30 border border-purple-400/40 text-xs font-bold text-purple-200 cursor-pointer">
-                    + Upload Video
+                    + Upload Short
                   </button>
                 </div>
               ) : (
@@ -1195,7 +1225,7 @@ export default function App() {
             </div>
           )}
 
-          {/* SETTINGS TAB (RESTORED ALL OPTIONS) */}
+          {/* SETTINGS TAB */}
           {activeTab === 'settings' && (
             <div className="space-y-3.5 pt-2">
               <h2 className="text-base font-extrabold text-white">YouTube API & Settings</h2>
@@ -1220,7 +1250,7 @@ export default function App() {
 
               <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/30 space-y-2">
                 <div className="text-xs font-extrabold text-white">Google OAuth Client Configuration</div>
-                <p className="text-[10px] text-slate-400">Default Client ID and Secret are active for direct video uploads.</p>
+                <p className="text-[10px] text-slate-400">Default Client ID and Secret are active for direct Shorts feed uploads.</p>
                 <input type="text" readOnly value={activeClientId} className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono" />
               </div>
 
@@ -1267,7 +1297,7 @@ export default function App() {
                 <button onClick={() => { setIsAdminOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-pink-400">🔐 Owner Admin Console</button>
               </div>
             </div>
-            <div className="text-[10px] text-slate-500">VIP Pro Active Build</div>
+            <div className="text-[10px] text-slate-500">Shorts Feed Engine Build</div>
           </div>
           <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
         </div>
