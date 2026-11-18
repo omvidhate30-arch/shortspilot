@@ -601,7 +601,7 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState('home');
-  const [tier, setTier] = useState('pro'); // Pro/VIP unlocked by default
+  const [tier, setTier] = useState('pro');
   const [videoQueue, setVideoQueue] = useState([]);
 
   const [selectedTimeSlot] = useState(() => {
@@ -617,7 +617,8 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList] = useState([
-    { id: 1, title: 'Pro Direct YouTube Upload Active 🚀', desc: 'Manual or Auto uploads now push directly to your connected YouTube channel via API.', unread: true }
+    { id: 1, title: 'Pro Direct YouTube Upload Active 🚀', desc: 'Uploads now push directly to your connected YouTube channel via API.', unread: true },
+    { id: 2, title: '50K & 100K Views Guarantee Active 🚀', desc: 'VIP pricing terms & conditions updated on front page.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
@@ -644,7 +645,7 @@ export default function App() {
 
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [selectedBilling] = useState('yearly');
-  const [upgradeReason] = useState('');
+  const [upgradeReason, setUpgradeReason] = useState('');
 
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
   const [previewClip, setPreviewClip] = useState(null);
@@ -677,9 +678,9 @@ export default function App() {
         setGlobalConfig((prev) => ({ ...prev, ...cfgData }));
       }
       const txnData = await txnRes.json();
-      setTransactions(txnData && typeof txnData === 'object' ? Object.entries(txnData).map(([k, v]) => ({ firebaseKey: k, ...v })) : []);
+      setTransactions(txnData && typeof txnData === 'object' ? Object.entries(txnData).map(([k, v]) => ({ firebaseKey: k, ...v })).reverse() : []);
       const cliData = await cliRes.json();
-      setClientsList(cliData && typeof cliData === 'object' ? Object.entries(cliData).map(([k, v]) => ({ id: k, ...v })) : []);
+      setClientsList(cliData && typeof cliData === 'object' ? Object.entries(cliData).map(([k, v]) => ({ id: k, ...v })).reverse() : []);
     } catch {}
   }, [dbBase]);
 
@@ -796,7 +797,6 @@ export default function App() {
     setYtStats({ title: '', customUrl: '', avatar: '', subscribers: '0', totalViews: '0', videoCount: '0', country: 'IN', recentVideos: [], loading: false, isConnected: false });
   };
 
-  // PRO UPLOAD & DIRECT YOUTUBE API PUBLISH ENGINE
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
@@ -830,14 +830,12 @@ export default function App() {
       await idbSaveClip(readyClip);
       setVideoQueue((prev) => [readyClip, ...prev]);
 
-      // Direct YouTube API Upload Simulation for Pro User
       if (ytStats.isConnected) {
         try {
           const metadata = {
             snippet: { title: aiMeta.title, description: aiMeta.description, categoryId: '22' },
             status: { privacyStatus: 'public' }
           };
-          // Initiate Resumable Upload
           const initRes = await fetchWithAuth('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Upload-Content-Type': file.type || 'video/mp4', 'X-Upload-Content-Length': file.size },
@@ -901,7 +899,7 @@ export default function App() {
         <div className="flex-1 px-4 pt-2 pb-24 space-y-4 overflow-y-auto">
           {activeTab === 'home' && (
             <>
-              {/* PRO VIP STATUS BADGE */}
+              {/* VIP PRO STATUS BADGE */}
               <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-purple-600/20 to-pink-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Crown className="w-6 h-6 text-amber-400 fill-amber-400 shrink-0" />
@@ -976,6 +974,40 @@ export default function App() {
                 </button>
               </div>
 
+              {/* 50K & 100K VIEWS GUARANTEE CARDS */}
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2 px-1">
+                  <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
+                  <h3 className="text-xs font-extrabold text-white">Guaranteed Views & Terms & Conditions</h3>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-b from-[#16102b] to-[#0c0818] border border-cyan-500/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold text-cyan-300 uppercase">Monthly Plan</span>
+                      <span className="text-xs font-extrabold text-white">₹499/mo</span>
+                    </div>
+                    <div className="text-sm font-extrabold text-white flex items-center gap-1">
+                      <TrendingUp className="w-4 h-4 text-emerald-400" />
+                      <span>50K+ Views</span>
+                    </div>
+                    <p className="text-[9.5px] text-slate-300"><b>Terms:</b> Consistent uploads & AI tags enabled.</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-b from-[#221033] to-[#11081f] border border-amber-500/50 space-y-2 shadow-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold text-amber-300 uppercase">Yearly VIP</span>
+                      <span className="text-xs font-extrabold text-amber-400">₹3,999/yr</span>
+                    </div>
+                    <div className="text-sm font-extrabold text-white flex items-center gap-1">
+                      <Crown className="w-4 h-4 text-amber-400 fill-amber-400" />
+                      <span>100K+ Views</span>
+                    </div>
+                    <p className="text-[9.5px] text-slate-300"><b>Terms:</b> Priority slots & 5x multi-part splitter.</p>
+                  </div>
+                </div>
+              </div>
+
               {/* 4 STATS CARDS */}
               <div className="grid grid-cols-4 gap-2">
                 <div onClick={() => setActiveTab('projects')} className="p-2.5 rounded-2xl bg-[#0e0a1c] border border-blue-500/35 cursor-pointer text-center">
@@ -993,6 +1025,39 @@ export default function App() {
                 <div onClick={() => setActiveTab('home')} className="p-2.5 rounded-2xl bg-[#0e0a1c] border border-amber-500/35 cursor-pointer text-center">
                   <div className="text-sm font-extrabold text-amber-400">10/10</div>
                   <div className="text-[9px] text-slate-400">Pro Score</div>
+                </div>
+              </div>
+
+              {/* 4 NON-CLICKABLE STATIC TOOL BADGES (OFF) */}
+              <div className="grid grid-cols-4 gap-2">
+                <div className="p-2.5 rounded-2xl bg-[#130c26] border border-purple-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
+                  <Sparkles className="w-5 h-5 text-purple-300 mt-1" />
+                  <div>
+                    <div className="text-[10px] font-extrabold text-white">AI Edit</div>
+                    <div className="text-[8px] text-slate-400">Auto Cut</div>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-[#0c192c] border border-cyan-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
+                  <Tag className="w-5 h-5 text-cyan-300 mt-1" />
+                  <div>
+                    <div className="text-[10px] font-extrabold text-white">Hashtags</div>
+                    <div className="text-[8px] text-slate-400">Trending</div>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-[#190c2c] border border-pink-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
+                  <Layers className="w-5 h-5 text-pink-300 mt-1" />
+                  <div>
+                    <div className="text-[10px] font-extrabold text-white">Thumbnail Gen</div>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-[#0b1c29] border border-teal-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
+                  <Calendar className="w-5 h-5 text-teal-300 mt-1" />
+                  <div>
+                    <div className="text-[10px] font-extrabold text-white">Schedule</div>
+                  </div>
                 </div>
               </div>
 
@@ -1028,7 +1093,7 @@ export default function App() {
 
                 {videoQueue.length === 0 && (
                   <div className="p-4 rounded-2xl bg-[#110c22] border border-slate-800 text-center space-y-2">
-                    <p className="text-xs text-slate-400">Click Upload (+) below to publish your first Short instantly.</p>
+                    <p className="text-xs text-slate-400">Click Upload (+) below to publish your first Short.</p>
                   </div>
                 )}
               </div>
