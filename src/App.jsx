@@ -623,7 +623,7 @@ export default function App() {
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste Pro User! Uploaded videos ab directly aapke YouTube channel par auto-publish ho rahe hain.' }
+    { role: 'ai', text: 'Namaste Pro User! Settings mein aap YouTube API connect, disconnect aur Admin Console khol sakte hain.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -1195,16 +1195,36 @@ export default function App() {
             </div>
           )}
 
-          {/* SETTINGS TAB */}
+          {/* SETTINGS TAB (RESTORED ALL OPTIONS) */}
           {activeTab === 'settings' && (
             <div className="space-y-3.5 pt-2">
               <h2 className="text-base font-extrabold text-white">YouTube API & Settings</h2>
 
-              <button onClick={() => setIsConnectModalOpen(true)} className="w-full py-3 rounded-2xl bg-red-600 text-xs font-extrabold text-white cursor-pointer shadow-lg">
-                {ytStats.isConnected ? `Connected (${ytStats.title})` : 'Connect YouTube Channel'}
-              </button>
+              <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-extrabold text-white">YouTube Connection Status</div>
+                    <div className="text-[10px] text-slate-400">{ytStats.isConnected ? `Connected to ${ytStats.title}` : 'Not Connected'}</div>
+                  </div>
+                  {ytStats.isConnected ? (
+                    <button onClick={handleDisconnectChannel} className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 text-xs font-bold cursor-pointer">
+                      Disconnect
+                    </button>
+                  ) : (
+                    <button onClick={() => setIsConnectModalOpen(true)} className="px-3 py-1.5 rounded-xl bg-red-600 text-white text-xs font-extrabold cursor-pointer">
+                      Connect Now
+                    </button>
+                  )}
+                </div>
+              </div>
 
-              <button onClick={() => setIsAdminOpen(true)} className="w-full py-3 rounded-2xl bg-purple-600/25 border border-purple-500/40 text-purple-300 text-xs font-extrabold cursor-pointer">
+              <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/30 space-y-2">
+                <div className="text-xs font-extrabold text-white">Google OAuth Client Configuration</div>
+                <p className="text-[10px] text-slate-400">Default Client ID and Secret are active for direct video uploads.</p>
+                <input type="text" readOnly value={activeClientId} className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono" />
+              </div>
+
+              <button onClick={() => setIsAdminOpen(true)} className="w-full py-3 rounded-2xl bg-purple-600/25 border border-purple-500/40 text-purple-300 text-xs font-extrabold cursor-pointer shadow-lg">
                 🔐 Open Owner Master Admin Console
               </button>
             </div>
