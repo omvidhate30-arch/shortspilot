@@ -1081,30 +1081,37 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 4 CLICKABLE TOOL CARDS */}
+{/* 4 NON-CLICKABLE STATIC TOOL BADGES */}
               <div className="grid grid-cols-4 gap-2">
-                <button onClick={() => setActiveToolModal('aiEdit')} className="p-2.5 rounded-2xl bg-[#130c26] border border-purple-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
+                <div className="p-2.5 rounded-2xl bg-[#130c26] border border-purple-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
                   <Sparkles className="w-5 h-5 text-purple-300 mt-1" />
                   <div>
-                    <div className="text-[10.5px] font-extrabold text-white">AI Edit ›</div>
+                    <div className="text-[10.5px] font-extrabold text-white">AI Edit</div>
                     <div className="text-[8px] text-slate-400">Auto Cut</div>
                   </div>
-                </button>
-                <button onClick={() => setActiveToolModal('hashtags')} className="p-2.5 rounded-2xl bg-[#0c192c] border border-cyan-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-[#0c192c] border border-cyan-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
                   <Tag className="w-5 h-5 text-cyan-300 mt-1" />
                   <div>
-                    <div className="text-[10.5px] font-extrabold text-white">Hashtags ›</div>
+                    <div className="text-[10.5px] font-extrabold text-white">Hashtags</div>
                     <div className="text-[8px] text-slate-400">Trending</div>
                   </div>
-                </button>
-                <button onClick={() => setActiveToolModal('thumbnail')} className="p-2.5 rounded-2xl bg-[#190c2c] border border-pink-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-[#190c2c] border border-pink-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
                   <Layers className="w-5 h-5 text-pink-300 mt-1" />
-                  <div className="text-[10px] font-extrabold text-white">Thumbnail Gen ›</div>
-                </button>
-                <button onClick={() => setActiveToolModal('schedule')} className="p-2.5 rounded-2xl bg-[#0b1c29] border border-teal-500/35 flex flex-col items-center text-center justify-between min-h-[88px] cursor-pointer">
+                  <div>
+                    <div className="text-[10px] font-extrabold text-white">Thumbnail Gen</div>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-[#0b1c29] border border-teal-500/35 flex flex-col items-center text-center justify-between min-h-[88px] opacity-90 select-none">
                   <Calendar className="w-5 h-5 text-teal-300 mt-1" />
-                  <div className="text-[10px] font-extrabold text-white">Schedule ›</div>
-                </button>
+                  <div>
+                    <div className="text-[10px] font-extrabold text-white">Schedule</div>
+                  </div>
+                </div>
               </div>
 
               {/* RECENT POSTS */}
