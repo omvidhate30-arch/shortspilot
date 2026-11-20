@@ -248,7 +248,7 @@ const TopHeader = React.memo(({ tier, hasUnread, gmailUser, onOpenDrawer, onGoHo
 ));
 
 const BottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUpload }) => (
-  <nav className="absolute bottom-0 left-0 right-0 h-20 bg-[#090614] border-t border-purple-500/25 px-3 flex items-center justify-around z-30">
+  <nav className="fixed bottom-0 left-0 right-0 h-20 bg-[#090614] border-t border-purple-500/25 px-3 flex items-center justify-around z-40">
     <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${activeTab === 'home' ? 'text-pink-400 font-extrabold' : 'text-slate-400'}`}>
       <Home className="w-5 h-5" />
       <span className="text-[10.5px]">Home</span>
@@ -693,13 +693,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: 'Long Video Clip Cutter Fixed ✂️', desc: '1, 3, 5 clip segments now cut by exact start-end timestamps!', unread: true },
+    { id: 1, title: 'Stable Bottom Navigation Active 📌', desc: 'Home, Analytics, Upload, Projects & Settings bar stays fixed while scrolling.', unread: true },
     { id: 2, title: 'Special Launch Offer Live 🎉', desc: 'Monthly Pro ₹99/mo & Yearly VIP ₹1,499/yr active on shortspilot.in!', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! AI Engaging Clips dashboard ab upar aa gaya hai aur 1, 3, 5 clips exact time cut ke saath kaam kar rahe hain.' }
+    { role: 'ai', text: 'Namaste! Bottom bar ab 100% stable rahega aur AI Clip Cutter (1, 3, 5) bhi upar ready hai.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -915,7 +915,6 @@ export default function App() {
     return false;
   };
 
-  // Direct Single/Multi Upload Handler
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
@@ -962,7 +961,6 @@ export default function App() {
     alert(manualPostMode ? '✅ Video saved in Queue with 9:16 Shorts Thumbnail!' : '🎉 Short processed & pushed to YouTube Shorts Feed!');
   };
 
-  // AI Engaging Clips Auto-Splitter Handler (Exact Start-End Segments for 1, 3, 5 Clips)
   const handleSplitFullVideo = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -1109,7 +1107,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex flex-col items-center selection:bg-pink-500 selection:text-white">
-      <div className="w-full max-w-[430px] min-h-screen bg-[#070510] text-white sm:rounded-[38px] sm:my-3 sm:border sm:border-purple-500/25 relative flex flex-col overflow-hidden">
+      <div className="w-full max-w-[430px] min-h-screen bg-[#070510] text-white sm:rounded-[38px] sm:my-3 sm:border sm:border-purple-500/25 relative flex flex-col">
         
         <TopHeader
           tier={tier}
@@ -1128,7 +1126,7 @@ export default function App() {
         <input ref={fileInputRef} type="file" accept="video/*" multiple onChange={handleFileUpload} className="hidden" />
         <input ref={splitterInputRef} type="file" accept="video/*" onChange={handleSplitFullVideo} className="hidden" />
 
-        <div className="flex-1 px-4 pt-2 pb-24 space-y-4 overflow-y-auto">
+        <div className="flex-1 px-4 pt-2 pb-28 space-y-4">
           {activeTab === 'home' && (
             <>
               {/* VIP PRO STATUS BADGE */}
@@ -1206,7 +1204,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* AI ENGAGING CLIPS DASHBOARD (MOVED RIGHT UP TO TOP) */}
+              {/* AI ENGAGING CLIPS DASHBOARD */}
               <div className="p-4 rounded-[24px] bg-gradient-to-br from-[#231042] via-[#150b29] to-[#0c1428] border border-pink-500/50 space-y-3 shadow-[0_0_25px_rgba(236,72,153,0.22)]">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -1312,7 +1310,6 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5">
-                  {/* Monthly Pro Card: ₹499 -> ₹99 */}
                   <div
                     onClick={() => {
                       setSelectedBilling('monthly');
@@ -1336,7 +1333,6 @@ export default function App() {
                     <p className="text-[9.5px] text-slate-300"><b>Terms:</b> Consistent uploads & AI tags enabled.</p>
                   </div>
 
-                  {/* Yearly VIP Card: ₹3,999 -> ₹1,499 */}
                   <div
                     onClick={() => {
                       setSelectedBilling('yearly');
@@ -1622,7 +1618,6 @@ export default function App() {
               </button>
             </form>
 
-            {/* 3 Vertical 9:16 Preview Cards */}
             <div className="grid grid-cols-3 gap-2.5">
               {thumbConcepts.map((item) => {
                 const isSelected = selectedThumbConcept?.id === item.id;
