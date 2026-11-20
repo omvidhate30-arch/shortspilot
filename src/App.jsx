@@ -4,7 +4,7 @@ import {
   Youtube, X, Trash2, RefreshCw, Calendar,
   Clock, Bot, Crown, Tag,
   Bell, Layers, Home, BarChart2 as ChartIcon,
-  Plus, FolderKanban, Settings, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon, KeyRound, UserCheck, Copy, Check, Phone
+  Plus, FolderKanban, Settings, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon, KeyRound, UserCheck, Copy, Check, Phone, Instagram
 } from 'lucide-react';
 
 const USER_API_MAP_KEY = 'sp_gmail_api_registry';
@@ -1153,13 +1153,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: 'Instant Connect & Owner Sync Active ✅', desc: 'Save & Connect marks your channel Connected and logs Gmail, Phone No. & Client ID on Owner Dashboard.', unread: true },
+    { id: 1, title: 'Instagram Status: Pending ⏳', desc: 'Instagram connection is set to Pending and can be added later.', unread: true },
     { id: 2, title: 'Clean Shorts Title & #Tags Active ✨', desc: 'Relevant #Tags, https://shortspilot.in link & "Developed by shortspilot.in" watermark.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! Save & Connect dabate hi Connected ✅ dikhega aur aapka Gmail, Phone No. aur Client ID Owner Dashboard par save ho jayega.' }
+    { role: 'ai', text: 'Namaste! Instagram abhi Pending ⏳ dikh raha hai, aur jab aap chahein tab isme add kar sakte hain.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -1736,7 +1736,7 @@ export default function App() {
     setSupportMessages((prev) => [
       ...prev,
       { role: 'user', text: msg },
-      { role: 'ai', text: `Save & Connect dabate hi Connected ✅ dikhega aur aapka Gmail, Phone No. aur Client ID Owner Dashboard par save ho jayega.` }
+      { role: 'ai', text: `Instagram abhi Pending ⏳ dikh raha hai, aur jab aap chahein tab isme add kar sakte hain.` }
     ]);
     setSupportInput('');
   };
@@ -1785,7 +1785,7 @@ export default function App() {
         <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-3 lg:pt-6 pb-28 lg:pb-12 space-y-4 lg:space-y-6">
           {activeTab === 'home' && (
             <>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
                 <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-purple-600/20 to-pink-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Crown className="w-6 h-6 text-amber-400 fill-amber-400 shrink-0" />
@@ -1818,7 +1818,7 @@ export default function App() {
                       <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
                       <div className="min-w-0">
                         <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
-                          <span>Connect Your API (Client ID)</span>
+                          <span>YouTube API</span>
                           <span className="px-1.5 py-0.5 rounded bg-amber-500/25 text-amber-300 text-[9px] font-extrabold">MANDATORY</span>
                         </div>
                         <div className="text-[10px] lg:text-xs text-slate-300 truncate">
@@ -1831,6 +1831,27 @@ export default function App() {
                     </button>
                   </div>
                 )}
+
+                {/* INSTAGRAM PENDING CARD */}
+                <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-fuchsia-600/15 via-pink-600/15 to-amber-500/15 border border-pink-500/35 flex items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-pink-500/20 border border-pink-400/40 flex items-center justify-center shrink-0">
+                      <Instagram className="w-5 h-5 text-pink-300" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
+                        <span>Instagram</span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9.5px] font-extrabold">Pending ⏳</span>
+                      </div>
+                      <div className="text-[10px] lg:text-xs text-slate-400 truncate">
+                        Will be added in next update
+                      </div>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-[10px] font-bold text-amber-300 shrink-0">
+                    Pending
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
@@ -2234,6 +2255,21 @@ export default function App() {
             <div className="space-y-4 pt-2 max-w-2xl mx-auto">
               <h2 className="text-base lg:text-xl font-extrabold text-white">Profile API & Settings</h2>
 
+              <div className="p-4 rounded-2xl bg-[#110c22] border border-pink-500/35 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-full bg-pink-500/20 border border-pink-400/40 flex items-center justify-center shrink-0">
+                    <Instagram className="w-5 h-5 text-pink-300" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs lg:text-sm font-extrabold text-white truncate">Instagram Account</div>
+                    <div className="text-[10px] lg:text-xs text-slate-400 truncate">Integration scheduled for later</div>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-extrabold shrink-0">
+                  Pending ⏳
+                </span>
+              </div>
+
               {ytStats.isConnected ? (
                 <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-600/15 to-cyan-600/15 border border-emerald-400/50 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3.5 min-w-0">
@@ -2592,6 +2628,10 @@ export default function App() {
                 <button onClick={() => { setIsConnectModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-emerald-300 cursor-pointer">
                   {ytStats.isConnected ? '✅ Connected YouTube API' : '🔌 Connect API (Mandatory)'}
                 </button>
+                <div className="w-full p-2.5 rounded-xl text-left text-pink-300/80 flex items-center justify-between">
+                  <span>📸 Instagram</span>
+                  <span className="text-[10px] text-amber-300">Pending ⏳</span>
+                </div>
                 <button onClick={() => { setIsSplitterModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-pink-300 cursor-pointer">✂️ AI Engaging Clips (1, 3, 5)</button>
                 <button onClick={() => { setIsThumbnailModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer">🎨 9:16 Shorts Thumbnail Gen</button>
                 <button onClick={() => { setIsPricingOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer">🔥 Offer Plans (₹99 / ₹1,499)</button>
