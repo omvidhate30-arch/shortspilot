@@ -9,8 +9,10 @@ import {
 
 const DEFAULT_GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-  '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
-const DEFAULT_GOOGLE_SECRET = ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-');
+  '391400251257-76vvj4tfmkiurekmmkpbtdpkn7in148h.apps.googleusercontent.com';
+const DEFAULT_GOOGLE_SECRET =
+  import.meta.env.VITE_GOOGLE_CLIENT_SECRET ||
+  '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';
 
 const YOUTUBE_REDIRECT_URI =
   typeof window !== 'undefined'
@@ -316,7 +318,6 @@ const buildShortsThumbnailConcepts = (topicInput) => {
   ];
 };
 
-// REUSABLE YOUTUBE CHANNEL PHOTO AVATAR COMPONENT
 const ChannelAvatarBadge = React.memo(({ ytStats, sizeClass = 'w-10 h-10' }) => {
   const safeAvatar = sanitizeMediaUrl(ytStats?.avatar);
   if (ytStats?.isConnected && safeAvatar) {
@@ -357,7 +358,6 @@ const DesktopSidebar = React.memo(({
         </div>
       </div>
 
-      {/* API CONNECT CHANNEL PHOTO CARD IN SIDEBAR */}
       <div
         onClick={onOpenApiConnect}
         className="p-2.5 rounded-2xl bg-[#120c24] border border-purple-500/35 flex items-center gap-2.5 cursor-pointer hover:border-cyan-400/60 transition-all"
@@ -991,13 +991,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: 'Channel Photo Inside API Connect 📸', desc: 'Your connected YouTube channel avatar now shows inside API Connect card, modal & Settings!', unread: true },
+    { id: 1, title: 'New Google OAuth Client Added 🔑', desc: 'Client ID 391400251257... is active for YouTube API connection.', unread: true },
     { id: 2, title: 'Clean Shorts Title & #Tags Active ✨', desc: 'Relevant #Tags, https://shortspilot.in link & "Developed by shortspilot.in" watermark.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! API Connect option mein aap apni Google Client ID set karke channel connect kar sakte hain—aur connect hote hi channel ki photo wahin dikhegi.' }
+    { role: 'ai', text: 'Namaste! Aapka naya Google OAuth Client ID aur Secret add ho chuka hai.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -1532,7 +1532,6 @@ export default function App() {
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">PRO</span>
                 </div>
 
-                {/* API CONNECT OPTION WITH CHANNEL PHOTO */}
                 <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-cyan-600/20 border border-red-500/40 flex items-center justify-between gap-3 shadow-lg">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
@@ -1954,7 +1953,6 @@ export default function App() {
             </div>
           )}
 
-          {/* SETTINGS & API CONNECT TAB WITH CONNECTED CHANNEL PHOTO + CLIENT ID */}
           {activeTab === 'settings' && (
             <div className="space-y-4 pt-2 max-w-2xl mx-auto">
               <h2 className="text-base lg:text-xl font-extrabold text-white">API Connect & Settings</h2>
@@ -2214,7 +2212,6 @@ export default function App() {
         </div>
       )}
 
-      {/* API CONNECT MODAL WITH CHANNEL PHOTO + CLIENT ID INPUT */}
       {isConnectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-4">
