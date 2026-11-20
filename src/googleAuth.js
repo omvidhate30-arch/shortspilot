@@ -1,7 +1,7 @@
 import { FIREBASE_DB_URL } from './videoUtils';
 
-// Apni Google Cloud Web Client ID yahan set karein — user ko kabhi nahi dikhegi
-export const DEFAULT_GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+export const DEFAULT_GOOGLE_CLIENT_ID =
+  '801917804614-ro5jolalps8bbtai6g1s1l6f1kj0sgk2.apps.googleusercontent.com';
 
 const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/youtube.upload',
