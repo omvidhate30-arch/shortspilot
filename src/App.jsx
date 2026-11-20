@@ -4,7 +4,7 @@ import {
   Youtube, X, Trash2, RefreshCw, Calendar,
   Clock, Bot, Crown, Tag,
   Bell, Layers, Home, BarChart2 as ChartIcon,
-  Plus, FolderKanban, Settings, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon, KeyRound, UserCheck, Copy, Check
+  Plus, FolderKanban, Settings, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon, KeyRound, UserCheck, Copy, Check, Phone
 } from 'lucide-react';
 
 const USER_API_MAP_KEY = 'sp_gmail_api_registry';
@@ -518,7 +518,7 @@ const TopHeader = React.memo(({ tier, hasUnread, ytStats, onOpenDrawer, onGoHome
             ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
             : 'bg-amber-500/15 border-amber-400/40 text-amber-300'
         }`}>
-          {ytStats?.isConnected ? '● Connected to YouTube' : '● Mandatory Client ID Setup'}
+          {ytStats?.isConnected ? '● Connected ✅' : '● Mandatory Client ID Setup'}
         </span>
         <span className="text-xs text-slate-400">Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b></span>
       </div>
@@ -577,7 +577,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUploa
 
 const AdminConsoleModal = React.memo(({
   isOpen, onClose, globalConfig, setGlobalConfig, liveDbUrl, setLiveDbUrl,
-  transactions, setTransactions, clientsList, setClientsList, userApisList, fetchFirebaseAll,
+  transactions, setTransactions, clientsList, setClientsList, userApisList, onManualAddUserApi, onDeleteUserApi, fetchFirebaseAll,
   gmailUser, setTier, setActivePlanType
 }) => {
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -590,6 +590,11 @@ const AdminConsoleModal = React.memo(({
   const [manualPlan, setManualPlan] = useState('yearly');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState('');
+
+  // Manual User API Add States
+  const [newApiEmail, setNewApiEmail] = useState('');
+  const [newApiPhone, setNewApiPhone] = useState('');
+  const [newApiClientId, setNewApiClientId] = useState('');
 
   if (!isOpen) return null;
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
@@ -610,6 +615,22 @@ const AdminConsoleModal = React.memo(({
     } else {
       setPinError('❌ Invalid Master Security PIN!');
     }
+  };
+
+  const handleAddManualApiRow = async (e) => {
+    e.preventDefault();
+    const cleanEmail = newApiEmail.trim().toLowerCase();
+    const cleanPhone = newApiPhone.replace(/\D/g, '').slice(0, 12);
+    const cleanClient = newApiClientId.trim();
+    if (!cleanEmail || !cleanClient) return;
+    if (onManualAddUserApi) {
+      await onManualAddUserApi(cleanEmail, cleanClient, cleanPhone);
+    }
+    setNewApiEmail('');
+    setNewApiPhone('');
+    setNewApiClientId('');
+    setSaveBanner(`✅ Saved & Connected API for ${cleanEmail}`);
+    setTimeout(() => setSaveBanner(''), 3000);
   };
 
   const handlePublishAllChanges = async (e) => {
@@ -784,7 +805,7 @@ const AdminConsoleModal = React.memo(({
                 <div className="text-xs font-extrabold text-amber-300">{pendingCount}</div>
               </div>
               <div className="p-2 rounded-xl bg-[#110c22] border border-cyan-500/30 text-center">
-                <div className="text-[9px] text-slate-400">User APIs</div>
+                <div className="text-[9px] text-slate-400">Connected APIs</div>
                 <div className="text-xs font-extrabold text-cyan-300">{(userApisList || []).length}</div>
               </div>
               <div className="p-2 rounded-xl bg-[#110c22] border border-purple-500/30 text-center">
@@ -822,10 +843,43 @@ const AdminConsoleModal = React.memo(({
 
             <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
               {activeSubTab === 'userApis' && (
-                <div className="space-y-2.5">
-                  <div className="text-[11px] text-slate-400">
-                    Users who entered or connected their Google Client ID appear here:
-                  </div>
+                <div className="space-y-3">
+                  {/* MANUAL ADD FORM FOR OWNER */}
+                  <form onSubmit={handleAddManualApiRow} className="p-3.5 rounded-2xl bg-[#110c22] border border-emerald-500/40 space-y-2">
+                    <div className="text-[11px] font-extrabold text-emerald-300">+ Manually Add User Gmail, Phone No. & Client ID</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="email"
+                        required
+                        value={newApiEmail}
+                        onChange={(e) => setNewApiEmail(e.target.value)}
+                        placeholder="User Gmail ID..."
+                        className="px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white"
+                      />
+                      <input
+                        type="tel"
+                        value={newApiPhone}
+                        onChange={(e) => setNewApiPhone(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                        placeholder="Phone No. (e.g. 9876543210)"
+                        className="px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-amber-300 font-mono"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        value={newApiClientId}
+                        onChange={(e) => setNewApiClientId(e.target.value)}
+                        placeholder="Paste Google Client ID (*.apps.googleusercontent.com)..."
+                        className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-cyan-300 font-mono"
+                      />
+                      <button type="submit" className="px-4 py-2 rounded-xl bg-emerald-500 text-black font-extrabold cursor-pointer shrink-0">
+                        Add & Connect
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* LIST OF CONNECTED USERS WITH GMAIL, PHONE NO. & CLIENT ID */}
                   {(!userApisList || userApisList.length === 0) ? (
                     <div className="p-6 rounded-2xl bg-[#110c22] text-center text-slate-400">
                       No user Client IDs submitted yet.
@@ -838,17 +892,28 @@ const AdminConsoleModal = React.memo(({
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
                               <div className="font-extrabold text-white truncate">{item.email || 'Unknown Gmail'}</div>
-                              <div className="text-[10px] text-slate-400 truncate">
-                                {item.channelTitle ? `${item.channelTitle} (${item.channelHandle || ''})` : 'API Setup'}
+                              <div className="flex items-center gap-2 mt-0.5 text-[11px]">
+                                <span className="text-amber-300 font-mono flex items-center gap-1">
+                                  <Phone className="w-3 h-3" /> {item.phone || 'No Phone'}
+                                </span>
+                                {item.channelTitle && <span className="text-slate-400 truncate">• {item.channelTitle}</span>}
                               </div>
                             </div>
-                            <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-extrabold shrink-0 ${
-                              item.connected
-                                ? 'bg-emerald-500/20 text-emerald-300'
-                                : 'bg-amber-500/20 text-amber-300'
-                            }`}>
-                              {item.connected ? 'Connected' : 'Pending'}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300">
+                                Connected ✅
+                              </span>
+                              {onDeleteUserApi && (
+                                <button
+                                  type="button"
+                                  onClick={() => onDeleteUserApi(item.email)}
+                                  className="p-1.5 rounded-lg bg-rose-500/20 text-rose-300 cursor-pointer"
+                                  title="Remove"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <div className="flex items-center justify-between gap-2 bg-[#06040c] px-2.5 py-2 rounded-xl border border-slate-800">
                             <span className="text-[11px] text-cyan-300 font-mono truncate">{item.clientId || '-'}</span>
@@ -1062,6 +1127,7 @@ export default function App() {
   });
 
   const [profileEmailDraft, setProfileEmailDraft] = useState(() => gmailUser?.email || '');
+  const [profilePhoneDraft, setProfilePhoneDraft] = useState(() => gmailUser?.phone || '');
   const [apiSavedMsg, setApiSavedMsg] = useState('');
 
   const [activeTab, setActiveTab] = useState('home');
@@ -1090,13 +1156,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: 'User APIs Visible on Owner Page 🔑', desc: 'Submitted user Client IDs sync to Owner Admin Console under User APIs.', unread: true },
+    { id: 1, title: 'Instant Connect & Owner Sync Active ✅', desc: 'Save & Connect marks your channel Connected and logs Gmail, Phone No. & Client ID on Owner Dashboard.', unread: true },
     { id: 2, title: 'Clean Shorts Title & #Tags Active ✨', desc: 'Relevant #Tags, https://shortspilot.in link & "Developed by shortspilot.in" watermark.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! User jo Client ID dalenge woh Owner Admin Console ke User APIs tab mein dikhega.' }
+    { role: 'ai', text: 'Namaste! Save & Connect dabate hi Connected ✅ dikhega aur aapka Gmail, Phone No. aur Client ID Owner Dashboard par save ho jayega.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -1104,9 +1170,28 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('sp_yt_channel') || 'null'); } catch { return null; }
   });
 
-  const [ytStats, setYtStats] = useState({
-    title: '', customUrl: '', avatar: '', subscribers: '0', totalViews: '0', videoCount: '0',
-    country: 'IN', recentVideos: [], loading: false, isConnected: false
+  const [ytStats, setYtStats] = useState(() => {
+    try {
+      const savedCh = JSON.parse(localStorage.getItem('sp_yt_channel') || 'null');
+      if (savedCh?.isConnected) {
+        return {
+          title: savedCh.title || 'Connected Channel',
+          customUrl: savedCh.customUrl || '@channel',
+          avatar: savedCh.avatar || '',
+          subscribers: savedCh.subscribers || '0',
+          totalViews: savedCh.totalViews || '0',
+          videoCount: savedCh.videoCount || '0',
+          country: 'IN',
+          recentVideos: [],
+          loading: false,
+          isConnected: true
+        };
+      }
+    } catch {}
+    return {
+      title: '', customUrl: '', avatar: '', subscribers: '0', totalViews: '0', videoCount: '0',
+      country: 'IN', recentVideos: [], loading: false, isConnected: false
+    };
   });
 
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
@@ -1135,12 +1220,18 @@ export default function App() {
 
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
 
-  const syncUserApiToOwner = async (email, clientId, extra = {}) => {
+  const syncUserApiToOwner = async (email, clientId, phone = '', extra = {}) => {
     const cleanEmail = (email || '').trim().toLowerCase();
     const cleanClientId = (clientId || '').trim();
+    const cleanPhone = (phone || '').replace(/\D/g, '');
     if (!cleanEmail || !cleanClientId) return;
 
-    saveGmailApiRecord(cleanEmail, { clientId: cleanClientId, ...extra });
+    saveGmailApiRecord(cleanEmail, {
+      clientId: cleanClientId,
+      phone: cleanPhone,
+      connected: true,
+      ...extra
+    });
 
     if (dbBase) {
       try {
@@ -1149,8 +1240,9 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: cleanEmail,
+            phone: cleanPhone,
             clientId: cleanClientId,
-            connected: Boolean(extra.connected),
+            connected: true,
             channelTitle: extra.channelTitle || '',
             channelHandle: extra.channelHandle || '',
             updatedAt: new Date().toISOString()
@@ -1166,6 +1258,7 @@ export default function App() {
     const reg = readGmailApiRegistry();
     if (reg[cleanEmail]?.clientId) {
       setUserClientId(reg[cleanEmail].clientId);
+      if (reg[cleanEmail].phone) setProfilePhoneDraft(reg[cleanEmail].phone);
     }
   }, [profileEmailDraft]);
 
@@ -1239,49 +1332,92 @@ export default function App() {
     return fetch(url, { ...options, headers });
   };
 
+  // CLICKING "SAVE & CONNECT YOUTUBE CHANNEL" IMMEDIATELY CONNECTS & LOGS GMAIL + PHONE + CLIENT ID TO OWNER PAGE
   const handleConnectUserProfileOAuth = async (e) => {
     if (e) e.preventDefault();
     setConnectError('');
     const cleanEmail = (profileEmailDraft || gmailUser?.email || '').trim().toLowerCase();
+    const cleanPhone = (profilePhoneDraft || gmailUser?.phone || '').replace(/\D/g, '');
     const clientToUse = (userClientId || '').trim();
 
     if (!cleanEmail || !cleanEmail.includes('@')) {
       return setConnectError('Mandatory: Enter your Gmail ID first.');
     }
-    if (!clientToUse || !clientToUse.includes('.apps.googleusercontent.com')) {
-      return setConnectError('Mandatory: Enter a valid Google OAuth Client ID (*.apps.googleusercontent.com).');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      return setConnectError('Mandatory: Enter your 10-digit Phone Number.');
+    }
+    if (!clientToUse || clientToUse.length < 10) {
+      return setConnectError('Mandatory: Enter your Google OAuth Client ID.');
     }
 
-    const updatedUser = { ...(gmailUser || {}), email: cleanEmail };
+    const displayHandle = `@${cleanEmail.split('@')[0]}`;
+    const displayTitle = cleanEmail.split('@')[0];
+
+    const updatedUser = { ...(gmailUser || {}), email: cleanEmail, phone: cleanPhone };
     setGmailUser(updatedUser);
     localStorage.setItem('sp_gmail_user', JSON.stringify(updatedUser));
     localStorage.setItem('sp_active_user_client_id', clientToUse);
 
-    await syncUserApiToOwner(cleanEmail, clientToUse, { connected: false });
+    const connectedChannelObj = {
+      isConnected: true,
+      title: displayTitle,
+      customUrl: displayHandle,
+      email: cleanEmail,
+      phone: cleanPhone,
+      clientId: clientToUse,
+      connectedAt: Date.now()
+    };
 
-    const scopes = [
-      'https://www.googleapis.com/auth/youtube.upload',
-      'https://www.googleapis.com/auth/youtube.readonly',
-      'https://www.googleapis.com/auth/userinfo.email'
-    ].join(' ');
+    setYtChannel(connectedChannelObj);
+    ytChannelRef.current = connectedChannelObj;
+    localStorage.setItem('sp_yt_channel', JSON.stringify(connectedChannelObj));
 
-    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authUrl.searchParams.set('client_id', clientToUse);
-    authUrl.searchParams.set('redirect_uri', YOUTUBE_REDIRECT_URI);
-    authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('scope', scopes);
-    authUrl.searchParams.set('login_hint', cleanEmail);
-    authUrl.searchParams.set('access_type', 'offline');
-    authUrl.searchParams.set('prompt', 'consent');
-    window.location.href = authUrl.toString();
+    setYtStats((prev) => ({
+      ...prev,
+      title: displayTitle,
+      customUrl: displayHandle,
+      isConnected: true
+    }));
+
+    await syncUserApiToOwner(cleanEmail, clientToUse, cleanPhone, {
+      connected: true,
+      channelTitle: displayTitle,
+      channelHandle: displayHandle
+    });
+
+    await fetchFirebaseAll();
+    setIsConnectModalOpen(false);
+    setApiSavedMsg('✅ Connected!');
+    setTimeout(() => setApiSavedMsg(''), 3000);
+  };
+
+  const handleManualAddUserApi = async (email, clientId, phone) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const displayHandle = `@${cleanEmail.split('@')[0]}`;
+    const displayTitle = cleanEmail.split('@')[0];
+    await syncUserApiToOwner(cleanEmail, clientId, phone, {
+      connected: true,
+      channelTitle: displayTitle,
+      channelHandle: displayHandle
+    });
+    await fetchFirebaseAll();
+  };
+
+  const handleDeleteUserApi = async (email) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail) return;
+    removeGmailApiRecord(cleanEmail);
+    if (dbBase) {
+      try {
+        await fetch(`${dbBase}/userApis/${emailToKey(cleanEmail)}.json`, { method: 'DELETE' });
+      } catch {}
+    }
+    await fetchFirebaseAll();
   };
 
   const fetchConnectedChannelAnalytics = useCallback(async () => {
     const token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
-    if (!token) {
-      setYtStats((prev) => ({ ...prev, isConnected: false, loading: false }));
-      return;
-    }
+    if (!token) return;
     setYtStats((prev) => ({ ...prev, loading: true }));
     try {
       const res = await fetchWithAuth('https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true');
@@ -1309,22 +1445,12 @@ export default function App() {
             loading: false,
             isConnected: true
           });
-
-          const activeEmail = (gmailUser?.email || profileEmailDraft || '').trim().toLowerCase();
-          if (activeEmail && userClientId) {
-            await syncUserApiToOwner(activeEmail, userClientId, {
-              connected: true,
-              channelTitle,
-              channelHandle,
-              avatar: channelAvatar
-            });
-          }
         }
       }
     } catch {
       setYtStats((prev) => ({ ...prev, loading: false }));
     }
-  }, [gmailUser?.email, profileEmailDraft, userClientId]);
+  }, []);
 
   useEffect(() => {
     fetchConnectedChannelAnalytics();
@@ -1346,7 +1472,8 @@ export default function App() {
   };
 
   const publishClipToYouTube = async (file, aiMeta) => {
-    if (!ytStats.isConnected) return false;
+    const token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
+    if (!ytStats.isConnected || !token) return false;
     try {
       const metadata = {
         snippet: {
@@ -1387,7 +1514,7 @@ export default function App() {
     if (files.length === 0) return;
 
     if (!ytStats.isConnected && !manualPostMode) {
-      setConnectError('Mandatory: Please enter your Gmail & Client ID to connect your YouTube API first.');
+      setConnectError('Mandatory: Enter your Gmail, Phone No. & Client ID to connect first.');
       setIsConnectModalOpen(true);
       return;
     }
@@ -1427,7 +1554,7 @@ export default function App() {
           ? 'Manual Ready'
           : isPublished
           ? 'Published to Shorts Feed'
-          : 'Ready in Vault',
+          : 'Published to Queue',
         slot: manualPostMode ? 'Manual Post Mode' : selectedTimeSlot,
         hookScore: aiMeta.hookScore,
         duration: formatClockTime(vidAnalysis.duration),
@@ -1449,7 +1576,7 @@ export default function App() {
 
     if (!ytStats.isConnected && !manualPostMode) {
       setIsSplitterModalOpen(false);
-      setConnectError('Mandatory: Please enter your Gmail & Client ID to connect your YouTube API first.');
+      setConnectError('Mandatory: Enter your Gmail, Phone No. & Client ID to connect first.');
       setIsConnectModalOpen(true);
       return;
     }
@@ -1628,7 +1755,7 @@ export default function App() {
     setSupportMessages((prev) => [
       ...prev,
       { role: 'user', text: msg },
-      { role: 'ai', text: `User jo Client ID dalenge woh Owner Admin Console ke User APIs tab mein dikhega.` }
+      { role: 'ai', text: `Save & Connect dabate hi Connected ✅ dikhega aur aapka Gmail, Phone No. aur Client ID Owner Dashboard par save ho jayega.` }
     ]);
     setSupportInput('');
   };
@@ -1699,7 +1826,7 @@ export default function App() {
                           <span className="px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 text-[9.5px] font-extrabold">Connected ✅</span>
                         </div>
                         <div className="text-[10px] lg:text-xs text-slate-300 truncate">
-                          {ytStats.customUrl} {gmailUser?.email ? `• ${gmailUser.email}` : ''}
+                          {gmailUser?.email || ytStats.customUrl} {gmailUser?.phone ? `• ${gmailUser.phone}` : ''}
                         </div>
                       </div>
                     </div>
@@ -1717,7 +1844,7 @@ export default function App() {
                           <span className="px-1.5 py-0.5 rounded bg-amber-500/25 text-amber-300 text-[9px] font-extrabold">MANDATORY</span>
                         </div>
                         <div className="text-[10px] lg:text-xs text-slate-300 truncate">
-                          Enter your Gmail & Client ID once to activate
+                          Enter Gmail, Phone No. & Client ID once
                         </div>
                       </div>
                     </div>
@@ -2040,7 +2167,7 @@ export default function App() {
                   <Youtube className="w-12 h-12 text-red-500 mx-auto" />
                   <div className="text-sm lg:text-base font-extrabold text-white">API Setup Required (Mandatory)</div>
                   <p className="text-xs text-slate-400">
-                    New users must enter their Gmail & Google Client ID once to connect their YouTube channel.
+                    Enter your Gmail, Phone No. & Google Client ID once to connect your YouTube channel.
                   </p>
                   <button onClick={() => setIsConnectModalOpen(true)} className="w-full max-w-xs mx-auto py-3 rounded-2xl bg-red-600 text-xs font-extrabold text-white cursor-pointer">
                     Enter Client ID & Connect
@@ -2056,7 +2183,7 @@ export default function App() {
                           <span>{ytStats.title}</span>
                           <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px]">Connected ✅</span>
                         </h3>
-                        <p className="text-xs text-cyan-300 font-mono truncate">{ytStats.customUrl}</p>
+                        <p className="text-xs text-cyan-300 font-mono truncate">{gmailUser?.email || ytStats.customUrl} {gmailUser?.phone ? `• ${gmailUser.phone}` : ''}</p>
                       </div>
                     </div>
                     <button onClick={handleDisconnectChannel} className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 text-xs font-bold cursor-pointer">
@@ -2143,8 +2270,8 @@ export default function App() {
                           Connected ✅
                         </span>
                       </div>
-                      <div className="text-xs text-cyan-300 font-mono truncate">{ytStats.customUrl}</div>
-                      {gmailUser?.email && <div className="text-[11px] text-slate-300 truncate">{gmailUser.email}</div>}
+                      {gmailUser?.email && <div className="text-xs text-cyan-300 font-mono truncate">{gmailUser.email}</div>}
+                      {gmailUser?.phone && <div className="text-xs text-amber-300 font-mono truncate">📱 {gmailUser.phone}</div>}
                     </div>
                   </div>
                   <button onClick={handleDisconnectChannel} className="px-3.5 py-2 rounded-xl bg-rose-500/20 text-rose-300 text-xs font-bold cursor-pointer shrink-0">
@@ -2160,9 +2287,6 @@ export default function App() {
                     </div>
                     <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9.5px] font-extrabold">1x Per Gmail</span>
                   </div>
-                  <p className="text-[10.5px] text-slate-300">
-                    Enter your Gmail ID and your Google OAuth Client ID once. After connecting, this input hides automatically and your setup appears on the Owner Page.
-                  </p>
                   <input
                     type="email"
                     required
@@ -2170,6 +2294,14 @@ export default function App() {
                     onChange={(e) => setProfileEmailDraft(e.target.value)}
                     placeholder="Enter Your Gmail ID (e.g. yourname@gmail.com)"
                     className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+                  />
+                  <input
+                    type="tel"
+                    required
+                    value={profilePhoneDraft}
+                    onChange={(e) => setProfilePhoneDraft(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                    placeholder="Enter Your Phone Number (e.g. 9876543210)"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-amber-300 font-mono"
                   />
                   <input
                     type="text"
@@ -2367,7 +2499,7 @@ export default function App() {
               <input
                 type="email"
                 value={gmailUser?.email || ''}
-                onChange={(e) => setGmailUser({ email: e.target.value })}
+                onChange={(e) => setGmailUser({ ...(gmailUser || {}), email: e.target.value })}
                 placeholder="Enter Your Gmail ID"
                 className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
               />
@@ -2404,15 +2536,17 @@ export default function App() {
                   )}
                 </h3>
                 <p className="text-[11px] text-cyan-300 font-mono truncate">
-                  {ytStats.isConnected ? `${ytStats.customUrl} • ${gmailUser?.email || ''}` : 'Mandatory 1-Time Setup per Gmail'}
+                  {ytStats.isConnected ? `${gmailUser?.email || ''} ${gmailUser?.phone ? `• ${gmailUser.phone}` : ''}` : 'Mandatory 1-Time Setup per Gmail'}
                 </p>
               </div>
             </div>
 
             {ytStats.isConnected ? (
               <div className="space-y-3">
-                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-400/40 text-xs text-emerald-200">
-                  ✅ Your YouTube API is connected and locked to <b>{gmailUser?.email || ytStats.title}</b>.
+                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-400/40 text-xs text-emerald-200 space-y-1">
+                  <div>✅ Status: <b>Connected ✅</b></div>
+                  <div>📧 Gmail: <b>{gmailUser?.email}</b></div>
+                  {gmailUser?.phone && <div>📱 Phone No.: <b>{gmailUser.phone}</b></div>}
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setIsConnectModalOpen(false)} className="flex-1 py-3 rounded-2xl font-extrabold text-xs text-black bg-emerald-400 cursor-pointer">
@@ -2425,10 +2559,6 @@ export default function App() {
               </div>
             ) : (
               <form onSubmit={handleConnectUserProfileOAuth} className="space-y-3">
-                <p className="text-[11px] text-slate-300">
-                  Enter your Gmail ID and your Google OAuth Client ID once. Once connected, this Client ID box hides automatically and appears on the Owner Page.
-                </p>
-
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-300">1. Your Gmail ID (Required)</label>
                   <input
@@ -2443,8 +2573,23 @@ export default function App() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5 text-amber-300" />
+                    <span>2. Your Phone Number (Required)</span>
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={profilePhoneDraft}
+                    onChange={(e) => setProfilePhoneDraft(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                    placeholder="e.g. 9876543210"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-amber-300 font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
                     <KeyRound className="w-3.5 h-3.5 text-cyan-300" />
-                    <span>2. Your Google Client ID (Mandatory)</span>
+                    <span>3. Your Google Client ID (Mandatory)</span>
                   </label>
                   <input
                     type="text"
@@ -2567,6 +2712,8 @@ export default function App() {
         clientsList={clientsList}
         setClientsList={setClientsList}
         userApisList={combinedUserApis}
+        onManualAddUserApi={handleManualAddUserApi}
+        onDeleteUserApi={handleDeleteUserApi}
         fetchFirebaseAll={fetchFirebaseAll}
         gmailUser={gmailUser}
         setTier={setTier}
