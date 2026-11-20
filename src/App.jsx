@@ -124,14 +124,7 @@ const idbClearAllClips = async () => {
 const analyzeVideoDeeply = (file) =>
   new Promise((resolve) => {
     if (!(file instanceof Blob)) {
-      return resolve({
-        duration: 30,
-        width: 1080,
-        height: 1920,
-        orientation: 'Vertical 9:16 Shorts',
-        visualMood: 'High-Energy',
-        detectedScene: 'Dynamic Action'
-      });
+      return resolve({ duration: 30, width: 1080, height: 1920, orientation: '9:16' });
     }
     const url = URL.createObjectURL(file);
     const vid = document.createElement('video');
@@ -150,73 +143,16 @@ const analyzeVideoDeeply = (file) =>
       const duration = Number.isFinite(rawDur) && rawDur > 0 ? rawDur : 30;
       const width = vid.videoWidth || 1080;
       const height = vid.videoHeight || 1920;
-      const orientation = height >= width ? 'Vertical 9:16 Shorts' : 'Landscape 16:9 Converted';
-
-      try {
-        vid.currentTime = Math.min(2, Math.max(0.1, duration * 0.2));
-      } catch {
-        finish({ duration, width, height, orientation, visualMood: 'Vibrant', detectedScene: 'Action Frame' });
-      }
-    };
-
-    vid.onseeked = () => {
-      const duration = Number.isFinite(vid.duration) && vid.duration > 0 ? vid.duration : 30;
-      const width = vid.videoWidth || 1080;
-      const height = vid.videoHeight || 1920;
-      const orientation = height >= width ? 'Vertical 9:16 Shorts' : 'Landscape 16:9 Converted';
-      let visualMood = 'Dynamic';
-      let detectedScene = 'High Engagement Scene';
-
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = 64;
-        canvas.height = 64;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(vid, 0, 0, 64, 64);
-        const pixels = ctx.getImageData(0, 0, 64, 64).data;
-        let rSum = 0, gSum = 0, bSum = 0, brightCount = 0;
-        for (let i = 0; i < pixels.length; i += 4) {
-          rSum += pixels[i];
-          gSum += pixels[i + 1];
-          bSum += pixels[i + 2];
-          if ((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3 > 140) brightCount++;
-        }
-        const totalPx = pixels.length / 4;
-        const avgR = rSum / totalPx;
-        const avgG = gSum / totalPx;
-        const avgB = bSum / totalPx;
-        const brightRatio = brightCount / totalPx;
-
-        if (brightRatio < 0.25 && avgB > avgR) {
-          visualMood = 'Dark Cinematic / Night Neon';
-          detectedScene = 'Intense Moody / Night Edit';
-        } else if (avgG > avgR * 1.15 && avgG > avgB * 1.15) {
-          visualMood = 'Outdoor Arena / Battleground';
-          detectedScene = 'Open-Field Action / Gameplay';
-        } else if (avgR > avgG * 1.2 && brightRatio > 0.4) {
-          visualMood = 'High-Contrast Action / Fire';
-          detectedScene = 'Fast-Paced Climax / Highlights';
-        } else {
-          visualMood = 'Crisp Studio / Daylight';
-          detectedScene = 'Clear Subject Focus';
-        }
-      } catch {}
-
-      finish({ duration, width, height, orientation, visualMood, detectedScene });
+      const orientation = height >= width ? '9:16' : '16:9';
+      finish({ duration, width, height, orientation });
     };
 
     vid.onerror = () => {
-      finish({
-        duration: 30,
-        width: 1080,
-        height: 1920,
-        orientation: 'Vertical 9:16 Shorts',
-        visualMood: 'Dynamic',
-        detectedScene: 'Viral Clip'
-      });
+      finish({ duration: 30, width: 1080, height: 1920, orientation: '9:16' });
     };
   });
 
+// CLEAN, NATURAL YOUTUBE SHORTS TITLE, DESCRIPTION, #TAGS & WATERMARK
 const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, partLabel = '', watermarkLabel = 'Developed by shortspilot.in') => {
   const cleanName = (rawName || '')
     .replace(/\.[^/.]+$/, '')
@@ -227,137 +163,128 @@ const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, par
     .trim();
 
   const lower = cleanName.toLowerCase();
-  const suffix = partLabel ? ` [${partLabel}]` : '';
-  const displayTopic = cleanName.length > 2 ? cleanName : 'Trending Viral Moment';
+  const displayTopic = cleanName.length > 1 ? cleanName : 'Viral Moment';
+  const partNote = partLabel ? ` (${partLabel})` : '';
 
-  let category = 'Entertainment & Viral';
-  let subType = 'High-Retention Short Video';
+  let category = 'Viral';
   let hookTitle = '';
+  let storyBody = '';
   let tagList = [];
 
-  if (/(free\s?fire|ff|bgmi|pubg|valorant|gta|minecraft|cod|clutch|headshot|booyah|rank|squad|gaming|gameplay|pro\s?player)/i.test(lower)) {
-    category = 'Gaming & Esports';
-    subType = lower.includes('ff') || lower.includes('free') ? 'Free Fire Pro Gameplay / Clutch' : lower.includes('bgmi') || lower.includes('pubg') ? 'BGMI / PUBG Intense Squad Fight' : 'Pro Gaming Highlights';
-    const gamingHooks = [
-      `IMPOSSIBLE 1v4 CLUTCH! 😱 ${displayTopic}`,
-      `99% Players Fail This Move 🔥 ${displayTopic}`,
-      `God-Level Reflexes ⚡ ${displayTopic}`
+  if (/\bgta\s?6\b/i.test(lower)) {
+    category = 'GTA 6';
+    const gta6Titles = [
+      `GTA 6 Gameplay Looks Insane! 😱🔥${partNote} #Shorts`,
+      `Next-Level GTA 6 Action You Can't Miss ⚡${partNote} #Shorts`,
+      `GTA 6 Viral Moment — Watch Till End 😱${partNote} #Shorts`
     ];
-    hookTitle = `${gamingHooks[clipIndex % gamingHooks.length]}${suffix} #Shorts`;
+    hookTitle = gta6Titles[clipIndex % gta6Titles.length];
+    storyBody = `Crazy GTA 6 action and next-gen details in action. Drop your thoughts in the comments below and subscribe for more daily Shorts!`;
     tagList = [
-      '#Gaming', '#GamingShorts', '#FreeFire', '#FreeFireShorts', '#BGMI',
-      '#BGMIShorts', '#ClutchMoment', '#Headshot', '#ProGameplay', '#EsportsIndia',
-      '#IndianGamer', '#Shorts', '#YouTubeShorts', '#ViralGaming'
+      '#GTA6', '#GrandTheftAuto6', '#GTA6Gameplay', '#RockstarGames', '#GTA',
+      '#GamingShorts', '#OpenWorldGames', '#NextGenGaming', '#Shorts', '#YouTubeShorts', '#ViralShorts'
     ];
-  } else if (/(anime|naruto|goku|luffy|zoro|gojo|sukuna|itachi|amv|sad|emotional|manga|otaku|edit)/i.test(lower)) {
-    category = 'Anime & AMV Edits';
-    subType = 'Cinematic Anime Scene / Emotional AMV Edit';
-    const animeHooks = [
-      `This Scene Gives Goosebumps Every Time 😭🔥 ${displayTopic}`,
-      `True Legends Never Give Up ⚡ ${displayTopic}`,
-      `Wait For The Beat Drop 🎧🔥 ${displayTopic}`
+  } else if (/(free\s?fire|\bff\b|booyah|headshot|clash\s?squad)/i.test(lower)) {
+    category = 'Free Fire';
+    const ffTitles = [
+      `Insane Free Fire Headshot & Clutch! 🔥⚡${partNote} #Shorts`,
+      `One Tap Madness in Free Fire 😱🔥${partNote} #Shorts`
     ];
-    hookTitle = `${animeHooks[clipIndex % animeHooks.length]}${suffix} #Shorts`;
+    hookTitle = ffTitles[clipIndex % ffTitles.length];
+    storyBody = `Fast-paced Free Fire gameplay highlights with clean shots and intense moments. Comment your favorite moment below!`;
+    tagList = [
+      '#FreeFire', '#FreeFireIndia', '#FreeFireShorts', '#FFShorts', '#Headshot',
+      '#GamingShorts', '#Shorts', '#YouTubeShorts', '#ViralShorts'
+    ];
+  } else if (/(bgmi|pubg|clutch|squad)/i.test(lower)) {
+    category = 'BGMI';
+    const bgmiTitles = [
+      `Wild BGMI Squad Wipe & Clutch! 😱🔥${partNote} #Shorts`,
+      `Intense BGMI Action Till Last Zone ⚡${partNote} #Shorts`
+    ];
+    hookTitle = bgmiTitles[clipIndex % bgmiTitles.length];
+    storyBody = `High-pressure BGMI fight and clutch gameplay. Like and subscribe for daily gaming Shorts!`;
+    tagList = [
+      '#BGMI', '#BGMIShorts', '#BGMIIndia', '#PUBGM', '#ClutchMoment',
+      '#GamingShorts', '#Shorts', '#YouTubeShorts', '#ViralShorts'
+    ];
+  } else if (/(anime|naruto|goku|luffy|gojo|sukuna|amv|otaku|edit)/i.test(lower)) {
+    category = 'Anime';
+    const animeTitles = [
+      `Chills Every Time in This ${displayTopic} Scene 😭🔥${partNote} #Shorts`,
+      `Peak ${displayTopic} Moment — Watch Till End ⚡${partNote} #Shorts`
+    ];
+    hookTitle = animeTitles[clipIndex % animeTitles.length];
+    storyBody = `Unforgettable ${displayTopic} moment edited for pure hype and emotion. Comment your favorite character below!`;
     tagList = [
       '#Anime', '#AnimeEdit', '#AnimeShorts', '#AMV', '#AnimeIndia',
-      '#Otaku', '#Gojo', '#Naruto', '#Luffy', '#EmotionalEdit',
-      '#CinematicEdit', '#Shorts', '#YouTubeShorts', '#TrendingAnime'
+      '#Shorts', '#YouTubeShorts', '#ViralShorts'
     ];
-  } else if (/(car|bmw|supra|gtr|lamborghini|ferrari|porsche|bike|zx10r|kawasaki|duke|thar|scorpio|drift|exhaust|supercar)/i.test(lower)) {
-    category = 'Automobiles & Supercars';
-    subType = 'Supercar / Superbike Exhaust & Speed Showcase';
-    const autoHooks = [
-      `Listen To That Brutal Exhaust Sound 🔊🔥 ${displayTopic}`,
-      `Pure Beast Mode On Road 🏎️💨 ${displayTopic}`,
-      `Dream Machine Alert 😱⚡ ${displayTopic}`
+  } else if (/(car|bmw|supra|gtr|lamborghini|ferrari|porsche|bike|zx10r|kawasaki|duke|thar|scorpio|drift|exhaust)/i.test(lower)) {
+    category = 'Automobiles';
+    const autoTitles = [
+      `Listen To That ${displayTopic} Sound 🔊🔥${partNote} #Shorts`,
+      `Pure ${displayTopic} Beast Mode On Road 🏎️⚡${partNote} #Shorts`
     ];
-    hookTitle = `${autoHooks[clipIndex % autoHooks.length]}${suffix} #Shorts`;
+    hookTitle = autoTitles[clipIndex % autoTitles.length];
+    storyBody = `Clean shots of ${displayTopic} turning heads everywhere. Which ride is your pick? Comment below!`;
     tagList = [
-      '#Supercars', '#Cars', '#CarShorts', '#Superbikes', '#CarLovers',
-      '#ExhaustSound', '#JDM', '#BMW', '#Kawasaki', '#CarsOfIndia',
-      '#ModifiedCars', '#Shorts', '#YouTubeShorts', '#ViralCars'
+      '#Cars', '#Supercars', '#CarShorts', '#Superbikes', '#CarLovers',
+      '#Shorts', '#YouTubeShorts', '#ViralShorts'
     ];
-  } else if (/(tech|ai|mobile|iphone|android|laptop|coding|app|website|gadget|review|unboxing|trick|tips)/i.test(lower)) {
-    category = 'Technology & AI Tools';
-    subType = 'Tech Tutorial / AI Productivity & Gadget Showcase';
-    const techHooks = [
-      `This Secret AI Trick Will Blow Your Mind 🤯⚡ ${displayTopic}`,
-      `99% Log Ye Hidden Feature Nahi Jante 📱🔥 ${displayTopic}`,
-      `Must-Have Tech Hack In 2026 🚀 ${displayTopic}`
+  } else if (/(tech|ai|mobile|iphone|android|laptop|coding|app|website|gadget|trick|tips)/i.test(lower)) {
+    category = 'Tech';
+    const techTitles = [
+      `Smart ${displayTopic} Trick You Should Try Today ⚡${partNote} #Shorts`,
+      `Quick ${displayTopic} Tip That Saves Time 🔥${partNote} #Shorts`
     ];
-    hookTitle = `${techHooks[clipIndex % techHooks.length]}${suffix} #Shorts`;
+    hookTitle = techTitles[clipIndex % techTitles.length];
+    storyBody = `Helpful ${displayTopic} tip made simple in under a minute. Save and share with a friend!`;
     tagList = [
-      '#Tech', '#TechShorts', '#AITools', '#Technology', '#TechTips',
-      '#SmartphoneTricks', '#Gadgets', '#TechIndia', '#AIAutomation', '#Coding',
-      '#DigitalIndia', '#Shorts', '#YouTubeShorts', '#ViralTech'
-    ];
-  } else if (/(motivation|success|business|money|finance|stock|trading|gym|fitness|workout|mindset|sigma)/i.test(lower)) {
-    category = 'Motivation, Fitness & Finance';
-    subType = 'High-Impact Mindset / Growth & Discipline Short';
-    const motHooks = [
-      `Change Your Mindset In 30 Seconds 🔥💯 ${displayTopic}`,
-      `Why 99% People Stay Broke vs Top 1% ⚡ ${displayTopic}`,
-      `No Excuses — Watch Till The End 💪🔥 ${displayTopic}`
-    ];
-    hookTitle = `${motHooks[clipIndex % motHooks.length]}${suffix} #Shorts`;
-    tagList = [
-      '#Motivation', '#MotivationalShorts', '#SuccessMindset', '#Discipline', '#Fitness',
-      '#GymMotivation', '#FinanceTips', '#Entrepreneurship', '#Hustle', '#SelfImprovement',
-      '#HindiMotivation', '#Shorts', '#YouTubeShorts', '#ViralMotivation'
+      '#Tech', '#TechShorts', '#TechTips', '#AITools', '#Shorts',
+      '#YouTubeShorts', '#ViralShorts'
     ];
   } else {
-    category = 'Trending Entertainment & Viral';
-    subType = 'High-Retention Story / Viral Moment Clip';
-    const genHooks = [
-      `${displayTopic} 😱 Wait For The Twist At The End!`,
-      `Unbelievable Moment Caught On Camera 🔥 ${displayTopic}`,
-      `Watch Till Last Second — 100% Shocking ⚡ ${displayTopic}`
+    category = 'Viral';
+    const viralTitles = [
+      `${displayTopic} 😱 Wait For The End!${partNote} #Shorts`,
+      `You Won't Expect What Happens Next 🔥${partNote} #Shorts`,
+      `Best Moment From ${displayTopic} ⚡${partNote} #Shorts`
     ];
-    hookTitle = `${genHooks[clipIndex % genHooks.length]}${suffix} #Shorts`;
+    hookTitle = viralTitles[clipIndex % viralTitles.length];
+    storyBody = `${storyBody || `Watch ${displayTopic} till the end and share your reaction in the comments!`}`;
     tagList = [
-      '#Shorts', '#YouTubeShorts', '#ViralShorts', '#Trending', '#TrendingIndia',
-      '#MustWatch', '#ViralVideo', '#Explore', '#ForYou', '#DailyShorts',
-      '#Entertainment', '#Amazing', '#Shocking', '#ShortsFeed'
+      '#Shorts', '#YouTubeShorts', '#ViralShorts', '#Trending', '#MustWatch', '#Viral'
     ];
   }
 
-  const finalTitle = hookTitle.slice(0, 95);
+  const finalTitle = hookTitle.slice(0, 90);
   const hashtagsString = tagList.join(' ');
   const brandCredit = (watermarkLabel || 'Developed by shortspilot.in').trim();
 
-  const detailedDescription = [
-    finalTitle,
+  const cleanDescription = [
+    storyBody,
     '',
-    `📌 Video Topic: ${displayTopic}`,
-    `🎯 Category: ${category}`,
-    `🎬 Content Type: ${subType}`,
-    `📐 Format & Visuals: ${videoAnalysis.orientation || 'Vertical 9:16 Shorts'} • ${videoAnalysis.visualMood || 'High-Contrast'} (${videoAnalysis.detectedScene || 'Peak Hook Frame'})`,
-    '',
-    `🔥 Watch till the very end and comment your reaction below! Like & Subscribe for daily high-energy Shorts.`,
-    '',
-    `🌐 Create & Automate Viral Shorts: https://shortspilot.in`,
-    `⚡ ${brandCredit}`,
+    `Website: https://shortspilot.in`,
+    brandCredit,
     '',
     hashtagsString
   ].join('\n');
 
   return {
     category,
-    subType,
     title: finalTitle,
     hashtags: hashtagsString,
     tagArray: tagList.map((t) => t.replace(/^#/, '')),
-    description: detailedDescription,
+    description: cleanDescription,
     watermarkText: brandCredit,
     websiteUrl: 'https://shortspilot.in',
-    visualMood: videoAnalysis.visualMood || 'Dynamic',
-    orientation: videoAnalysis.orientation || 'Vertical 9:16 Shorts',
     hookScore: clipIndex === 0 ? '9.9/10' : clipIndex === 1 ? '9.8/10' : '9.6/10'
   };
 };
 
 const buildShortsThumbnailConcepts = (topicInput) => {
-  const base = (topicInput || '').trim() || 'Viral Moment';
+  const base = (topicInput || '').trim() || 'GTA 6';
   const upperTopic = base.toUpperCase().slice(0, 24);
   return [
     {
@@ -371,7 +298,7 @@ const buildShortsThumbnailConcepts = (topicInput) => {
     },
     {
       id: 't2',
-      hookText: '99% FAIL THIS 🔥',
+      hookText: 'INSANE MOMENT 🔥',
       subText: upperTopic,
       badge: 'HIGH CONTRAST',
       gradient: 'from-amber-500 via-rose-800 to-slate-950',
@@ -380,7 +307,7 @@ const buildShortsThumbnailConcepts = (topicInput) => {
     },
     {
       id: 't3',
-      hookText: 'IMPOSSIBLE CLUTCH ⚡',
+      hookText: 'WATCH TILL END ⚡',
       subText: upperTopic,
       badge: 'SHORTS FEED PRO',
       gradient: 'from-cyan-500 via-indigo-900 to-slate-950',
@@ -414,7 +341,7 @@ const DesktopSidebar = React.memo(({
         className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-95 transition-all"
       >
         <Plus className="w-4 h-4" />
-        <span>Upload & Deep Analyze</span>
+        <span>Upload & Publish Short</span>
       </button>
 
       <div className="space-y-1.5 text-xs font-bold">
@@ -447,7 +374,7 @@ const DesktopSidebar = React.memo(({
         >
           <div className="flex items-center gap-3">
             <FolderKanban className="w-4 h-4" />
-            <span>Queue & SEO Vault</span>
+            <span>Queue Vault</span>
           </div>
           <span className="px-2 py-0.5 rounded-full bg-purple-500/25 text-[10px] text-purple-200">{videoCount}</span>
         </button>
@@ -526,7 +453,7 @@ const TopHeader = React.memo(({ tier, hasUnread, gmailUser, onOpenDrawer, onGoHo
 
       <div className="hidden lg:flex items-center gap-2.5">
         <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-[11px] font-extrabold text-emerald-300">
-          ● Deep Video AI & Gmail Alerts
+          ● Clean Shorts SEO & Auto-Post
         </span>
         <span className="text-xs text-slate-400">Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b></span>
       </div>
@@ -929,7 +856,7 @@ const AdminConsoleModal = React.memo(({
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-cyan-300 font-bold">Email Alert Webhook URL (EmailJS / Formspree / Apps Script)</label>
+                      <label className="text-[10px] text-cyan-300 font-bold">Email Alert Webhook URL</label>
                       <input
                         type="url"
                         value={globalConfig.paymentWebhookUrl || ''}
@@ -1002,8 +929,8 @@ export default function App() {
 
   const [isThumbnailModalOpen, setIsThumbnailModalOpen] = useState(false);
   const [thumbTopicInput, setThumbTopicInput] = useState('');
-  const [selectedThumbConcept, setSelectedThumbConcept] = useState(() => buildShortsThumbnailConcepts('Viral Moment')[0]);
-  const [thumbConcepts, setThumbConcepts] = useState(() => buildShortsThumbnailConcepts('Viral Moment'));
+  const [selectedThumbConcept, setSelectedThumbConcept] = useState(() => buildShortsThumbnailConcepts('GTA 6')[0]);
+  const [thumbConcepts, setThumbConcepts] = useState(() => buildShortsThumbnailConcepts('GTA 6'));
 
   const [selectedTimeSlot] = useState(() => {
     const now = new Date();
@@ -1019,13 +946,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: 'Gmail UPI Payment Alert Ready 📧', desc: 'Configure Owner Gmail & Webhook in Admin > System for instant UTR alerts!', unread: true },
-    { id: 2, title: 'Deep Video AI & Watermark Active ✨', desc: 'Auto topic detection, #Tags, shortspilot.in link & "Developed by shortspilot.in".', unread: true }
+    { id: 1, title: 'Clean Shorts Title & #Tags Active ✨', desc: 'No extra robotic labels—pure natural titles, relevant #Tags, shortspilot.in link & watermark!', unread: true },
+    { id: 2, title: 'Gmail UPI Payment Alert Ready 📧', desc: 'Configure Owner Gmail & Webhook in Admin > System for instant UTR alerts!', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! Ab koi bhi UPI UTR submit karega to aapke Gmail alert webhook par payment details turant bheji jayengi.' }
+    { role: 'ai', text: 'Namaste! Ab title aur description bilkul clean aayega—koi extra label line nahi, sirf topic ke hisaab se #Tags, shortspilot.in link aur watermark.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -1213,7 +1140,7 @@ export default function App() {
         snippet: {
           title: aiMeta.title,
           description: aiMeta.description,
-          categoryId: aiMeta.category.includes('Gaming') ? '20' : '22',
+          categoryId: ['GTA 6', 'Free Fire', 'BGMI'].includes(aiMeta.category) ? '20' : '22',
           tags: aiMeta.tagArray && aiMeta.tagArray.length > 0 ? aiMeta.tagArray : ['Shorts', 'YouTubeShorts', 'ViralShorts']
         },
         status: { privacyStatus: 'public' }
@@ -1247,7 +1174,7 @@ export default function App() {
     e.target.value = '';
     if (files.length === 0) return;
 
-    setAutoPublishStatus('🔍 Deep Analyzing Video Frames, Topic & #Tags...');
+    setAutoPublishStatus('Preparing Clean Title, #Tags & Description...');
 
     for (const file of files) {
       const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
@@ -1264,7 +1191,7 @@ export default function App() {
 
       let isPublished = false;
       if (!manualPostMode && ytStats.isConnected) {
-        setAutoPublishStatus(`🚀 Publishing ${aiMeta.category} Short to YouTube...`);
+        setAutoPublishStatus(`Publishing ${aiMeta.category} Short to YouTube...`);
         isPublished = await publishClipToYouTube(file, aiMeta);
       }
 
@@ -1272,19 +1199,17 @@ export default function App() {
         id: clipId,
         title: aiMeta.title,
         category: aiMeta.category,
-        subType: aiMeta.subType,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
         websiteUrl: aiMeta.websiteUrl,
-        visualMood: aiMeta.visualMood,
         thumbnailHook: selectedThumbConcept?.hookText || 'WAIT FOR END 😱',
         thumbnailGradient: selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
         status: manualPostMode
           ? 'Manual Ready'
           : isPublished
           ? 'Published to Shorts Feed'
-          : 'Analyzed & Queued',
+          : 'Ready in Vault',
         slot: manualPostMode ? 'Manual Post Mode' : selectedTimeSlot,
         hookScore: aiMeta.hookScore,
         duration: formatClockTime(vidAnalysis.duration),
@@ -1296,11 +1221,7 @@ export default function App() {
       setVideoQueue((prev) => [readyClip, ...prev]);
     }
     setAutoPublishStatus('');
-    alert(
-      manualPostMode
-        ? '✅ Deep Video Analysis Complete! Saved with proper Title, Description, #Tags & Developed by shortspilot.in!'
-        : '🎉 Video Analyzed & Published with proper #Tags, Description & shortspilot.in link!'
-    );
+    alert('Done! Clean title, relevant #Tags, shortspilot.in link & watermark added.');
   };
 
   const handleSplitFullVideo = async (e) => {
@@ -1310,7 +1231,7 @@ export default function App() {
 
     setIsSplitterModalOpen(false);
     const count = Number(clipSplitCount) || 3;
-    setAutoPublishStatus(`🔍 Deep Analyzing & Cutting ${count} Clips...`);
+    setAutoPublishStatus(`Cutting ${count} Clips...`);
 
     const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
     const vidAnalysis = await analyzeVideoDeeply(file);
@@ -1325,7 +1246,7 @@ export default function App() {
       const endSec = i === count - 1 ? Math.floor(totalDur) : Math.min(Math.floor(totalDur), startSec + segDur);
       const clipLength = Math.max(1, endSec - startSec);
       const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
-      const partLabel = count > 1 ? `Part ${i + 1}/${count} • ${timeRangeLabel}` : `Best Hook • ${timeRangeLabel}`;
+      const partLabel = count > 1 ? `Part ${i + 1}/${count}` : '';
 
       const aiMeta = buildDeepAiVideoPackage(
         rawName,
@@ -1345,12 +1266,10 @@ export default function App() {
         id: clipId,
         title: aiMeta.title,
         category: aiMeta.category,
-        subType: aiMeta.subType,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
         websiteUrl: aiMeta.websiteUrl,
-        visualMood: aiMeta.visualMood,
         thumbnailHook: selectedThumbConcept?.hookText || 'WAIT FOR END 😱',
         thumbnailGradient: selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
         startSec,
@@ -1374,12 +1293,12 @@ export default function App() {
 
     setVideoQueue((prev) => [...generatedClips, ...prev]);
     setAutoPublishStatus('');
-    alert(`✂️ Deep Analysis + ${count} Clips Cut Complete! Proper Title, Description, #Tags & shortspilot.in watermark added.`);
+    alert(`Cut ${count} clips with clean titles, proper #Tags & shortspilot.in link.`);
   };
 
   const handleGenerateThumbnails = (e) => {
     e.preventDefault();
-    const updated = buildShortsThumbnailConcepts(thumbTopicInput || customVideoTopic || 'Viral Short');
+    const updated = buildShortsThumbnailConcepts(thumbTopicInput || customVideoTopic || 'GTA 6');
     setThumbConcepts(updated);
     setSelectedThumbConcept(updated[0]);
   };
@@ -1484,7 +1403,7 @@ export default function App() {
     setSupportMessages((prev) => [
       ...prev,
       { role: 'user', text: msg },
-      { role: 'ai', text: `UTR submit hote hi Gmail webhook alert trigger hoga, aur har video par proper #Tags + https://shortspilot.in + "Developed by shortspilot.in" watermark lagega.` }
+      { role: 'ai', text: `Ab title aur description bilkul clean aayega—sirf topic ke hisaab se #Tags, https://shortspilot.in aur "Developed by shortspilot.in".` }
     ]);
     setSupportInput('');
   };
@@ -1535,8 +1454,8 @@ export default function App() {
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Crown className="w-6 h-6 text-amber-400 fill-amber-400 shrink-0" />
                     <div className="min-w-0">
-                      <div className="text-xs lg:text-sm font-extrabold text-amber-300 truncate">Deep Video AI & SEO Engine</div>
-                      <div className="text-[10px] lg:text-xs text-slate-200">Auto Topic Detection • #Tags • shortspilot.in</div>
+                      <div className="text-xs lg:text-sm font-extrabold text-amber-300 truncate">Shorts Feed Engine Active</div>
+                      <div className="text-[10px] lg:text-xs text-slate-200">Clean Titles • Smart #Tags • shortspilot.in</div>
                     </div>
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">PRO</span>
@@ -1571,19 +1490,19 @@ export default function App() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="max-w-[65%] space-y-1.5">
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-400/40 text-[9.5px] font-extrabold text-pink-300">
-                        <Zap className="w-3 h-3 text-pink-400" /> Deep Content Analyzer
+                        <Zap className="w-3 h-3 text-pink-400" /> Shorts Feed Engine
                       </span>
                       <h2 className="text-[22px] lg:text-[26px] font-extrabold text-white leading-[1.15] tracking-tight">
                         Publish to <br />
                         YouTube <span className="bg-gradient-to-r from-pink-400 to-cyan-400 bg-clip-text text-transparent">Shorts</span>
                       </h2>
                       <p className="text-[10.5px] lg:text-xs text-slate-300 font-medium">
-                        Auto #Tags + Description + <span className="text-cyan-300">shortspilot.in</span>
+                        Mode: {manualPostMode ? 'Manual Post' : selectedTimeSlot}
                       </p>
                     </div>
 
                     <div onClick={() => fileInputRef.current?.click()} className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-purple-600/30 to-pink-600/30 border border-purple-400/50 flex items-center justify-center relative cursor-pointer shadow-xl shrink-0 group">
-                      <span className="absolute -top-1 right-0 px-2 py-0.5 rounded-md bg-cyan-500 text-[9px] font-extrabold text-black">AI SEO</span>
+                      <span className="absolute -top-1 right-0 px-2 py-0.5 rounded-md bg-cyan-500 text-[9px] font-extrabold text-black">SHORT</span>
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-orange-500 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
                         <Play className="w-7 h-7 text-white fill-white ml-0.5" />
                       </div>
@@ -1594,7 +1513,7 @@ export default function App() {
                     type="text"
                     value={customVideoTopic}
                     onChange={(e) => setCustomVideoTopic(e.target.value)}
-                    placeholder="Optional: Video topic / game name (e.g. Free Fire Clutch, BMW M4)..."
+                    placeholder="Topic / game (e.g. GTA 6, Free Fire, BMW)..."
                     className="w-full px-3 py-2 rounded-xl bg-[#070412] border border-purple-500/35 text-xs text-white placeholder:text-slate-400"
                   />
 
@@ -1609,7 +1528,7 @@ export default function App() {
                     className="w-full py-3 lg:py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs lg:text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(56,189,248,0.4)] border border-white/20 active:scale-95 transition-all cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-white" />
-                    <span>{manualPostMode ? 'Analyze & Save to Manual Vault' : 'Analyze & Publish to Shorts Feed'}</span>
+                    <span>{manualPostMode ? 'Upload to Manual Vault' : 'Upload & Publish to Shorts Feed'}</span>
                   </button>
                 </div>
 
@@ -1624,7 +1543,7 @@ export default function App() {
                           <h3 className="text-sm lg:text-base font-extrabold text-white truncate">AI Engaging Clips</h3>
                           <span className="px-1.5 py-0.5 rounded bg-pink-500/30 text-[8.5px] font-extrabold text-pink-200">AUTO CUT</span>
                         </div>
-                        <p className="text-[10.5px] lg:text-xs text-slate-300">Cut 1, 3, or 5 clips + Deep SEO & Watermark</p>
+                        <p className="text-[10.5px] lg:text-xs text-slate-300">Cut 1, 3, or 5 clips from any long video</p>
                       </div>
                     </div>
                     <button
@@ -1818,7 +1737,7 @@ export default function App() {
               <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between px-1">
                   <h3 className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-pink-400" /> Analyzed & Cut Shorts (Tap to Inspect SEO & Video)
+                    <Clock className="w-4 h-4 text-pink-400" /> Your Published & Cut Shorts
                   </h3>
                   <button onClick={() => setActiveTab('projects')} className="text-[11px] lg:text-xs font-bold text-cyan-300 cursor-pointer">
                     View Vault ({videoQueue.length}) →
@@ -1835,12 +1754,11 @@ export default function App() {
                             <Play className="w-3.5 h-3.5 text-white fill-white mt-0.5" />
                           </div>
                           <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-extrabold">{clip.category || 'Viral'}</span>
+                            <h4 onClick={() => setPreviewClip(clip)} className="text-xs font-extrabold text-white truncate cursor-pointer hover:text-pink-300">{clip.title}</h4>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">{clip.status}</span>
                               <span className="text-[9px] text-amber-300 font-bold">Hook: {clip.hookScore}</span>
                             </div>
-                            <h4 onClick={() => setPreviewClip(clip)} className="text-xs font-extrabold text-white truncate mt-1 cursor-pointer hover:text-pink-300">{clip.title}</h4>
-                            <div className="text-[9.5px] text-emerald-400 font-bold mt-0.5">{clip.status} • {clip.duration}</div>
                           </div>
                         </div>
                         <button onClick={() => handleDeleteClip(clip.id)} className="p-1.5 text-rose-400 cursor-pointer shrink-0">
@@ -1850,17 +1768,13 @@ export default function App() {
                       <div className="text-[9.5px] text-cyan-300/90 font-mono truncate bg-[#080512] px-2.5 py-1.5 rounded-lg border border-slate-800">
                         {clip.hashtags}
                       </div>
-                      <div className="flex items-center justify-between text-[9px] text-slate-400 px-1">
-                        <span>🔗 https://shortspilot.in</span>
-                        <span className="text-pink-300 font-bold">{clip.watermarkText || 'Developed by shortspilot.in'}</span>
-                      </div>
                     </div>
                   ))}
                 </div>
 
                 {videoQueue.length === 0 && (
                   <div className="p-6 rounded-2xl bg-[#110c22] border border-slate-800 text-center space-y-2">
-                    <p className="text-xs text-slate-400">Upload a Short or cut 1, 3, 5 clips from a long video to get deep AI analysis, #Tags & shortspilot.in branding.</p>
+                    <p className="text-xs text-slate-400">Click Upload (+) below to publish your first Short.</p>
                   </div>
                 )}
               </div>
@@ -1926,7 +1840,7 @@ export default function App() {
           {activeTab === 'projects' && (
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between">
-                <h2 className="text-base lg:text-xl font-extrabold text-white">Queue & Deep SEO Vault ({videoQueue.length})</h2>
+                <h2 className="text-base lg:text-xl font-extrabold text-white">Queue Vault ({videoQueue.length})</h2>
                 {videoQueue.length > 0 && (
                   <button onClick={handleClearAllClips} className="text-xs text-rose-400 underline cursor-pointer">Clear All</button>
                 )}
@@ -1936,7 +1850,7 @@ export default function App() {
                 <div className="p-10 rounded-3xl bg-[#110c22] border border-dashed border-purple-500/30 text-center space-y-3">
                   <p className="text-xs lg:text-sm text-slate-400">Queue Vault is currently empty.</p>
                   <button onClick={() => fileInputRef.current?.click()} className="px-5 py-2.5 rounded-xl bg-purple-600/30 border border-purple-400/40 text-xs font-bold text-purple-200 cursor-pointer">
-                    + Upload & Analyze Short
+                    + Upload Short
                   </button>
                 </div>
               ) : (
@@ -1950,8 +1864,7 @@ export default function App() {
                             <Play className="w-3 h-3 text-white fill-white mt-0.5" />
                           </div>
                           <div className="min-w-0">
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-extrabold">{clip.category} • {clip.subType}</span>
-                            <div onClick={() => setPreviewClip(clip)} className="text-xs lg:text-sm font-bold text-white truncate mt-1 cursor-pointer">{clip.title}</div>
+                            <div onClick={() => setPreviewClip(clip)} className="text-xs lg:text-sm font-bold text-white truncate cursor-pointer">{clip.title}</div>
                             <div className="text-[10px] text-emerald-400 font-bold">{clip.status} • {clip.duration}</div>
                           </div>
                         </div>
@@ -2032,7 +1945,7 @@ export default function App() {
                 type="text"
                 value={thumbTopicInput}
                 onChange={(e) => setThumbTopicInput(e.target.value)}
-                placeholder="Enter Short topic (e.g. BMW M8, FreeFire)..."
+                placeholder="Enter topic (e.g. GTA 6, Free Fire)..."
                 className="flex-1 px-3 py-2.5 rounded-xl bg-[#06040c] border border-cyan-500/40 text-xs text-white"
               />
               <button type="submit" className="px-4 py-2.5 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer">
@@ -2110,7 +2023,7 @@ export default function App() {
               type="text"
               value={customVideoTopic}
               onChange={(e) => setCustomVideoTopic(e.target.value)}
-              placeholder="Enter video topic/game for deep AI #Tags & Title..."
+              placeholder="Topic / game (e.g. GTA 6, Free Fire)..."
               className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-purple-500/40 text-xs text-white"
             />
             <button
@@ -2280,8 +2193,8 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
           <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-4 space-y-3 max-h-[92vh] overflow-y-auto">
             <button onClick={() => setPreviewClip(null)} className="absolute top-3 right-3 p-1.5 rounded-full bg-slate-900 text-white cursor-pointer z-20"><X className="w-4 h-4" /></button>
-            <div className="text-[10px] font-extrabold text-amber-300 text-center pr-6">
-              {previewClip.timeRangeLabel ? `Clip: ${previewClip.timeRangeLabel} • ` : ''}{previewClip.category || 'Shorts Feed'}
+            <div className="text-xs font-extrabold text-white text-center pr-6 truncate">
+              {previewClip.title}
             </div>
 
             <div className="relative w-full max-w-[230px] mx-auto rounded-2xl overflow-hidden border border-purple-500/40">
@@ -2292,7 +2205,7 @@ export default function App() {
             </div>
 
             <div className="space-y-1.5 text-left">
-              <div className="text-[10px] font-extrabold text-pink-300">Auto-Generated Title & Description (with shortspilot.in):</div>
+              <div className="text-[10px] font-extrabold text-pink-300">Description & #Tags:</div>
               <pre className="text-[10px] text-slate-200 whitespace-pre-wrap font-sans bg-[#06040c] p-2.5 rounded-xl border border-slate-800 max-h-36 overflow-y-auto">
                 {previewClip.description}
               </pre>
