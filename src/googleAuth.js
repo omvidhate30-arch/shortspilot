@@ -1,4 +1,7 @@
-export const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+import { FIREBASE_DB_URL } from './videoUtils';
+
+// Yahan apni ek Google Cloud Web Client ID daal dein — phir kisi bhi user ko likhni nahi padegi
+export const DEFAULT_GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
 
 const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/youtube.upload',
@@ -7,12 +10,29 @@ const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.profile'
 ].join(' ');
 
-export const openGoogleAccountPopup = (customClientId = '', hintEmail = '') => {
-  const cleanId = (
-    customClientId ||
-    localStorage.getItem('sp_active_user_client_id') ||
-    GOOGLE_CLIENT_ID
-  ).trim();
+export const getAutomaticGoogleClientId = async () => {
+  const localSaved = (localStorage.getItem('sp_active_user_client_id') || '').trim();
+  if (localSaved && !localSaved.includes('YOUR_GOOGLE_CLIENT_ID')) {
+    return localSaved;
+  }
+
+  try {
+    const dbBase = (localStorage.getItem('sp_firebase_url') || FIREBASE_DB_URL)
+      .trim()
+      .replace(/\/$/, '');
+    const res = await fetch(`${dbBase}/siteConfig/defaultGoogleClientId.json`);
+    const remoteId = await res.json();
+    if (typeof remoteId === 'string' && remoteId.includes('.apps.googleusercontent.com')) {
+      localStorage.setItem('sp_active_user_client_id', remoteId.trim());
+      return remoteId.trim();
+    }
+  } catch {}
+
+  return DEFAULT_GOOGLE_CLIENT_ID.trim();
+};
+
+export const openGoogleAccountPopup = async (customClientId = '', hintEmail = '') => {
+  const cleanId = (customClientId || (await getAutomaticGoogleClientId())).trim();
 
   const redirectUri = `${window.location.origin}/`;
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
