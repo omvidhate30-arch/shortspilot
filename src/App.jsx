@@ -522,7 +522,6 @@ export default function App() {
   const [profilePhoneDraft, setProfilePhoneDraft] = useState(() => gmailUser?.phone || '');
   const [apiSavedMsg, setApiSavedMsg] = useState('');
 
-  // Step 2 Next Popup: Only Phone Number (Skippable now, Mandatory on Publish)
   const [isYtSetupPopupOpen, setIsYtSetupPopupOpen] = useState(false);
   const [setupPhoneInput, setSetupPhoneInput] = useState(() => gmailUser?.phone || '');
   const [setupPopupError, setSetupPopupError] = useState('');
@@ -870,12 +869,10 @@ export default function App() {
     };
   }, []);
 
-  // Direct automatic Google Account Popup on Connect Google click
   const handleConnectGoogleClick = useCallback(() => {
     openGoogleAccountPopup('', gmailUser?.email || '');
   }, [gmailUser?.email]);
 
-  // Save Phone Number from Step 2 Next Popup
   const handleSaveNextSetupPopup = async (e) => {
     e?.preventDefault();
     setSetupPopupError('');
@@ -901,7 +898,6 @@ export default function App() {
     setTimeout(() => setApiSavedMsg(''), 3000);
   };
 
-  // Upload/Publish check: Google connect + Phone Number mandatory
   const requireApiAfterLogin = () => {
     if (!ytStats.isConnected) {
       openGoogleAccountPopup('', gmailUser?.email || '');
