@@ -814,51 +814,64 @@ export default function App() {
     }
   };
 
+const oauthHandledRef = useRef(false);
+
   useEffect(() => {
-    const cleanEmail = (profileEmailDraft || '').trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) return;
-    const reg = readGmailApiRegistry();
-    if (reg[cleanEmail]) {
-      if (reg[cleanEmail].clientId) setUserClientId(reg[cleanEmail].clientId);
-      if (reg[cleanEmail].phone) setProfilePhoneDraft(reg[cleanEmail].phone);
-      if (reg[cleanEmail].igToken) {
-        setIgData({
-          username: reg[cleanEmail].igUsername || '@instagram_user',
-          token: reg[cleanEmail].igToken,
-          connected: true
-        });
+    if (oauthHandledRef.current) return;
+
+    const processToken = async (token) => {
+      if (!token || oauthHandledRef.current) return;
+      oauthHandledRef.current = true;
+      localStorage.setItem('sp_yt_access_token', token);
+
+      try {
+        const { userObj, channelObj } = await fetchGoogleAndYouTubeProfile(token);
+        const emailUsed = applyGoogleSession(token, userObj, channelObj);
+
+        if (window.opener && !window.opener.closed) {
+          try {
+            window.opener.postMessage(
+              { type: 'SP_GOOGLE_OAUTH_SUCCESS', token, userObj, channelObj },
+              window.location.origin
+            );
+          } catch {}
+          window.close();
+          return;
+        }
+
+        triggerNextSetupPopupAfterGoogle(emailUsed);
+      } catch (err) {
+        console.error('Google OAuth token processing error:', err);
+      }
+    };
+
+    const hash = window.location.hash || '';
+    if (hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.replace(/^#/, ''));
+      const token = params.get('access_token');
+      if (token) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        processToken(token);
       }
     }
-  }, [profileEmailDraft]);
 
-  const fetchFirebaseAll = useCallback(async () => {
-    if (!dbBase) return;
-    try {
-      const [cfgRes, txnRes, cliRes, apiRes] = await Promise.all([
-        fetch(`${dbBase}/siteConfig.json`),
-        fetch(`${dbBase}/transactions.json`),
-        fetch(`${dbBase}/clients.json`),
-        fetch(`${dbBase}/userApis.json`)
-      ]);
-      const cfgData = await cfgRes.json();
-      if (cfgData && typeof cfgData === 'object') {
-        setGlobalConfig((prev) => ({
-          ...prev,
-          ...cfgData,
-          monthlyOriginalPrice: '499',
-          yearlyOriginalPrice: '6999',
-          watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in'
-        }));
+    const onMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'SP_GOOGLE_OAUTH_SUCCESS' && event.data?.token) {
+        if (oauthHandledRef.current) return;
+        oauthHandledRef.current = true;
+        const emailUsed = applyGoogleSession(
+          event.data.token,
+          event.data.userObj || {},
+          event.data.channelObj || {}
+        );
+        triggerNextSetupPopupAfterGoogle(emailUsed);
       }
-      const txnData = await txnRes.json();
-      setTransactions(
-        txnData && typeof txnData === 'object'
-          ? Object.entries(txnData)
-              .map(([k, v]) => ({ firebaseKey: k, ...v }))
-              .reverse()
-          : []
-      );
+    };
 
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
       const cliData = await cliRes.json();
       setClientsList(
         cliData && typeof cliData === 'object'
