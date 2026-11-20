@@ -4,7 +4,7 @@ import {
   Youtube, X, Trash2, RefreshCw, Calendar,
   Clock, Bot, Crown, Tag,
   Bell, Layers, Home, BarChart2 as ChartIcon,
-  Plus, FolderKanban, Settings, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon, KeyRound, CheckCircle2, UserCheck
+  Plus, FolderKanban, Settings, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon, KeyRound, UserCheck, Copy, Check
 } from 'lucide-react';
 
 const USER_API_MAP_KEY = 'sp_gmail_api_registry';
@@ -50,7 +50,7 @@ const saveGmailApiRecord = (email, record) => {
   const cleanEmail = (email || '').trim().toLowerCase();
   if (!cleanEmail) return;
   const current = readGmailApiRegistry();
-  current[cleanEmail] = { ...(current[cleanEmail] || {}), ...record, updatedAt: Date.now() };
+  current[cleanEmail] = { ...(current[cleanEmail] || {}), ...record, email: cleanEmail, updatedAt: Date.now() };
   localStorage.setItem(USER_API_MAP_KEY, JSON.stringify(current));
 };
 
@@ -378,7 +378,6 @@ const DesktopSidebar = React.memo(({
         </div>
       </div>
 
-      {/* USER PROFILE CONNECTION STATUS (HIDES CLIENT ID ONCE CONNECTED) */}
       <div
         onClick={onOpenApiConnect}
         className={`p-2.5 rounded-2xl border flex items-center gap-2.5 cursor-pointer transition-all ${
@@ -389,8 +388,8 @@ const DesktopSidebar = React.memo(({
       >
         <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
         <div className="min-w-0">
-          <div className="text-xs font-extrabold text-white truncate flex items-center gap-1">
-            <span>{ytStats?.isConnected ? ytStats.title : 'API Setup Required'}</span>
+          <div className="text-xs font-extrabold text-white truncate">
+            {ytStats?.isConnected ? ytStats.title : 'API Setup Required'}
           </div>
           <div className={`text-[10px] font-bold truncate ${ytStats?.isConnected ? 'text-emerald-400' : 'text-amber-300'}`}>
             {ytStats?.isConnected ? '✅ Connected' : '⚠️ Enter Client ID'}
@@ -578,21 +577,29 @@ const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUploa
 
 const AdminConsoleModal = React.memo(({
   isOpen, onClose, globalConfig, setGlobalConfig, liveDbUrl, setLiveDbUrl,
-  transactions, setTransactions, clientsList, setClientsList, fetchFirebaseAll,
+  transactions, setTransactions, clientsList, setClientsList, userApisList, fetchFirebaseAll,
   gmailUser, setTier, setActivePlanType
 }) => {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
-  const [activeSubTab, setActiveSubTab] = useState('pricing');
+  const [activeSubTab, setActiveSubTab] = useState('userApis');
   const [isSaving, setIsSaving] = useState(false);
   const [saveBanner, setSaveBanner] = useState('');
   const [manualEmail, setManualEmail] = useState('');
   const [manualPlan, setManualPlan] = useState('yearly');
   const [searchQuery, setSearchQuery] = useState('');
+  const [copiedId, setCopiedId] = useState('');
 
   if (!isOpen) return null;
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
+
+  const handleCopyClientId = (key, value) => {
+    if (!value) return;
+    navigator.clipboard?.writeText(value);
+    setCopiedId(key);
+    setTimeout(() => setCopiedId(''), 1800);
+  };
 
   const handleUnlock = (e) => {
     e.preventDefault();
@@ -777,8 +784,8 @@ const AdminConsoleModal = React.memo(({
                 <div className="text-xs font-extrabold text-amber-300">{pendingCount}</div>
               </div>
               <div className="p-2 rounded-xl bg-[#110c22] border border-cyan-500/30 text-center">
-                <div className="text-[9px] text-slate-400">Monthly Offer</div>
-                <div className="text-xs font-extrabold text-cyan-300">₹{globalConfig.monthlyPrice}</div>
+                <div className="text-[9px] text-slate-400">User APIs</div>
+                <div className="text-xs font-extrabold text-cyan-300">{(userApisList || []).length}</div>
               </div>
               <div className="p-2 rounded-xl bg-[#110c22] border border-purple-500/30 text-center">
                 <div className="text-[9px] text-slate-400">Yearly Offer</div>
@@ -788,6 +795,7 @@ const AdminConsoleModal = React.memo(({
 
             <div className="flex gap-1.5 px-4 pt-3 overflow-x-auto">
               {[
+                { id: 'userApis', label: `🔑 User APIs (${(userApisList || []).length})` },
                 { id: 'pricing', label: '💰 Pricing & UPI' },
                 { id: 'payments', label: `🧾 UTR (${pendingCount})` },
                 { id: 'users', label: '👥 Users & VIP' },
@@ -813,6 +821,53 @@ const AdminConsoleModal = React.memo(({
             )}
 
             <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
+              {activeSubTab === 'userApis' && (
+                <div className="space-y-2.5">
+                  <div className="text-[11px] text-slate-400">
+                    Users who entered or connected their Google Client ID appear here:
+                  </div>
+                  {(!userApisList || userApisList.length === 0) ? (
+                    <div className="p-6 rounded-2xl bg-[#110c22] text-center text-slate-400">
+                      No user Client IDs submitted yet.
+                    </div>
+                  ) : (
+                    userApisList.map((item, idx) => {
+                      const rowKey = item.id || item.email || String(idx);
+                      return (
+                        <div key={rowKey} className="p-3.5 rounded-2xl bg-[#110c22] border border-cyan-500/35 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="font-extrabold text-white truncate">{item.email || 'Unknown Gmail'}</div>
+                              <div className="text-[10px] text-slate-400 truncate">
+                                {item.channelTitle ? `${item.channelTitle} (${item.channelHandle || ''})` : 'API Setup'}
+                              </div>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-extrabold shrink-0 ${
+                              item.connected
+                                ? 'bg-emerald-500/20 text-emerald-300'
+                                : 'bg-amber-500/20 text-amber-300'
+                            }`}>
+                              {item.connected ? 'Connected' : 'Pending'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 bg-[#06040c] px-2.5 py-2 rounded-xl border border-slate-800">
+                            <span className="text-[11px] text-cyan-300 font-mono truncate">{item.clientId || '-'}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyClientId(rowKey, item.clientId)}
+                              className="px-2 py-1 rounded-lg bg-white/10 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                            >
+                              {copiedId === rowKey ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                              <span>{copiedId === rowKey ? 'Copied' : 'Copy'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+
               {activeSubTab === 'pricing' && (
                 <form onSubmit={handlePublishAllChanges} className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3.5 rounded-2xl bg-[#110c22] border border-purple-500/30">
@@ -993,7 +1048,6 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('sp_gmail_user') || 'null'); } catch { return null; }
   });
 
-  // New user starts with empty Client ID (mandatory to enter once per Gmail; hidden once connected)
   const [userClientId, setUserClientId] = useState(() => {
     try {
       const email = JSON.parse(localStorage.getItem('sp_gmail_user') || 'null')?.email?.toLowerCase();
@@ -1036,13 +1090,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: 'Mandatory One-Time Client ID Setup 🔐', desc: 'New users enter their Client ID once per Gmail. Once connected, the input hides automatically!', unread: true },
+    { id: 1, title: 'User APIs Visible on Owner Page 🔑', desc: 'Submitted user Client IDs sync to Owner Admin Console under User APIs.', unread: true },
     { id: 2, title: 'Clean Shorts Title & #Tags Active ✨', desc: 'Relevant #Tags, https://shortspilot.in link & "Developed by shortspilot.in" watermark.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! New user ko apni Gmail aur Google Client ID ek bar dalni hoti hai. Connect hote hi Client ID box hide ho jata hai aur Connected dikhta hai.' }
+    { role: 'ai', text: 'Namaste! User jo Client ID dalenge woh Owner Admin Console ke User APIs tab mein dikhega.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -1073,6 +1127,7 @@ export default function App() {
   const [liveDbUrl] = useState(() => localStorage.getItem('sp_firebase_url') || FIREBASE_DB_URL);
   const [transactions, setTransactions] = useState([]);
   const [clientsList, setClientsList] = useState([]);
+  const [remoteUserApis, setRemoteUserApis] = useState([]);
 
   const fileInputRef = useRef(null);
   const splitterInputRef = useRef(null);
@@ -1080,7 +1135,31 @@ export default function App() {
 
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
 
-  // Auto-load saved Client ID if user enters an already-registered Gmail
+  const syncUserApiToOwner = async (email, clientId, extra = {}) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanClientId = (clientId || '').trim();
+    if (!cleanEmail || !cleanClientId) return;
+
+    saveGmailApiRecord(cleanEmail, { clientId: cleanClientId, ...extra });
+
+    if (dbBase) {
+      try {
+        await fetch(`${dbBase}/userApis/${emailToKey(cleanEmail)}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: cleanEmail,
+            clientId: cleanClientId,
+            connected: Boolean(extra.connected),
+            channelTitle: extra.channelTitle || '',
+            channelHandle: extra.channelHandle || '',
+            updatedAt: new Date().toISOString()
+          })
+        });
+      } catch {}
+    }
+  };
+
   useEffect(() => {
     const cleanEmail = (profileEmailDraft || '').trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) return;
@@ -1093,10 +1172,11 @@ export default function App() {
   const fetchFirebaseAll = useCallback(async () => {
     if (!dbBase) return;
     try {
-      const [cfgRes, txnRes, cliRes] = await Promise.all([
+      const [cfgRes, txnRes, cliRes, apiRes] = await Promise.all([
         fetch(`${dbBase}/siteConfig.json`),
         fetch(`${dbBase}/transactions.json`),
-        fetch(`${dbBase}/clients.json`)
+        fetch(`${dbBase}/clients.json`),
+        fetch(`${dbBase}/userApis.json`)
       ]);
       const cfgData = await cfgRes.json();
       if (cfgData && typeof cfgData === 'object') {
@@ -1110,8 +1190,12 @@ export default function App() {
       }
       const txnData = await txnRes.json();
       setTransactions(txnData && typeof txnData === 'object' ? Object.entries(txnData).map(([k, v]) => ({ firebaseKey: k, ...v })).reverse() : []);
+
       const cliData = await cliRes.json();
       setClientsList(cliData && typeof cliData === 'object' ? Object.entries(cliData).map(([k, v]) => ({ id: k, ...v })).reverse() : []);
+
+      const apiData = await apiRes.json();
+      setRemoteUserApis(apiData && typeof apiData === 'object' ? Object.entries(apiData).map(([k, v]) => ({ id: k, ...v })).reverse() : []);
     } catch {}
   }, [dbBase]);
 
@@ -1134,14 +1218,28 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
 
+  const combinedUserApis = useMemo(() => {
+    const map = new Map();
+    Object.entries(readGmailApiRegistry()).forEach(([email, val]) => {
+      map.set(email, { id: emailToKey(email), email, ...val });
+    });
+    (remoteUserApis || []).forEach((item) => {
+      const key = (item.email || item.id || '').toLowerCase();
+      if (key) {
+        const existing = map.get(key) || {};
+        map.set(key, { ...existing, ...item, email: item.email || existing.email || key });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  }, [remoteUserApis, ytStats.isConnected, isAdminOpen]);
+
   const fetchWithAuth = async (url, options = {}) => {
     const token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
     const headers = { ...(options.headers || {}), Authorization: `Bearer ${token}` };
     return fetch(url, { ...options, headers });
   };
 
-  // Mandatory Gmail + Client ID check -> redirects to Google OAuth; once connected, Client ID box hides permanently for that Gmail
-  const handleConnectUserProfileOAuth = (e) => {
+  const handleConnectUserProfileOAuth = async (e) => {
     if (e) e.preventDefault();
     setConnectError('');
     const cleanEmail = (profileEmailDraft || gmailUser?.email || '').trim().toLowerCase();
@@ -1158,7 +1256,8 @@ export default function App() {
     setGmailUser(updatedUser);
     localStorage.setItem('sp_gmail_user', JSON.stringify(updatedUser));
     localStorage.setItem('sp_active_user_client_id', clientToUse);
-    saveGmailApiRecord(cleanEmail, { clientId: clientToUse, connected: true });
+
+    await syncUserApiToOwner(cleanEmail, clientToUse, { connected: false });
 
     const scopes = [
       'https://www.googleapis.com/auth/youtube.upload',
@@ -1213,8 +1312,7 @@ export default function App() {
 
           const activeEmail = (gmailUser?.email || profileEmailDraft || '').trim().toLowerCase();
           if (activeEmail && userClientId) {
-            saveGmailApiRecord(activeEmail, {
-              clientId: userClientId.trim(),
+            await syncUserApiToOwner(activeEmail, userClientId, {
               connected: true,
               channelTitle,
               channelHandle,
@@ -1288,7 +1386,6 @@ export default function App() {
     e.target.value = '';
     if (files.length === 0) return;
 
-    // Enforce mandatory API connection before direct upload
     if (!ytStats.isConnected && !manualPostMode) {
       setConnectError('Mandatory: Please enter your Gmail & Client ID to connect your YouTube API first.');
       setIsConnectModalOpen(true);
@@ -1531,7 +1628,7 @@ export default function App() {
     setSupportMessages((prev) => [
       ...prev,
       { role: 'user', text: msg },
-      { role: 'ai', text: `New user ko Gmail aur Client ID ek bar dalna mandatory hai. Connect hote hi Client ID box hide ho jata hai aur Connected dikhta hai.` }
+      { role: 'ai', text: `User jo Client ID dalenge woh Owner Admin Console ke User APIs tab mein dikhega.` }
     ]);
     setSupportInput('');
   };
@@ -1592,7 +1689,6 @@ export default function App() {
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">PRO</span>
                 </div>
 
-                {/* USER PROFILE API CARD: IF CONNECTED -> HIDES CLIENT ID & SHOWS CONNECTED; IF NEW USER -> MANDATORY CLIENT ID PROMPT */}
                 {ytStats.isConnected ? (
                   <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-emerald-600/20 via-purple-600/20 to-cyan-600/20 border border-emerald-400/50 flex items-center justify-between gap-3 shadow-lg">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -2032,7 +2128,6 @@ export default function App() {
             </div>
           )}
 
-          {/* PROFILE API & SETTINGS TAB: CLIENT ID INPUT HIDES AUTOMATICALLY ONCE CONNECTED */}
           {activeTab === 'settings' && (
             <div className="space-y-4 pt-2 max-w-2xl mx-auto">
               <h2 className="text-base lg:text-xl font-extrabold text-white">Profile API & Settings</h2>
@@ -2066,10 +2161,7 @@ export default function App() {
                     <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9.5px] font-extrabold">1x Per Gmail</span>
                   </div>
                   <p className="text-[10.5px] text-slate-300">
-                    Enter your Gmail ID and your Google OAuth Client ID once. After connecting, this input will hide automatically.
-                  </p>
-                  <p className="text-[10px] text-slate-400">
-                    Redirect URI: <span className="text-cyan-300 font-mono">{YOUTUBE_REDIRECT_URI}</span>
+                    Enter your Gmail ID and your Google OAuth Client ID once. After connecting, this input hides automatically and your setup appears on the Owner Page.
                   </p>
                   <input
                     type="email"
@@ -2090,7 +2182,7 @@ export default function App() {
                   {connectError && <p className="text-xs text-rose-400 font-bold">{connectError}</p>}
                   {apiSavedMsg && <p className="text-xs text-emerald-400 font-bold">{apiSavedMsg}</p>}
                   <button type="submit" className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg">
-                    <Youtube className="w-4 h-4" /> Connect & Lock API to Gmail
+                    <Youtube className="w-4 h-4" /> Save & Connect YouTube Channel
                   </button>
                 </form>
               )}
@@ -2297,7 +2389,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MANDATORY ONE-TIME CLIENT ID MODAL (HIDES INPUT AUTOMATICALLY ONCE CONNECTED) */}
       {isConnectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-4">
@@ -2335,7 +2426,7 @@ export default function App() {
             ) : (
               <form onSubmit={handleConnectUserProfileOAuth} className="space-y-3">
                 <p className="text-[11px] text-slate-300">
-                  Enter your Gmail ID and your Google OAuth Client ID once. Once connected, this Client ID box will hide automatically.
+                  Enter your Gmail ID and your Google OAuth Client ID once. Once connected, this Client ID box hides automatically and appears on the Owner Page.
                 </p>
 
                 <div className="space-y-1">
@@ -2475,6 +2566,7 @@ export default function App() {
         setTransactions={setTransactions}
         clientsList={clientsList}
         setClientsList={setClientsList}
+        userApisList={combinedUserApis}
         fetchFirebaseAll={fetchFirebaseAll}
         gmailUser={gmailUser}
         setTier={setTier}
