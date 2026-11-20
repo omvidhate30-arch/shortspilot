@@ -4,7 +4,7 @@ import {
   Youtube, X, Trash2, RefreshCw, Calendar,
   Clock, Bot, Crown, Tag,
   Bell, Layers, Home, BarChart2 as ChartIcon,
-  Plus, FolderKanban, Settings, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon
+  Plus, FolderKanban, Settings, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon, KeyRound, CheckCircle2
 } from 'lucide-react';
 
 const DEFAULT_GOOGLE_CLIENT_ID =
@@ -152,7 +152,6 @@ const analyzeVideoDeeply = (file) =>
     };
   });
 
-// CLEAN, NATURAL YOUTUBE SHORTS TITLE, DESCRIPTION, #TAGS & WATERMARK
 const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, partLabel = '', watermarkLabel = 'Developed by shortspilot.in') => {
   const cleanName = (rawName || '')
     .replace(/\.[^/.]+$/, '')
@@ -252,7 +251,7 @@ const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, par
       `Best Moment From ${displayTopic} ⚡${partNote} #Shorts`
     ];
     hookTitle = viralTitles[clipIndex % viralTitles.length];
-    storyBody = `${storyBody || `Watch ${displayTopic} till the end and share your reaction in the comments!`}`;
+    storyBody = `Watch ${displayTopic} till the end and share your reaction in the comments!`;
     tagList = [
       '#Shorts', '#YouTubeShorts', '#ViralShorts', '#Trending', '#MustWatch', '#Viral'
     ];
@@ -317,12 +316,34 @@ const buildShortsThumbnailConcepts = (topicInput) => {
   ];
 };
 
+// REUSABLE YOUTUBE CHANNEL PHOTO AVATAR COMPONENT
+const ChannelAvatarBadge = React.memo(({ ytStats, sizeClass = 'w-10 h-10' }) => {
+  const safeAvatar = sanitizeMediaUrl(ytStats?.avatar);
+  if (ytStats?.isConnected && safeAvatar) {
+    return (
+      <div className="relative shrink-0">
+        <img
+          src={safeAvatar}
+          alt={ytStats?.title || 'YouTube Channel'}
+          className={`${sizeClass} rounded-full object-cover border-2 border-emerald-400 shadow-md`}
+        />
+        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#090614]" />
+      </div>
+    );
+  }
+  return (
+    <div className={`${sizeClass} rounded-full bg-red-600/20 border border-red-500/40 flex items-center justify-center shrink-0`}>
+      <Youtube className="w-5 h-5 text-red-500" />
+    </div>
+  );
+});
+
 const DesktopSidebar = React.memo(({
   activeTab, setActiveTab, onTriggerUpload, onOpenSplitter, onOpenThumbnail,
-  onOpenPricing, onOpenAdmin, monthlyPrice, yearlyPrice, videoCount
+  onOpenPricing, onOpenAdmin, monthlyPrice, yearlyPrice, videoCount, ytStats, onOpenApiConnect
 }) => (
   <aside className="hidden lg:flex flex-col justify-between w-64 shrink-0 bg-[#090614] border-r border-purple-500/20 p-5 sticky top-0 h-screen z-30">
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div onClick={() => setActiveTab('home')} className="flex items-center gap-2.5 cursor-pointer">
         <div className="w-10 h-10 rounded-2xl bg-[#140d2a] border border-pink-500/40 flex items-center justify-center shadow-lg">
           <Sparkles className="w-5 h-5 text-pink-400" />
@@ -333,6 +354,22 @@ const DesktopSidebar = React.memo(({
             <span className="text-pink-400">Pilot AI</span>
           </div>
           <p className="text-[11px] text-slate-400 font-medium mt-1">shortspilot.in • PC Studio</p>
+        </div>
+      </div>
+
+      {/* API CONNECT CHANNEL PHOTO CARD IN SIDEBAR */}
+      <div
+        onClick={onOpenApiConnect}
+        className="p-2.5 rounded-2xl bg-[#120c24] border border-purple-500/35 flex items-center gap-2.5 cursor-pointer hover:border-cyan-400/60 transition-all"
+      >
+        <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
+        <div className="min-w-0">
+          <div className="text-xs font-extrabold text-white truncate">
+            {ytStats?.isConnected ? ytStats.title : 'API Connect'}
+          </div>
+          <div className="text-[10px] text-cyan-300 font-medium truncate">
+            {ytStats?.isConnected ? `${ytStats.customUrl} • Linked` : 'Set Client ID & Connect'}
+          </div>
         </div>
       </div>
 
@@ -386,7 +423,7 @@ const DesktopSidebar = React.memo(({
           }`}
         >
           <Settings className="w-4 h-4" />
-          <span>YouTube API & Settings</span>
+          <span>API Connect & Settings</span>
         </button>
 
         <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">AI Studio Tools</div>
@@ -432,7 +469,7 @@ const DesktopSidebar = React.memo(({
   </aside>
 ));
 
-const TopHeader = React.memo(({ tier, hasUnread, gmailUser, onOpenDrawer, onGoHome, onOpenPricing, onOpenNotifications, onOpenSupport }) => (
+const TopHeader = React.memo(({ tier, hasUnread, ytStats, onOpenDrawer, onGoHome, onOpenPricing, onOpenNotifications, onOpenSupport, onOpenApiConnect }) => (
   <header className="flex items-center justify-between px-4 lg:px-8 pt-4 pb-3 bg-[#090614]/95 backdrop-blur sticky top-0 z-30 border-b border-purple-500/15">
     <div className="flex items-center gap-2.5">
       <button onClick={onOpenDrawer} className="lg:hidden p-1.5 rounded-xl text-slate-200 hover:text-white cursor-pointer">
@@ -453,7 +490,7 @@ const TopHeader = React.memo(({ tier, hasUnread, gmailUser, onOpenDrawer, onGoHo
 
       <div className="hidden lg:flex items-center gap-2.5">
         <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-[11px] font-extrabold text-emerald-300">
-          ● Clean Shorts SEO & Auto-Post
+          ● API Connect & Shorts Engine
         </span>
         <span className="text-xs text-slate-400">Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b></span>
       </div>
@@ -468,9 +505,13 @@ const TopHeader = React.memo(({ tier, hasUnread, gmailUser, onOpenDrawer, onGoHo
         <Bell className="w-4 h-4" />
         {hasUnread && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />}
       </button>
-      <button onClick={onOpenSupport} className="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 p-[1.5px] cursor-pointer">
+      <button onClick={onOpenApiConnect} title="API Connect & Channel Photo" className="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 p-[1.5px] cursor-pointer">
         <div className="w-full h-full rounded-full bg-[#0a0818] flex items-center justify-center overflow-hidden">
-          {gmailUser?.picture ? <img src={gmailUser.picture} alt="" className="w-full h-full object-cover" /> : <Bot className="w-5 h-5 text-cyan-300" />}
+          {ytStats?.isConnected && sanitizeMediaUrl(ytStats?.avatar) ? (
+            <img src={sanitizeMediaUrl(ytStats.avatar)} alt={ytStats.title} className="w-full h-full object-cover" />
+          ) : (
+            <Bot onClick={(e) => { e.stopPropagation(); onOpenSupport(); }} className="w-5 h-5 text-cyan-300" />
+          )}
         </div>
       </button>
     </div>
@@ -898,7 +939,8 @@ export default function App() {
           yearlyPrice: saved.yearlyPrice || '1499',
           watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
           ownerAlertEmail: saved.ownerAlertEmail || '',
-          paymentWebhookUrl: saved.paymentWebhookUrl || ''
+          paymentWebhookUrl: saved.paymentWebhookUrl || '',
+          googleClientId: saved.googleClientId || DEFAULT_GOOGLE_CLIENT_ID
         };
       }
     } catch {}
@@ -919,6 +961,9 @@ export default function App() {
       adminPin: '9767905729'
     };
   });
+
+  const [clientIdDraft, setClientIdDraft] = useState(() => globalConfig.googleClientId || DEFAULT_GOOGLE_CLIENT_ID);
+  const [apiSavedMsg, setApiSavedMsg] = useState('');
 
   const [activeTab, setActiveTab] = useState('home');
   const [tier, setTier] = useState('pro');
@@ -946,13 +991,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: 'Clean Shorts Title & #Tags Active ✨', desc: 'No extra robotic labels—pure natural titles, relevant #Tags, shortspilot.in link & watermark!', unread: true },
-    { id: 2, title: 'Gmail UPI Payment Alert Ready 📧', desc: 'Configure Owner Gmail & Webhook in Admin > System for instant UTR alerts!', unread: true }
+    { id: 1, title: 'Channel Photo Inside API Connect 📸', desc: 'Your connected YouTube channel avatar now shows inside API Connect card, modal & Settings!', unread: true },
+    { id: 2, title: 'Clean Shorts Title & #Tags Active ✨', desc: 'Relevant #Tags, https://shortspilot.in link & "Developed by shortspilot.in" watermark.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! Ab title aur description bilkul clean aayega—koi extra label line nahi, sirf topic ke hisaab se #Tags, shortspilot.in link aur watermark.' }
+    { role: 'ai', text: 'Namaste! API Connect option mein aap apni Google Client ID set karke channel connect kar sakte hain—aur connect hote hi channel ki photo wahin dikhegi.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -994,6 +1039,21 @@ export default function App() {
 
   const activeClientId = globalConfig.googleClientId || DEFAULT_GOOGLE_CLIENT_ID;
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
+
+  useEffect(() => {
+    setClientIdDraft(activeClientId);
+  }, [activeClientId]);
+
+  const handleSaveClientId = (e) => {
+    if (e) e.preventDefault();
+    const cleaned = (clientIdDraft || '').trim();
+    if (!cleaned) return;
+    const updated = { ...globalConfig, googleClientId: cleaned };
+    setGlobalConfig(updated);
+    localStorage.setItem('sp_global_config', JSON.stringify(updated));
+    setApiSavedMsg('✅ Google Client ID saved!');
+    setTimeout(() => setApiSavedMsg(''), 2500);
+  };
 
   const fetchFirebaseAll = useCallback(async () => {
     if (!dbBase) return;
@@ -1077,9 +1137,17 @@ export default function App() {
 
   const handleConnectYouTubeOAuth = () => {
     setConnectError('');
+    const clientToUse = (clientIdDraft || activeClientId || '').trim();
+    if (!clientToUse) {
+      return setConnectError('Please enter your Google OAuth Client ID first.');
+    }
+    const updated = { ...globalConfig, googleClientId: clientToUse };
+    setGlobalConfig(updated);
+    localStorage.setItem('sp_global_config', JSON.stringify(updated));
+
     const scopes = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/userinfo.email'].join(' ');
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authUrl.searchParams.set('client_id', activeClientId.trim());
+    authUrl.searchParams.set('client_id', clientToUse);
     authUrl.searchParams.set('redirect_uri', YOUTUBE_REDIRECT_URI);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('scope', scopes);
@@ -1104,7 +1172,7 @@ export default function App() {
           setYtStats({
             title: ch.snippet?.title || 'My Channel',
             customUrl: ch.snippet?.customUrl || `@${ch.snippet?.title || 'Channel'}`,
-            avatar: ch.snippet?.thumbnails?.default?.url || '',
+            avatar: ch.snippet?.thumbnails?.high?.url || ch.snippet?.thumbnails?.medium?.url || ch.snippet?.thumbnails?.default?.url || '',
             subscribers: Number(ch.statistics?.subscriberCount || 0).toLocaleString(),
             totalViews: Number(ch.statistics?.viewCount || 0).toLocaleString(),
             videoCount: Number(ch.statistics?.videoCount || 0).toLocaleString(),
@@ -1403,7 +1471,7 @@ export default function App() {
     setSupportMessages((prev) => [
       ...prev,
       { role: 'user', text: msg },
-      { role: 'ai', text: `Ab title aur description bilkul clean aayega—sirf topic ke hisaab se #Tags, https://shortspilot.in aur "Developed by shortspilot.in".` }
+      { role: 'ai', text: `API Connect mein Client ID set karein aur connect hote hi channel photo wahin show hogi.` }
     ]);
     setSupportInput('');
   };
@@ -1426,13 +1494,15 @@ export default function App() {
         monthlyPrice={globalConfig.monthlyPrice || '99'}
         yearlyPrice={globalConfig.yearlyPrice || '1499'}
         videoCount={videoQueue.length}
+        ytStats={ytStats}
+        onOpenApiConnect={() => setIsConnectModalOpen(true)}
       />
 
       <div className="flex-1 min-h-screen bg-[#070510] text-white flex flex-col">
         <TopHeader
           tier={tier}
           hasUnread={notificationsList.some((n) => n.unread)}
-          gmailUser={gmailUser}
+          ytStats={ytStats}
           onOpenDrawer={() => setIsSettingsDrawerOpen(true)}
           onGoHome={() => setActiveTab('home')}
           onOpenPricing={() => setIsPricingOpen(true)}
@@ -1441,6 +1511,7 @@ export default function App() {
             setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
           }}
           onOpenSupport={() => setShowAiSupport(true)}
+          onOpenApiConnect={() => setIsConnectModalOpen(true)}
         />
 
         <input ref={fileInputRef} type="file" accept="video/*" multiple onChange={handleFileUpload} className="hidden" />
@@ -1461,15 +1532,16 @@ export default function App() {
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">PRO</span>
                 </div>
 
+                {/* API CONNECT OPTION WITH CHANNEL PHOTO */}
                 <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-cyan-600/20 border border-red-500/40 flex items-center justify-between gap-3 shadow-lg">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Youtube className="w-6 h-6 text-red-500 shrink-0" />
+                    <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
                     <div className="min-w-0">
                       <div className="text-xs lg:text-sm font-extrabold text-white truncate">
-                        {ytStats.isConnected ? `Connected: ${ytStats.title}` : 'Connect YouTube Channel'}
+                        {ytStats.isConnected ? `${ytStats.title} (${ytStats.customUrl})` : 'API Connect • YouTube Channel'}
                       </div>
-                      <div className="text-[10px] lg:text-xs text-slate-300">
-                        {ytStats.isConnected ? 'Shorts Feed Auto-Publish Active' : 'Link account for direct publishing'}
+                      <div className="text-[10px] lg:text-xs text-slate-300 truncate">
+                        {ytStats.isConnected ? 'Channel Photo & Shorts Auto-Publish Active' : 'Link Client ID & connect channel photo'}
                       </div>
                     </div>
                   </div>
@@ -1479,7 +1551,7 @@ export default function App() {
                     </button>
                   ) : (
                     <button onClick={() => setIsConnectModalOpen(true)} className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[11px] lg:text-xs font-extrabold cursor-pointer shrink-0 shadow-lg">
-                      Connect
+                      API Connect
                     </button>
                   )}
                 </div>
@@ -1800,14 +1872,14 @@ export default function App() {
                     Connect your YouTube channel to enable direct Shorts feed publishing.
                   </p>
                   <button onClick={() => setIsConnectModalOpen(true)} className="w-full max-w-xs mx-auto py-3 rounded-2xl bg-red-600 text-xs font-extrabold text-white cursor-pointer">
-                    Connect My YouTube Channel
+                    API Connect YouTube Channel
                   </button>
                 </div>
               ) : (
                 <>
                   <div className="p-4 rounded-2xl bg-[#130c26] border border-purple-400/40 flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0">
-                      {ytStats.avatar && <img src={ytStats.avatar} alt="" className="w-12 h-12 rounded-full" />}
+                      <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-12 h-12" />
                       <div className="min-w-0">
                         <h3 className="text-sm lg:text-base font-extrabold text-white truncate">{ytStats.title}</h3>
                         <p className="text-xs text-cyan-300 font-mono truncate">{ytStats.customUrl}</p>
@@ -1882,36 +1954,63 @@ export default function App() {
             </div>
           )}
 
+          {/* SETTINGS & API CONNECT TAB WITH CONNECTED CHANNEL PHOTO + CLIENT ID */}
           {activeTab === 'settings' && (
             <div className="space-y-4 pt-2 max-w-2xl mx-auto">
-              <h2 className="text-base lg:text-xl font-extrabold text-white">YouTube API & Settings</h2>
+              <h2 className="text-base lg:text-xl font-extrabold text-white">API Connect & Settings</h2>
 
-              <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs lg:text-sm font-extrabold text-white">YouTube Connection Status</div>
-                    <div className="text-[10px] lg:text-xs text-slate-400">{ytStats.isConnected ? `Connected to ${ytStats.title}` : 'Not Connected'}</div>
+              <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/35 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-12 h-12" />
+                    <div className="min-w-0">
+                      <div className="text-xs lg:text-sm font-extrabold text-white truncate">
+                        {ytStats.isConnected ? ytStats.title : 'API Connect Status'}
+                      </div>
+                      <div className="text-[10px] lg:text-xs text-slate-400 truncate">
+                        {ytStats.isConnected ? `${ytStats.customUrl} • Linked` : 'Not Connected'}
+                      </div>
+                    </div>
                   </div>
                   {ytStats.isConnected ? (
-                    <button onClick={handleDisconnectChannel} className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 text-xs font-bold cursor-pointer">
+                    <button onClick={handleDisconnectChannel} className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 text-xs font-bold cursor-pointer shrink-0">
                       Disconnect
                     </button>
                   ) : (
-                    <button onClick={() => setIsConnectModalOpen(true)} className="px-3 py-1.5 rounded-xl bg-red-600 text-white text-xs font-extrabold cursor-pointer">
-                      Connect Now
+                    <button onClick={handleConnectYouTubeOAuth} className="px-3.5 py-1.5 rounded-xl bg-red-600 text-white text-xs font-extrabold cursor-pointer shrink-0">
+                      Connect
                     </button>
                   )}
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/30 space-y-2">
-                <div className="text-xs lg:text-sm font-extrabold text-white">Domain, Watermark & Gmail Alert Config</div>
-                <p className="text-[10px] lg:text-xs text-slate-400">Website Link in Descriptions: <span className="text-emerald-300 font-mono">https://shortspilot.in</span></p>
-                <p className="text-[10px] lg:text-xs text-slate-400">Watermark Credit: <span className="text-pink-300 font-bold">{globalConfig.watermarkText || 'Developed by shortspilot.in'}</span></p>
-                <p className="text-[10px] lg:text-xs text-slate-400">Owner Alert Gmail: <span className="text-emerald-300 font-mono">{globalConfig.ownerAlertEmail || 'Not set (Configure in Admin > System)'}</span></p>
-                <p className="text-[10px] lg:text-xs text-slate-400">Authorized Redirect URI: <span className="text-cyan-300 font-mono">{YOUTUBE_REDIRECT_URI}</span></p>
-                <input type="text" readOnly value={activeClientId} className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono" />
-              </div>
+              <form onSubmit={handleSaveClientId} className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/35 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
+                    <KeyRound className="w-4 h-4 text-cyan-300" />
+                    <span>API Client ID (shortspilot.in)</span>
+                  </div>
+                  {apiSavedMsg && <span className="text-[11px] text-emerald-400 font-bold">{apiSavedMsg}</span>}
+                </div>
+                <p className="text-[10px] lg:text-xs text-slate-400">
+                  Authorized Redirect URI: <span className="text-cyan-300 font-mono">{YOUTUBE_REDIRECT_URI}</span>
+                </p>
+                <input
+                  type="text"
+                  value={clientIdDraft}
+                  onChange={(e) => setClientIdDraft(e.target.value)}
+                  placeholder="Paste Google OAuth Client ID (*.apps.googleusercontent.com)"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
+                />
+                <div className="flex gap-2 pt-1">
+                  <button type="submit" className="px-4 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer">
+                    Save Client ID
+                  </button>
+                  <button type="button" onClick={handleConnectYouTubeOAuth} className="px-4 py-2 rounded-xl bg-red-600 text-white font-extrabold text-xs cursor-pointer">
+                    Connect With Client ID
+                  </button>
+                </div>
+              </form>
 
               <button onClick={() => setIsPricingOpen(true)} className="w-full py-3 rounded-2xl bg-amber-500 text-black text-xs font-extrabold cursor-pointer shadow-lg">
                 🔥 View Offer Plans (₹{globalConfig.monthlyPrice}/mo & ₹{globalConfig.yearlyPrice}/yr)
@@ -2115,16 +2214,61 @@ export default function App() {
         </div>
       )}
 
+      {/* API CONNECT MODAL WITH CHANNEL PHOTO + CLIENT ID INPUT */}
       {isConnectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-3.5">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-4">
             <button onClick={() => setIsConnectModalOpen(false)} className="absolute top-4 right-4 text-slate-400 cursor-pointer"><X className="w-5 h-5" /></button>
-            <h3 className="text-base font-extrabold text-white">Connect Your YouTube Channel</h3>
-            <p className="text-[11px] text-slate-400">Domain: <span className="text-cyan-300 font-mono">shortspilot.in</span></p>
+
+            <div className="flex items-center gap-3">
+              <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-12 h-12" />
+              <div className="min-w-0">
+                <h3 className="text-base font-extrabold text-white truncate">
+                  {ytStats.isConnected ? ytStats.title : 'API Connect'}
+                </h3>
+                <p className="text-[11px] text-cyan-300 font-mono truncate">
+                  {ytStats.isConnected ? `${ytStats.customUrl} • Photo Linked` : 'shortspilot.in'}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-300">API Client ID</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={clientIdDraft}
+                  onChange={(e) => setClientIdDraft(e.target.value)}
+                  placeholder="Enter Google OAuth Client ID..."
+                  className="flex-1 px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveClientId}
+                  className="px-3 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer shrink-0"
+                >
+                  Save
+                </button>
+              </div>
+              {apiSavedMsg && <p className="text-[11px] text-emerald-400 font-bold">{apiSavedMsg}</p>}
+            </div>
+
             {connectError && <p className="text-xs text-rose-400">{connectError}</p>}
-            <button onClick={handleConnectYouTubeOAuth} className="w-full py-3 rounded-2xl font-extrabold text-xs text-white bg-red-600 flex items-center justify-center gap-2 cursor-pointer shadow-lg">
-              <Youtube className="w-4 h-4" /> Connect with Google OAuth
-            </button>
+
+            {ytStats.isConnected ? (
+              <div className="flex gap-2">
+                <button onClick={handleConnectYouTubeOAuth} className="flex-1 py-3 rounded-2xl font-extrabold text-xs text-white bg-emerald-600 flex items-center justify-center gap-1.5 cursor-pointer">
+                  <CheckCircle2 className="w-4 h-4" /> Re-Sync Channel Photo
+                </button>
+                <button onClick={handleDisconnectChannel} className="px-4 py-3 rounded-2xl font-extrabold text-xs text-rose-300 bg-rose-500/20 cursor-pointer">
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <button onClick={handleConnectYouTubeOAuth} className="w-full py-3 rounded-2xl font-extrabold text-xs text-white bg-red-600 flex items-center justify-center gap-2 cursor-pointer shadow-lg">
+                <Youtube className="w-4 h-4" /> Connect with Google OAuth
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -2139,6 +2283,7 @@ export default function App() {
               </div>
               <div className="space-y-1 text-xs font-bold">
                 <button onClick={() => { setActiveTab('home'); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-slate-200 cursor-pointer">Home Dashboard</button>
+                <button onClick={() => { setIsConnectModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-red-400 cursor-pointer">🔌 API Connect & Photo</button>
                 <button onClick={() => { setIsSplitterModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-pink-300 cursor-pointer">✂️ AI Engaging Clips (1, 3, 5)</button>
                 <button onClick={() => { setIsThumbnailModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer">🎨 9:16 Shorts Thumbnail Gen</button>
                 <button onClick={() => { setIsPricingOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer">🔥 Offer Plans (₹99 / ₹1,499)</button>
