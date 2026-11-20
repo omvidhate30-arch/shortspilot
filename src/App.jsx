@@ -591,7 +591,6 @@ const AdminConsoleModal = React.memo(({
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState('');
 
-  // Manual User API Add States
   const [newApiEmail, setNewApiEmail] = useState('');
   const [newApiPhone, setNewApiPhone] = useState('');
   const [newApiClientId, setNewApiClientId] = useState('');
@@ -844,7 +843,6 @@ const AdminConsoleModal = React.memo(({
             <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
               {activeSubTab === 'userApis' && (
                 <div className="space-y-3">
-                  {/* MANUAL ADD FORM FOR OWNER */}
                   <form onSubmit={handleAddManualApiRow} className="p-3.5 rounded-2xl bg-[#110c22] border border-emerald-500/40 space-y-2">
                     <div className="text-[11px] font-extrabold text-emerald-300">+ Manually Add User Gmail, Phone No. & Client ID</div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -879,7 +877,6 @@ const AdminConsoleModal = React.memo(({
                     </div>
                   </form>
 
-                  {/* LIST OF CONNECTED USERS WITH GMAIL, PHONE NO. & CLIENT ID */}
                   {(!userApisList || userApisList.length === 0) ? (
                     <div className="p-6 rounded-2xl bg-[#110c22] text-center text-slate-400">
                       No user Client IDs submitted yet.
@@ -1332,7 +1329,6 @@ export default function App() {
     return fetch(url, { ...options, headers });
   };
 
-  // CLICKING "SAVE & CONNECT YOUTUBE CHANNEL" IMMEDIATELY CONNECTS & LOGS GMAIL + PHONE + CLIENT ID TO OWNER PAGE
   const handleConnectUserProfileOAuth = async (e) => {
     if (e) e.preventDefault();
     setConnectError('');
@@ -1455,21 +1451,6 @@ export default function App() {
   useEffect(() => {
     fetchConnectedChannelAnalytics();
   }, [ytChannel?.accessToken, fetchConnectedChannelAnalytics]);
-
-  const handleDisconnectChannel = () => {
-    const activeEmail = (gmailUser?.email || profileEmailDraft || '').trim().toLowerCase();
-    if (activeEmail) {
-      removeGmailApiRecord(activeEmail);
-    }
-    localStorage.removeItem('sp_yt_access_token');
-    localStorage.removeItem('sp_yt_refresh_token');
-    localStorage.removeItem('sp_yt_channel');
-    localStorage.removeItem('sp_active_user_client_id');
-    setUserClientId('');
-    setYtChannel(null);
-    ytChannelRef.current = null;
-    setYtStats({ title: '', customUrl: '', avatar: '', subscribers: '0', totalViews: '0', videoCount: '0', country: 'IN', recentVideos: [], loading: false, isConnected: false });
-  };
 
   const publishClipToYouTube = async (file, aiMeta) => {
     const token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
@@ -1830,9 +1811,6 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                    <button onClick={handleDisconnectChannel} className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 text-[10px] lg:text-xs font-bold cursor-pointer shrink-0">
-                      Disconnect
-                    </button>
                   </div>
                 ) : (
                   <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-amber-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
@@ -2186,9 +2164,6 @@ export default function App() {
                         <p className="text-xs text-cyan-300 font-mono truncate">{gmailUser?.email || ytStats.customUrl} {gmailUser?.phone ? `• ${gmailUser.phone}` : ''}</p>
                       </div>
                     </div>
-                    <button onClick={handleDisconnectChannel} className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 text-xs font-bold cursor-pointer">
-                      Disconnect
-                    </button>
                   </div>
 
                   <div className="grid grid-cols-3 gap-3">
@@ -2274,9 +2249,6 @@ export default function App() {
                       {gmailUser?.phone && <div className="text-xs text-amber-300 font-mono truncate">📱 {gmailUser.phone}</div>}
                     </div>
                   </div>
-                  <button onClick={handleDisconnectChannel} className="px-3.5 py-2 rounded-xl bg-rose-500/20 text-rose-300 text-xs font-bold cursor-pointer shrink-0">
-                    Disconnect
-                  </button>
                 </div>
               ) : (
                 <form onSubmit={handleConnectUserProfileOAuth} className="p-4 rounded-2xl bg-[#110c22] border border-amber-400/50 space-y-3">
@@ -2548,14 +2520,9 @@ export default function App() {
                   <div>📧 Gmail: <b>{gmailUser?.email}</b></div>
                   {gmailUser?.phone && <div>📱 Phone No.: <b>{gmailUser.phone}</b></div>}
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setIsConnectModalOpen(false)} className="flex-1 py-3 rounded-2xl font-extrabold text-xs text-black bg-emerald-400 cursor-pointer">
-                    Done
-                  </button>
-                  <button onClick={handleDisconnectChannel} className="px-4 py-3 rounded-2xl font-extrabold text-xs text-rose-300 bg-rose-500/20 cursor-pointer">
-                    Disconnect
-                  </button>
-                </div>
+                <button onClick={() => setIsConnectModalOpen(false)} className="w-full py-3 rounded-2xl font-extrabold text-xs text-black bg-emerald-400 cursor-pointer">
+                  Done
+                </button>
               </div>
             ) : (
               <form onSubmit={handleConnectUserProfileOAuth} className="space-y-3">
