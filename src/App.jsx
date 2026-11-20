@@ -4,7 +4,7 @@ import {
   Youtube, X, Trash2, RefreshCw, Calendar,
   Clock, Eye, Users, Bot, Crown, Tag,
   Bell, Star, Layers, Home, BarChart2 as ChartIcon,
-  Plus, FolderKanban, Settings, Sun, Moon, Copy, KeyRound, Menu, Flame, Zap, TrendingUp, Scissors
+  Plus, FolderKanban, Settings, Sun, Moon, Copy, KeyRound, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon
 } from 'lucide-react';
 
 const DEFAULT_GOOGLE_CLIENT_ID =
@@ -158,6 +158,40 @@ const buildSmartAiVideoMetadata = (rawName, clipIndex = 0, partLabel = '') => {
     description: `${title}\n\nCategory: ${category}\nComment Your Reaction 👇\n\n${hashtags} #Shorts`,
     hookScore: clipIndex === 0 ? '9.9/10' : clipIndex === 1 ? '9.7/10' : '9.5/10'
   };
+};
+
+const buildShortsThumbnailConcepts = (topicInput) => {
+  const base = (topicInput || '').trim() || 'Viral Moment';
+  const upperTopic = base.toUpperCase().slice(0, 24);
+  return [
+    {
+      id: 't1',
+      hookText: 'WAIT FOR END 😱',
+      subText: upperTopic,
+      badge: '9:16 VIRAL HOOK',
+      gradient: 'from-pink-600 via-purple-900 to-slate-950',
+      accentText: 'text-amber-300',
+      ctrScore: '9.9/10 CTR'
+    },
+    {
+      id: 't2',
+      hookText: '99% FAIL THIS 🔥',
+      subText: upperTopic,
+      badge: 'HIGH CONTRAST',
+      gradient: 'from-amber-500 via-rose-800 to-slate-950',
+      accentText: 'text-cyan-300',
+      ctrScore: '9.7/10 CTR'
+    },
+    {
+      id: 't3',
+      hookText: 'IMPOSSIBLE CLUTCH ⚡',
+      subText: upperTopic,
+      badge: 'SHORTS FEED PRO',
+      gradient: 'from-cyan-500 via-indigo-900 to-slate-950',
+      accentText: 'text-pink-300',
+      ctrScore: '9.6/10 CTR'
+    }
+  ];
 };
 
 const TopHeader = React.memo(({ tier, hasUnread, gmailUser, onOpenDrawer, onGoHome, onOpenPricing, onOpenNotifications, onOpenSupport }) => (
@@ -624,6 +658,12 @@ export default function App() {
   const [clipSplitCount, setClipSplitCount] = useState(3);
   const [isSplitterModalOpen, setIsSplitterModalOpen] = useState(false);
 
+  // 9:16 Shorts Thumbnail Generator State
+  const [isThumbnailModalOpen, setIsThumbnailModalOpen] = useState(false);
+  const [thumbTopicInput, setThumbTopicInput] = useState('');
+  const [selectedThumbConcept, setSelectedThumbConcept] = useState(() => buildShortsThumbnailConcepts('Viral Moment')[0]);
+  const [thumbConcepts, setThumbConcepts] = useState(() => buildShortsThumbnailConcepts('Viral Moment'));
+
   const [selectedTimeSlot] = useState(() => {
     const now = new Date();
     const h = now.getHours();
@@ -638,13 +678,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: 'Special Launch Offer Live 🎉', desc: 'Monthly Pro now ₹99/mo (was ₹499) & Yearly VIP ₹1,499/yr (was ₹3,999)!', unread: true },
-    { id: 2, title: 'AI Engaging Clips (1, 3, 5) Restored ✂️', desc: 'Extract multiple viral clips from any full video automatically.', unread: true }
+    { id: 1, title: '9:16 Shorts Thumbnail Gen Added 🎨', desc: 'Create high-CTR vertical Shorts thumbnails with bold hook text!', unread: true },
+    { id: 2, title: 'Special Launch Offer Live 🎉', desc: 'Monthly Pro ₹99/mo & Yearly VIP ₹1,499/yr active on shortspilot.in!', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! Offer prices (₹99/mo & ₹1,499/yr) aur AI Engaging Clips (1, 3, 5) dono active hain.' }
+    { role: 'ai', text: 'Namaste! 9:16 Shorts Thumbnail Generator, AI Engaging Clips (1, 3, 5) aur ₹99/₹1,499 offers sab active hain.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -888,6 +928,8 @@ export default function App() {
         category: aiMeta.category,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
+        thumbnailHook: selectedThumbConcept?.hookText || 'WAIT FOR END 😱',
+        thumbnailGradient: selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
         status: manualPostMode
           ? 'Manual Ready'
           : isPublished
@@ -904,7 +946,7 @@ export default function App() {
       setVideoQueue((prev) => [readyClip, ...prev]);
     }
     setAutoPublishStatus('');
-    alert(manualPostMode ? '✅ Video saved in Queue for Manual Post!' : '🎉 Short processed & pushed to YouTube Shorts Feed!');
+    alert(manualPostMode ? '✅ Video saved in Queue with 9:16 Shorts Thumbnail!' : '🎉 Short processed & pushed to YouTube Shorts Feed!');
   };
 
   // AI Engaging Clips Auto-Splitter Handler (1, 3, 5 Clips from Full Video)
@@ -939,6 +981,8 @@ export default function App() {
         category: aiMeta.category,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
+        thumbnailHook: selectedThumbConcept?.hookText || 'WAIT FOR END 😱',
+        thumbnailGradient: selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
         status: manualPostMode
           ? `AI Clip (${partLabel})`
           : isPublished
@@ -958,6 +1002,13 @@ export default function App() {
     setVideoQueue((prev) => [...generatedClips, ...prev]);
     setAutoPublishStatus('');
     alert(`✂️ AI Extracted ${clipSplitCount} Engaging Viral Clips & added to your Vault!`);
+  };
+
+  const handleGenerateThumbnails = (e) => {
+    e.preventDefault();
+    const updated = buildShortsThumbnailConcepts(thumbTopicInput || customVideoTopic || 'Viral Short');
+    setThumbConcepts(updated);
+    setSelectedThumbConcept(updated[0]);
   };
 
   const handleDeleteClip = async (clipId) => {
@@ -1021,7 +1072,7 @@ export default function App() {
     setSupportMessages((prev) => [
       ...prev,
       { role: 'user', text: msg },
-      { role: 'ai', text: `Offer active hai! Monthly Pro ₹${globalConfig.monthlyPrice}/mo aur Yearly VIP ₹${globalConfig.yearlyPrice}/yr mein uplabdh hai.` }
+      { role: 'ai', text: `Offer active hai! Monthly Pro ₹${globalConfig.monthlyPrice}/mo aur Yearly VIP ₹${globalConfig.yearlyPrice}/yr ke saath 9:16 Thumbnail Gen bhi live hai.` }
     ]);
     setSupportInput('');
   };
@@ -1164,6 +1215,27 @@ export default function App() {
                       {num} {num === 1 ? 'Clip' : 'Clips'}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* 9:16 SHORTS THUMBNAIL STUDIO CARD */}
+              <div className="p-4 rounded-[24px] bg-gradient-to-r from-[#0e1a2b] to-[#1a0c2e] border border-cyan-500/40 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center">
+                      <ImageIcon className="w-5 h-5 text-cyan-300" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white">9:16 Shorts Thumbnail</h3>
+                      <p className="text-[10.5px] text-slate-300">Active Hook: <span className="text-amber-300 font-bold">{selectedThumbConcept?.hookText}</span></p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsThumbnailModalOpen(true)}
+                    className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-[11px] font-extrabold cursor-pointer shadow-md"
+                  >
+                    Create 9:16
+                  </button>
                 </div>
               </div>
 
@@ -1321,8 +1393,9 @@ export default function App() {
                 {videoQueue.slice(0, 3).map((clip) => (
                   <div key={clip.id} className="p-3 rounded-2xl bg-[#120c24] border border-purple-500/35 flex items-center justify-between gap-2.5">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div onClick={() => setPreviewClip(clip)} className="w-16 h-12 rounded-xl bg-slate-900 border border-purple-400/30 flex items-center justify-center shrink-0 cursor-pointer">
-                        <Play className="w-4 h-4 text-white fill-white" />
+                      <div onClick={() => setPreviewClip(clip)} className={`w-12 h-16 rounded-xl bg-gradient-to-b ${clip.thumbnailGradient || 'from-pink-600 to-slate-950'} border border-purple-400/40 flex flex-col items-center justify-center shrink-0 cursor-pointer p-1 text-center`}>
+                        <span className="text-[6.5px] font-black text-white leading-tight uppercase">{clip.thumbnailHook || 'SHORT'}</span>
+                        <Play className="w-3.5 h-3.5 text-white fill-white mt-0.5" />
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-xs font-extrabold text-white truncate">{clip.title}</h4>
@@ -1425,8 +1498,9 @@ export default function App() {
                 videoQueue.map((clip) => (
                   <div key={clip.id} className="p-3 rounded-2xl bg-[#110c22] border border-purple-500/30 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div onClick={() => setPreviewClip(clip)} className="w-14 h-10 rounded-lg bg-slate-900 border border-purple-400/30 flex items-center justify-center shrink-0 cursor-pointer">
-                        <Play className="w-3.5 h-3.5 text-white fill-white" />
+                      <div onClick={() => setPreviewClip(clip)} className={`w-11 h-14 rounded-lg bg-gradient-to-b ${clip.thumbnailGradient || 'from-pink-600 to-slate-950'} border border-purple-400/30 flex flex-col items-center justify-center shrink-0 cursor-pointer p-1 text-center`}>
+                        <span className="text-[6px] font-black text-white leading-tight uppercase">{clip.thumbnailHook || 'SHORT'}</span>
+                        <Play className="w-3 h-3 text-white fill-white mt-0.5" />
                       </div>
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-white truncate">{clip.title}</div>
@@ -1488,6 +1562,70 @@ export default function App() {
           onTriggerUpload={() => fileInputRef.current?.click()}
         />
       </div>
+
+      {/* 9:16 SHORTS THUMBNAIL GENERATOR MODAL */}
+      {isThumbnailModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setIsThumbnailModalOpen(false)} className="absolute top-4 right-4 text-slate-400 cursor-pointer"><X className="w-5 h-5" /></button>
+            <div className="flex items-center gap-2">
+              <ImageIcon className="w-5 h-5 text-cyan-300" />
+              <h3 className="text-base font-extrabold text-white">9:16 Shorts Thumbnail Generator</h3>
+            </div>
+
+            <form onSubmit={handleGenerateThumbnails} className="flex gap-2">
+              <input
+                type="text"
+                value={thumbTopicInput}
+                onChange={(e) => setThumbTopicInput(e.target.value)}
+                placeholder="Enter Short topic (e.g. BMW M8, FreeFire)..."
+                className="flex-1 px-3 py-2.5 rounded-xl bg-[#06040c] border border-cyan-500/40 text-xs text-white"
+              />
+              <button type="submit" className="px-4 py-2.5 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer">
+                Generate
+              </button>
+            </form>
+
+            {/* 3 Vertical 9:16 Preview Cards */}
+            <div className="grid grid-cols-3 gap-2.5">
+              {thumbConcepts.map((item) => {
+                const isSelected = selectedThumbConcept?.id === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedThumbConcept(item)}
+                    className={`aspect-[9/16] rounded-2xl bg-gradient-to-b ${item.gradient} p-2.5 flex flex-col justify-between border-2 cursor-pointer transition-all ${
+                      isSelected ? 'border-amber-400 scale-[1.02] shadow-[0_0_15px_rgba(251,191,36,0.4)]' : 'border-white/15 opacity-85'
+                    }`}
+                  >
+                    <span className="px-1.5 py-0.5 rounded bg-black/60 text-[7px] font-extrabold text-white self-start">
+                      {item.badge}
+                    </span>
+                    <div className="text-center space-y-1 my-auto">
+                      <div className="text-xs font-black text-white leading-tight drop-shadow">
+                        {item.hookText}
+                      </div>
+                      <div className={`text-[8.5px] font-extrabold ${item.accentText} truncate`}>
+                        {item.subText}
+                      </div>
+                    </div>
+                    <div className="text-[7.5px] font-extrabold text-emerald-300 bg-black/50 rounded px-1.5 py-0.5 text-center">
+                      {item.ctrScore}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setIsThumbnailModalOpen(false)}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
+            >
+              Apply Selected 9:16 Thumbnail ({selectedThumbConcept?.hookText})
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* AI ENGAGING CLIPS AUTO-SPLITTER MODAL */}
       {isSplitterModalOpen && (
@@ -1640,12 +1778,13 @@ export default function App() {
               <div className="space-y-1 text-xs font-bold">
                 <button onClick={() => { setActiveTab('home'); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-slate-200 cursor-pointer">Home Dashboard</button>
                 <button onClick={() => { setIsSplitterModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-pink-300 cursor-pointer">✂️ AI Engaging Clips (1, 3, 5)</button>
+                <button onClick={() => { setIsThumbnailModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer">🎨 9:16 Shorts Thumbnail Gen</button>
                 <button onClick={() => { setIsPricingOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer">🔥 Offer Plans (₹99 / ₹1,499)</button>
-                <button onClick={() => { setActiveTab('settings'); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer">Settings</button>
+                <button onClick={() => { setActiveTab('settings'); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-slate-300 cursor-pointer">Settings</button>
                 <button onClick={() => { setIsAdminOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-rose-400 cursor-pointer">🔐 Owner Admin Console</button>
               </div>
             </div>
-            <div className="text-[10px] text-slate-500">shortspilot.in • Live Offer Build</div>
+            <div className="text-[10px] text-slate-500">shortspilot.in • Full Build</div>
           </div>
           <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
         </div>
@@ -1693,8 +1832,11 @@ export default function App() {
       {/* VIDEO PREVIEW MODAL */}
       {previewClip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
-          <div className="relative w-full max-w-[280px] rounded-3xl bg-[#0b0818] border border-purple-500/40 p-3">
+          <div className="relative w-full max-w-[280px] rounded-3xl bg-[#0b0818] border border-purple-500/40 p-3 space-y-2">
             <button onClick={() => setPreviewClip(null)} className="absolute -top-3 -right-3 p-2 rounded-full bg-slate-900 text-white cursor-pointer"><X className="w-4 h-4" /></button>
+            <div className="text-[10px] font-extrabold text-amber-300 text-center">
+              9:16 Cover Hook: {previewClip.thumbnailHook || 'WAIT FOR END 😱'}
+            </div>
             <video src={sanitizeMediaUrl(previewClip.croppedUrl)} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
           </div>
         </div>
@@ -1719,4 +1861,3 @@ export default function App() {
       />
     </div>
   );
-}
