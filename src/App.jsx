@@ -33,6 +33,13 @@ const sanitizeMediaUrl = (rawUrl) => {
   return '';
 };
 
+const formatClockTime = (totalSeconds) => {
+  const sec = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const mins = Math.floor(sec / 60);
+  const rem = sec % 60;
+  return `${mins}:${String(rem).padStart(2, '0')}`;
+};
+
 let cachedDbPromise = null;
 const openClipsDB = () => {
   if (cachedDbPromise) return cachedDbPromise;
@@ -73,10 +80,17 @@ const idbGetAllClips = async () => {
       const req = tx.objectStore(IDB_STORE).getAll();
       req.onsuccess = () => {
         const items = (req.result || []).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
-        resolve(items.map((item) => ({
-          ...item,
-          croppedUrl: item.blob instanceof Blob ? URL.createObjectURL(item.blob) : null
-        })));
+        resolve(items.map((item) => {
+          const baseUrl = item.blob instanceof Blob ? URL.createObjectURL(item.blob) : null;
+          const trimHash =
+            baseUrl && typeof item.startSec === 'number' && typeof item.endSec === 'number'
+              ? `#t=${Math.floor(item.startSec)},${Math.floor(item.endSec)}`
+              : '';
+          return {
+            ...item,
+            croppedUrl: baseUrl ? `${baseUrl}${trimHash}` : null
+          };
+        }));
       };
       req.onerror = () => resolve([]);
     });
@@ -109,19 +123,20 @@ const idbClearAllClips = async () => {
 
 const inspectVideoFast = (file) =>
   new Promise((resolve) => {
-    if (!(file instanceof Blob)) return resolve({ duration: 15 });
+    if (!(file instanceof Blob)) return resolve({ duration: 30 });
     const url = URL.createObjectURL(file);
     const vid = document.createElement('video');
     vid.preload = 'metadata';
     vid.src = url;
     vid.onloadedmetadata = () => {
-      const duration = vid.duration || 15;
+      const rawDur = vid.duration;
+      const duration = Number.isFinite(rawDur) && rawDur > 0 ? rawDur : 30;
       URL.revokeObjectURL(url);
       resolve({ duration });
     };
     vid.onerror = () => {
       URL.revokeObjectURL(url);
-      resolve({ duration: 15 });
+      resolve({ duration: 30 });
     };
   });
 
@@ -678,13 +693,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: '9:16 Shorts Thumbnail Gen Added 🎨', desc: 'Create high-CTR vertical Shorts thumbnails with bold hook text!', unread: true },
+    { id: 1, title: 'Long Video Clip Cutter Fixed ✂️', desc: '1, 3, 5 clip segments now cut by exact start-end timestamps!', unread: true },
     { id: 2, title: 'Special Launch Offer Live 🎉', desc: 'Monthly Pro ₹99/mo & Yearly VIP ₹1,499/yr active on shortspilot.in!', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! 9:16 Shorts Thumbnail Generator, AI Engaging Clips (1, 3, 5) aur ₹99/₹1,499 offers sab active hain.' }
+    { role: 'ai', text: 'Namaste! AI Engaging Clips dashboard ab upar aa gaya hai aur 1, 3, 5 clips exact time cut ke saath kaam kar rahe hain.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -913,9 +928,7 @@ export default function App() {
       const vidInfo = await inspectVideoFast(file);
       const clipId = Date.now() + Math.random();
       const aiMeta = buildSmartAiVideoMetadata(rawName);
-
-      const mins = Math.floor(vidInfo.duration / 60);
-      const secs = Math.round(vidInfo.duration % 60);
+      const baseObjectUrl = URL.createObjectURL(file);
 
       let isPublished = false;
       if (!manualPostMode && ytStats.isConnected) {
@@ -937,8 +950,8 @@ export default function App() {
           : 'Queue (Connect YT)',
         slot: manualPostMode ? 'Manual Post Mode' : selectedTimeSlot,
         hookScore: aiMeta.hookScore,
-        duration: `${mins}:${String(secs).padStart(2, '0')}`,
-        croppedUrl: URL.createObjectURL(file),
+        duration: formatClockTime(vidInfo.duration),
+        croppedUrl: baseObjectUrl,
         blob: file
       };
 
@@ -949,24 +962,31 @@ export default function App() {
     alert(manualPostMode ? '✅ Video saved in Queue with 9:16 Shorts Thumbnail!' : '🎉 Short processed & pushed to YouTube Shorts Feed!');
   };
 
-  // AI Engaging Clips Auto-Splitter Handler (1, 3, 5 Clips from Full Video)
+  // AI Engaging Clips Auto-Splitter Handler (Exact Start-End Segments for 1, 3, 5 Clips)
   const handleSplitFullVideo = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
 
     setIsSplitterModalOpen(false);
-    setAutoPublishStatus(`AI Extracting ${clipSplitCount} Engaging Clips...`);
+    const count = Number(clipSplitCount) || 3;
+    setAutoPublishStatus(`Cutting ${count} Engaging Clips from Full Video...`);
 
     const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
     const vidInfo = await inspectVideoFast(file);
-    const totalDur = Math.max(15, vidInfo.duration || 45);
-    const segDur = Math.max(10, Math.floor(totalDur / clipSplitCount));
+    const totalDur = Math.max(15, vidInfo.duration || 60);
+    const segDur = Math.max(5, Math.floor(totalDur / count));
+    const baseObjectUrl = URL.createObjectURL(file);
 
     const generatedClips = [];
 
-    for (let i = 0; i < clipSplitCount; i++) {
-      const partLabel = clipSplitCount > 1 ? `Clip ${i + 1}/${clipSplitCount}` : 'Best Hook Clip';
+    for (let i = 0; i < count; i++) {
+      const startSec = Math.floor(i * segDur);
+      const endSec = i === count - 1 ? Math.floor(totalDur) : Math.min(Math.floor(totalDur), startSec + segDur);
+      const clipLength = Math.max(1, endSec - startSec);
+      const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
+      const partLabel = count > 1 ? `Clip ${i + 1}/${count} • ${timeRangeLabel}` : `Best Hook • ${timeRangeLabel}`;
+
       const aiMeta = buildSmartAiVideoMetadata(rawName, i, partLabel);
       const clipId = Date.now() + Math.random() + i;
 
@@ -983,15 +1003,18 @@ export default function App() {
         description: aiMeta.description,
         thumbnailHook: selectedThumbConcept?.hookText || 'WAIT FOR END 😱',
         thumbnailGradient: selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
+        startSec,
+        endSec,
+        timeRangeLabel,
         status: manualPostMode
-          ? `AI Clip (${partLabel})`
+          ? `Cut Ready (${timeRangeLabel})`
           : isPublished
           ? 'Published to Shorts Feed'
-          : `AI Clip Ready (${partLabel})`,
+          : `Cut Clip (${timeRangeLabel})`,
         slot: manualPostMode ? 'Manual Post Mode' : selectedTimeSlot,
         hookScore: aiMeta.hookScore,
-        duration: `0:${String(Math.min(59, segDur)).padStart(2, '0')}`,
-        croppedUrl: URL.createObjectURL(file),
+        duration: formatClockTime(clipLength),
+        croppedUrl: `${baseObjectUrl}#t=${startSec},${endSec}`,
         blob: file
       };
 
@@ -1001,7 +1024,7 @@ export default function App() {
 
     setVideoQueue((prev) => [...generatedClips, ...prev]);
     setAutoPublishStatus('');
-    alert(`✂️ AI Extracted ${clipSplitCount} Engaging Viral Clips & added to your Vault!`);
+    alert(`✂️ Cut ${count} Engaging Clips (${formatClockTime(0)} to ${formatClockTime(totalDur)}) & added to Queue Vault!`);
   };
 
   const handleGenerateThumbnails = (e) => {
@@ -1014,7 +1037,7 @@ export default function App() {
   const handleDeleteClip = async (clipId) => {
     const target = videoQueue.find((c) => c.id === clipId);
     if (target?.croppedUrl && target.croppedUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(target.croppedUrl);
+      URL.revokeObjectURL(target.croppedUrl.split('#')[0]);
     }
     await idbDeleteClip(clipId);
     setVideoQueue((prev) => prev.filter((i) => i.id !== clipId));
@@ -1022,7 +1045,9 @@ export default function App() {
 
   const handleClearAllClips = async () => {
     videoQueue.forEach((c) => {
-      if (c.croppedUrl && c.croppedUrl.startsWith('blob:')) URL.revokeObjectURL(c.croppedUrl);
+      if (c.croppedUrl && c.croppedUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(c.croppedUrl.split('#')[0]);
+      }
     });
     await idbClearAllClips();
     setVideoQueue([]);
@@ -1072,7 +1097,7 @@ export default function App() {
     setSupportMessages((prev) => [
       ...prev,
       { role: 'user', text: msg },
-      { role: 'ai', text: `Offer active hai! Monthly Pro ₹${globalConfig.monthlyPrice}/mo aur Yearly VIP ₹${globalConfig.yearlyPrice}/yr ke saath 9:16 Thumbnail Gen bhi live hai.` }
+      { role: 'ai', text: `Offer active hai! Monthly Pro ₹${globalConfig.monthlyPrice}/mo aur Yearly VIP ₹${globalConfig.yearlyPrice}/yr ke saath AI Clip Cutter (1, 3, 5) bhi live hai.` }
     ]);
     setSupportInput('');
   };
@@ -1181,23 +1206,26 @@ export default function App() {
                 </button>
               </div>
 
-              {/* AI ENGAGING CLIPS AUTO-SPLITTER (1, 3, 5 CLIPS) */}
-              <div className="p-4 rounded-[24px] bg-gradient-to-r from-[#1a0d33] to-[#0f172a] border border-pink-500/40 space-y-3 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-2xl bg-pink-500/20 border border-pink-400/40 flex items-center justify-center">
-                      <Scissors className="w-5 h-5 text-pink-400" />
+              {/* AI ENGAGING CLIPS DASHBOARD (MOVED RIGHT UP TO TOP) */}
+              <div className="p-4 rounded-[24px] bg-gradient-to-br from-[#231042] via-[#150b29] to-[#0c1428] border border-pink-500/50 space-y-3 shadow-[0_0_25px_rgba(236,72,153,0.22)]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-10 h-10 rounded-2xl bg-pink-500/25 border border-pink-400/50 flex items-center justify-center shrink-0">
+                      <Scissors className="w-5 h-5 text-pink-300" />
                     </div>
-                    <div>
-                      <h3 className="text-sm font-extrabold text-white">AI Engaging Clips</h3>
-                      <p className="text-[10.5px] text-slate-300">Extract 1, 3, or 5 viral clips from full video</p>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="text-sm font-extrabold text-white truncate">AI Engaging Clips</h3>
+                        <span className="px-1.5 py-0.5 rounded bg-pink-500/30 text-[8.5px] font-extrabold text-pink-200">AUTO CUT</span>
+                      </div>
+                      <p className="text-[10.5px] text-slate-300">Cut 1, 3, or 5 clips from any long video</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setIsSplitterModalOpen(true)}
-                    className="px-3 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-[11px] font-extrabold cursor-pointer shadow-md"
+                    className="px-3 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-[11px] font-extrabold cursor-pointer shadow-md shrink-0"
                   >
-                    Split Video
+                    Open Cutter
                   </button>
                 </div>
 
@@ -1208,7 +1236,7 @@ export default function App() {
                       onClick={() => setClipSplitCount(num)}
                       className={`py-2 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
                         clipSplitCount === num
-                          ? 'bg-pink-500/25 border-pink-400 text-pink-300 shadow-[0_0_12px_rgba(236,72,153,0.3)]'
+                          ? 'bg-pink-500/30 border-pink-400 text-pink-200 shadow-[0_0_12px_rgba(236,72,153,0.35)]'
                           : 'bg-[#0b0718] border-slate-800 text-slate-400'
                       }`}
                     >
@@ -1216,6 +1244,14 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+
+                <button
+                  onClick={() => splitterInputRef.current?.click()}
+                  className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                >
+                  <Scissors className="w-3.5 h-3.5" />
+                  <span>Select Long Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Clip' : 'Clips'} Now</span>
+                </button>
               </div>
 
               {/* 9:16 SHORTS THUMBNAIL STUDIO CARD */}
@@ -1637,7 +1673,7 @@ export default function App() {
               <h3 className="text-base font-extrabold text-white">AI Engaging Clips Auto-Splitter</h3>
             </div>
             <p className="text-xs text-slate-300">
-              Select how many viral clips you want AI to extract from your full-length video:
+              Select how many viral clips you want AI to cut from your full-length video:
             </p>
             <div className="grid grid-cols-3 gap-2.5">
               {[1, 3, 5].map((count) => (
@@ -1665,7 +1701,7 @@ export default function App() {
               onClick={() => splitterInputRef.current?.click()}
               className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
             >
-              Select Full Video & Extract {clipSplitCount} Clips
+              Select Full Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Clip' : 'Clips'}
             </button>
           </div>
         </div>
@@ -1835,7 +1871,7 @@ export default function App() {
           <div className="relative w-full max-w-[280px] rounded-3xl bg-[#0b0818] border border-purple-500/40 p-3 space-y-2">
             <button onClick={() => setPreviewClip(null)} className="absolute -top-3 -right-3 p-2 rounded-full bg-slate-900 text-white cursor-pointer"><X className="w-4 h-4" /></button>
             <div className="text-[10px] font-extrabold text-amber-300 text-center">
-              9:16 Cover Hook: {previewClip.thumbnailHook || 'WAIT FOR END 😱'}
+              {previewClip.timeRangeLabel ? `Clip Window: ${previewClip.timeRangeLabel} • ` : ''}9:16 Hook: {previewClip.thumbnailHook || 'WAIT FOR END 😱'}
             </div>
             <video src={sanitizeMediaUrl(previewClip.croppedUrl)} controls autoPlay playsInline className="w-full rounded-2xl aspect-[9/16]" />
           </div>
@@ -1861,3 +1897,4 @@ export default function App() {
       />
     </div>
   );
+}
