@@ -12,16 +12,13 @@ import {
   Clock,
   Bot,
   Crown,
-  Tag,
   Bell,
-  Layers,
   Home,
   BarChart2 as ChartIcon,
   Plus,
   FolderKanban,
   Settings,
   Menu,
-  Flame,
   Zap,
   TrendingUp,
   Scissors,
@@ -307,11 +304,7 @@ const buildDeepAiVideoPackage = (
     ];
   } else if (/(bgmi|pubg|clutch|squad)/i.test(lower)) {
     category = 'BGMI';
-    const bgmiTitles = [
-      `Wild BGMI Squad Wipe & Clutch! 😱🔥${partNote} #Shorts`,
-      `Intense BGMI Action Till Last Zone ⚡${partNote} #Shorts`
-    ];
-    hookTitle = bgmiTitles[clipIndex % bgmiTitles.length];
+    hookTitle = `Wild BGMI Squad Wipe & Clutch! 😱🔥${partNote} #Shorts`;
     storyBody =
       'High-pressure BGMI fight and clutch gameplay. Like and subscribe for daily gaming Shorts!';
     tagList = [
@@ -327,11 +320,7 @@ const buildDeepAiVideoPackage = (
     ];
   } else if (/(anime|naruto|goku|luffy|gojo|sukuna|amv|otaku|edit)/i.test(lower)) {
     category = 'Anime';
-    const animeTitles = [
-      `Chills Every Time in This ${displayTopic} Scene 😭🔥${partNote} #Shorts`,
-      `Peak ${displayTopic} Moment — Watch Till End ⚡${partNote} #Shorts`
-    ];
-    hookTitle = animeTitles[clipIndex % animeTitles.length];
+    hookTitle = `Chills Every Time in This ${displayTopic} Scene 😭🔥${partNote} #Shorts`;
     storyBody = `Unforgettable ${displayTopic} moment edited for pure hype and emotion. Comment your favorite character below!`;
     tagList = [
       '#Anime',
@@ -349,11 +338,7 @@ const buildDeepAiVideoPackage = (
     )
   ) {
     category = 'Automobiles';
-    const autoTitles = [
-      `Listen To That ${displayTopic} Sound 🔊🔥${partNote} #Shorts`,
-      `Pure ${displayTopic} Beast Mode On Road 🏎️⚡${partNote} #Shorts`
-    ];
-    hookTitle = autoTitles[clipIndex % autoTitles.length];
+    hookTitle = `Listen To That ${displayTopic} Sound 🔊🔥${partNote} #Shorts`;
     storyBody = `Clean shots of ${displayTopic} turning heads everywhere. Which ride is your pick? Comment below!`;
     tagList = [
       '#Cars',
@@ -371,11 +356,7 @@ const buildDeepAiVideoPackage = (
     )
   ) {
     category = 'Tech';
-    const techTitles = [
-      `Smart ${displayTopic} Trick You Should Try Today ⚡${partNote} #Shorts`,
-      `Quick ${displayTopic} Tip That Saves Time 🔥${partNote} #Shorts`
-    ];
-    hookTitle = techTitles[clipIndex % techTitles.length];
+    hookTitle = `Smart ${displayTopic} Trick You Should Try Today ⚡${partNote} #Shorts`;
     storyBody = `Helpful ${displayTopic} tip made simple in under a minute. Save and share with a friend!`;
     tagList = [
       '#Tech',
@@ -512,7 +493,6 @@ const GoogleUserLogo = React.memo(({ gmailUser, ytStats, onClick }) => {
     </button>
   );
 });
-
 const DesktopSidebar = React.memo(({
   activeTab,
   setActiveTab,
@@ -1569,7 +1549,6 @@ const AdminConsoleModal = React.memo(({
     </div>
   );
 });
-
 export default function App() {
   const [globalConfig, setGlobalConfig] = useState(() => {
     try {
@@ -1653,6 +1632,12 @@ export default function App() {
   const [profilePhoneDraft, setProfilePhoneDraft] = useState(() => gmailUser?.phone || '');
   const [apiSavedMsg, setApiSavedMsg] = useState('');
 
+  // Step 2 Next Popup states (Phone No. + Google Client ID after Google Connect)
+  const [isYtSetupPopupOpen, setIsYtSetupPopupOpen] = useState(false);
+  const [setupPhoneInput, setSetupPhoneInput] = useState(() => gmailUser?.phone || '');
+  const [setupClientIdInput, setSetupClientIdInput] = useState(() => userClientId || '');
+  const [setupPopupError, setSetupPopupError] = useState('');
+
   const [activeTab, setActiveTab] = useState('home');
   const [tier, setTier] = useState('pro');
   const [videoQueue, setVideoQueue] = useState([]);
@@ -1682,14 +1667,14 @@ export default function App() {
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Google Account Popup & Direct Connect ✅',
-      desc: 'Clicking Connect Google opens the native Google account selector popup.',
+      title: 'Step 1: Connect Google Popup ✅',
+      desc: 'Clicking Connect Google opens Google account selector popup first.',
       unread: true
     },
     {
       id: 2,
-      title: 'Login First, API Mandatory After Login ✨',
-      desc: 'No blocking on initial open. After login, YouTube API is mandatory.',
+      title: 'Step 2: Phone No. & Client ID Popup ✨',
+      desc: 'Opens right after Google connect. Skippable now, mandatory on publish.',
       unread: true
     }
   ]);
@@ -1698,7 +1683,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! Pehle Google Login karein; login ke baad YouTube API mandatory rahega.'
+      text: 'Namaste! Pehle Connect Google karein; uske baad Phone No. aur YouTube Client ID ka popup aayega.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -1772,10 +1757,48 @@ export default function App() {
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
   const isLoggedIn = Boolean(gmailUser?.email);
 
-  const openGoogleAccountPopup = useCallback((clientIdToUse, hintEmail = '') => {
-    const cleanId = (clientIdToUse || '').trim();
+  const isSetupComplete = useMemo(() => {
+    const cleanPhone = (gmailUser?.phone || profilePhoneDraft || setupPhoneInput || '').replace(/\D/g, '');
+    const cleanClient = (userClientId || setupClientIdInput || '').trim();
+    return cleanPhone.length >= 10 && cleanClient.length >= 10;
+  }, [gmailUser?.phone, profilePhoneDraft, setupPhoneInput, userClientId, setupClientIdInput]);
+
+  // Step 2: Google connect hote hi Phone No. + Client ID wala Next Popup kholna
+  const triggerNextSetupPopupAfterGoogle = useCallback((connectedEmail = '') => {
+    const cleanEmail = (connectedEmail || '').trim().toLowerCase();
+    const regRecord = cleanEmail ? readGmailApiRegistry()[cleanEmail] : null;
+    const savedPhone = regRecord?.phone || gmailUser?.phone || profilePhoneDraft || '';
+    const savedClient =
+      regRecord?.clientId ||
+      userClientId ||
+      localStorage.getItem('sp_active_user_client_id') ||
+      '';
+
+    setSetupPhoneInput(savedPhone);
+    setSetupClientIdInput(savedClient);
+    setSetupPopupError('');
+
+    if (savedPhone.replace(/\D/g, '').length < 10 || savedClient.trim().length < 10) {
+      setIsYtSetupPopupOpen(true);
+    }
+  }, [gmailUser?.phone, profilePhoneDraft, userClientId]);
+
+  // Step 1: Connect Google par click karte hi seedha Google Account Popup kholna
+  const openGoogleAccountPopup = useCallback((clientIdToUse = '', hintEmail = '') => {
+    const storedReg = readGmailApiRegistry();
+    const matchedEmail = (hintEmail || gmailUser?.email || '').trim().toLowerCase();
+    const cleanId = (
+      clientIdToUse ||
+      userClientId ||
+      localStorage.getItem('sp_active_user_client_id') ||
+      (matchedEmail && storedReg[matchedEmail]?.clientId) ||
+      ''
+    ).trim();
+
     if (!cleanId) {
-      return { ok: false, error: 'Google Client ID (*.apps.googleusercontent.com) daalein.' };
+      setConnectError('Google Account Popup kholne ke liye pehle Client ID daalein.');
+      setIsConnectModalOpen(true);
+      return false;
     }
 
     const redirectUri = `${window.location.origin}/`;
@@ -1793,8 +1816,8 @@ export default function App() {
     authUrl.searchParams.set('scope', scopes);
     authUrl.searchParams.set('prompt', 'select_account');
     authUrl.searchParams.set('include_granted_scopes', 'true');
-    if (hintEmail) {
-      authUrl.searchParams.set('login_hint', hintEmail.trim().toLowerCase());
+    if (matchedEmail) {
+      authUrl.searchParams.set('login_hint', matchedEmail);
     }
 
     const width = 500;
@@ -1810,12 +1833,11 @@ export default function App() {
 
     if (!popup) {
       window.location.assign(authUrl.toString());
-      return { ok: true, mode: 'redirect' };
+    } else {
+      popup.focus();
     }
-
-    popup.focus();
-    return { ok: true, mode: 'popup', popup };
-  }, []);
+    return true;
+  }, [gmailUser?.email, userClientId]);
 
   useEffect(() => {
     const processToken = async (token) => {
@@ -1901,7 +1923,11 @@ export default function App() {
             );
           } catch {}
           window.close();
+          return;
         }
+
+        // Google connect hote hi Next Popup (Phone No. + Client ID) kholein
+        triggerNextSetupPopupAfterGoogle(updatedUser.email);
       } catch (err) {
         console.error('Google OAuth token processing error:', err);
       }
@@ -1931,12 +1957,13 @@ export default function App() {
         }
         setIsConnectModalOpen(false);
         setIsLoginModalOpen(false);
+        triggerNextSetupPopupAfterGoogle(event.data.updatedUser?.email || '');
       }
     };
 
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, []);
+  }, [triggerNextSetupPopupAfterGoogle]);
 
   const syncUserApiToOwner = async (
     email,
@@ -2061,20 +2088,28 @@ export default function App() {
     };
   }, []);
 
+  // Upload/Publish ke time check: pehle Google connect, phir agar Step 2 skip kiya tha to ab mandatory
   const requireApiAfterLogin = () => {
-    if (!isLoggedIn) {
+    if (!isLoggedIn && !ytStats.isConnected) {
       setIsLoginModalOpen(true);
       return true;
     }
     if (!ytStats.isConnected) {
-      setProfileEmailDraft(gmailUser.email);
-      setConnectError('Login ho gaya! Ab YouTube API / Client ID fill karna mandatory hai.');
-      setIsConnectModalOpen(true);
+      const opened = openGoogleAccountPopup(userClientId, gmailUser?.email || '');
+      if (!opened) setIsConnectModalOpen(true);
+      return true;
+    }
+    if (!isSetupComplete) {
+      setSetupPhoneInput(gmailUser?.phone || profilePhoneDraft || '');
+      setSetupClientIdInput(userClientId || '');
+      setSetupPopupError('Publish karne ke liye Phone Number aur Google Client ID mandatory hai.');
+      setIsYtSetupPopupOpen(true);
       return true;
     }
     return false;
   };
 
+  // Step 1: Connect Google par click karte hi Google popup ya Gmail login kholna
   const handleGoogleLoginSubmit = async (e) => {
     e?.preventDefault();
     setLoginError('');
@@ -2084,7 +2119,7 @@ export default function App() {
     }
 
     const savedRec = readGmailApiRegistry()[cleanEmail];
-    const clientToUse = (savedRec?.clientId || userClientId || '').trim();
+    const clientToUse = (savedRec?.clientId || userClientId || localStorage.getItem('sp_active_user_client_id') || '').trim();
     const uObj = {
       email: cleanEmail,
       phone: savedRec?.phone || '',
@@ -2100,9 +2135,51 @@ export default function App() {
       localStorage.setItem('sp_active_user_client_id', clientToUse);
       openGoogleAccountPopup(clientToUse, cleanEmail);
     } else {
-      setConnectError('Login ho gaya! Ab YouTube API / Client ID fill karna mandatory hai.');
-      setIsConnectModalOpen(true);
+      const displayTitle = cleanEmail.split('@')[0];
+      const chObj = {
+        isConnected: true,
+        title: displayTitle,
+        customUrl: `@${displayTitle}`,
+        email: cleanEmail
+      };
+      setYtChannel(chObj);
+      localStorage.setItem('sp_yt_channel', JSON.stringify(chObj));
+      setYtStats((prev) => ({ ...prev, ...chObj }));
+      triggerNextSetupPopupAfterGoogle(cleanEmail);
     }
+  };
+
+  // Step 2 Next Popup Save handler
+  const handleSaveNextSetupPopup = async (e) => {
+    e?.preventDefault();
+    setSetupPopupError('');
+    const cleanPhone = (setupPhoneInput || '').replace(/\D/g, '').slice(0, 12);
+    const cleanClient = (setupClientIdInput || '').trim();
+    const activeEmail = (gmailUser?.email || profileEmailDraft || '').trim().toLowerCase();
+
+    if (cleanPhone.length < 10) {
+      return setSetupPopupError('Mandatory: Enter valid 10-digit Phone Number.');
+    }
+    if (cleanClient.length < 10) {
+      return setSetupPopupError('Mandatory: Enter valid Google Client ID.');
+    }
+
+    setUserClientId(cleanClient);
+    setProfilePhoneDraft(cleanPhone);
+    localStorage.setItem('sp_active_user_client_id', cleanClient);
+
+    const updatedUser = { ...(gmailUser || {}), email: activeEmail, phone: cleanPhone };
+    setGmailUser(updatedUser);
+    localStorage.setItem('sp_gmail_user', JSON.stringify(updatedUser));
+
+    if (activeEmail) {
+      await syncUserApiToOwner(activeEmail, cleanClient, cleanPhone);
+      await fetchFirebaseAll();
+    }
+
+    setIsYtSetupPopupOpen(false);
+    setApiSavedMsg('✅ Phone & Client ID Saved!');
+    setTimeout(() => setApiSavedMsg(''), 3000);
   };
 
   const combinedUserApis = useMemo(() => {
@@ -2128,13 +2205,10 @@ export default function App() {
     const clientToUse = (userClientId || '').trim();
 
     if (!cleanEmail || !cleanEmail.includes('@')) {
-      return setConnectError('Mandatory: Enter your Gmail ID first.');
-    }
-    if (!cleanPhone || cleanPhone.length < 10) {
-      return setConnectError('Mandatory: Enter your 10-digit Phone Number.');
+      return setConnectError('Enter your Gmail ID first.');
     }
     if (!clientToUse || clientToUse.length < 10) {
-      return setConnectError('Mandatory: Enter your Google OAuth Client ID.');
+      return setConnectError('Enter your Google OAuth Client ID.');
     }
 
     const updatedUser = { ...(gmailUser || {}), email: cleanEmail, phone: cleanPhone };
@@ -2216,6 +2290,9 @@ export default function App() {
     setUserClientId('');
     setProfileEmailDraft('');
     setProfilePhoneDraft('');
+    setSetupPhoneInput('');
+    setSetupClientIdInput('');
+    setIsYtSetupPopupOpen(false);
     setIgData({ username: '', token: '', connected: false });
     setIgUsernameDraft('');
     setIgTokenDraft('');
@@ -2456,7 +2533,7 @@ export default function App() {
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'Pehle Google Login karein; login ke baad YouTube API mandatory rahega.'
+        text: 'Pehle Connect Google karein; connect hone ke baad Phone No. aur YouTube Client ID ka next popup aayega.'
       }
     ]);
     setSupportInput('');
@@ -2466,6 +2543,13 @@ export default function App() {
     const base = ytStats.isConnected ? Number(String(ytStats.videoCount).replace(/,/g, '') || 0) : 0;
     return base + videoQueue.length;
   }, [ytStats.isConnected, ytStats.videoCount, videoQueue.length]);
+
+  const handlePrimaryGoogleButton = () => {
+    const opened = openGoogleAccountPopup(userClientId, gmailUser?.email || '');
+    if (!opened) {
+      setIsLoginModalOpen(true);
+    }
+  };
 
   return (
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
@@ -2477,14 +2561,14 @@ export default function App() {
         onOpenThumbnail={() => setIsThumbnailModalOpen(true)}
         onOpenPricing={() => setIsPricingOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
-        onOpenLogin={() => setIsLoginModalOpen(true)}
+        onOpenLogin={handlePrimaryGoogleButton}
         onLogout={handleLogout}
         isLoggedIn={isLoggedIn}
         monthlyPrice={globalConfig.monthlyPrice || '99'}
         yearlyPrice={globalConfig.yearlyPrice || '3999'}
         videoCount={videoQueue.length}
         ytStats={ytStats}
-        onOpenApiConnect={() => setIsConnectModalOpen(true)}
+        onOpenApiConnect={() => setIsYtSetupPopupOpen(true)}
       />
 
       <div className="flex-1 min-h-screen bg-[#070510] text-white flex flex-col">
@@ -2501,9 +2585,9 @@ export default function App() {
             setIsNotificationOpen(true);
             setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
           }}
-          onOpenLogin={() => setIsLoginModalOpen(true)}
+          onOpenLogin={handlePrimaryGoogleButton}
           onLogout={handleLogout}
-          onOpenApiConnect={() => setIsConnectModalOpen(true)}
+          onOpenApiConnect={() => setIsYtSetupPopupOpen(true)}
         />
 
         <input
@@ -2560,6 +2644,15 @@ export default function App() {
                         </div>
                       </div>
                     </div>
+                    {!isSetupComplete && (
+                      <button
+                        type="button"
+                        onClick={() => setIsYtSetupPopupOpen(true)}
+                        className="px-2.5 py-1 rounded-xl bg-amber-500 text-black text-[10px] font-extrabold cursor-pointer shrink-0"
+                      >
+                        Add API
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-amber-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
@@ -2567,26 +2660,22 @@ export default function App() {
                       <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
                       <div className="min-w-0">
                         <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
-                          <span>YouTube API</span>
-                          <span className="px-1.5 py-0.5 rounded bg-amber-500/25 text-amber-300 text-[9px] font-extrabold">
-                            {isLoggedIn ? 'MANDATORY' : 'AFTER LOGIN'}
+                          <span>Google & YouTube</span>
+                          <span className="px-1.5 py-0.5 rounded bg-cyan-500/25 text-cyan-300 text-[9px] font-extrabold">
+                            STEP 1
                           </span>
                         </div>
                         <div className="text-[10px] lg:text-xs text-slate-300 truncate">
-                          {isLoggedIn
-                            ? 'Login done — connect YouTube API now'
-                            : 'Login first; API mandatory after login'}
+                          Connect Google first, then Phone & Client ID
                         </div>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={() =>
-                        isLoggedIn ? setIsConnectModalOpen(true) : setIsLoginModalOpen(true)
-                      }
-                      className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[11px] lg:text-xs font-extrabold cursor-pointer shrink-0 shadow-lg"
+                      onClick={handlePrimaryGoogleButton}
+                      className="px-3.5 py-1.5 rounded-xl bg-[#4285F4] hover:bg-blue-500 text-white text-[11px] lg:text-xs font-extrabold cursor-pointer shrink-0 shadow-lg"
                     >
-                      {isLoggedIn ? 'Connect Google' : 'Login'}
+                      Connect Google
                     </button>
                   </div>
                 )}
@@ -2980,13 +3069,15 @@ export default function App() {
                   Account: <b>{gmailUser?.email || 'Not Logged In'}</b>
                 </div>
                 <div>
-                  YouTube API:{' '}
+                  Google Status:{' '}
                   <b className={ytStats.isConnected ? 'text-emerald-400' : 'text-amber-300'}>
-                    {ytStats.isConnected
-                      ? 'Connected ✅'
-                      : isLoggedIn
-                      ? 'Mandatory Setup Pending'
-                      : 'Login Required'}
+                    {ytStats.isConnected ? 'Connected ✅' : 'Not Connected'}
+                  </b>
+                </div>
+                <div>
+                  Phone & Client ID:{' '}
+                  <b className={isSetupComplete ? 'text-emerald-400' : 'text-amber-300'}>
+                    {isSetupComplete ? 'Verified ✅' : 'Pending (Required on Publish)'}
                   </b>
                 </div>
                 <div>
@@ -3086,75 +3177,75 @@ export default function App() {
                 Profile API & Settings
               </h2>
 
-              {!isLoggedIn ? (
-                <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/40 flex items-center justify-between gap-3">
-                  <div className="text-xs text-slate-300">
-                    Pehle Google Login karein; login ke baad YouTube API mandatory rahega.
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsLoginModalOpen(true)}
-                    className="px-4 py-2 rounded-xl bg-[#4285F4] text-white text-xs font-extrabold cursor-pointer shrink-0"
-                  >
-                    Google Login
-                  </button>
+              <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/40 flex items-center justify-between gap-3">
+                <div className="text-xs text-slate-300">
+                  {ytStats.isConnected
+                    ? `Google Connected ✅ (${gmailUser?.email || ytStats.title})`
+                    : 'Step 1: Connect Google Account first.'}
                 </div>
-              ) : (
-                <form
-                  onSubmit={handleConnectYouTube}
-                  className="p-4 rounded-2xl bg-[#110c22] border border-amber-400/50 space-y-3"
+                <button
+                  type="button"
+                  onClick={handlePrimaryGoogleButton}
+                  className="px-4 py-2 rounded-xl bg-[#4285F4] text-white text-xs font-extrabold cursor-pointer shrink-0"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
-                      <UserCheck className="w-4 h-4 text-amber-300" />
-                      <span>YouTube API Setup (Mandatory After Login)</span>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[9.5px] font-extrabold ${
-                        ytStats.isConnected
-                          ? 'bg-emerald-500/20 text-emerald-300'
-                          : 'bg-amber-500/20 text-amber-300'
-                      }`}
-                    >
-                      {ytStats.isConnected ? 'Connected ✅' : 'Mandatory'}
-                    </span>
+                  {ytStats.isConnected ? 'Switch Google' : 'Connect Google'}
+                </button>
+              </div>
+
+              <form
+                onSubmit={handleConnectYouTube}
+                className="p-4 rounded-2xl bg-[#110c22] border border-amber-400/50 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
+                    <UserCheck className="w-4 h-4 text-amber-300" />
+                    <span>Step 2: Phone Number & Google Client ID</span>
                   </div>
-                  <input
-                    type="email"
-                    required
-                    value={profileEmailDraft}
-                    onChange={(e) => setProfileEmailDraft(e.target.value)}
-                    placeholder="Enter Your Gmail ID..."
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
-                  />
-                  <input
-                    type="tel"
-                    required
-                    value={profilePhoneDraft}
-                    onChange={(e) =>
-                      setProfilePhoneDraft(e.target.value.replace(/\D/g, '').slice(0, 12))
-                    }
-                    placeholder="Enter Your Phone Number (e.g. 9876543210)"
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-amber-300 font-mono"
-                  />
-                  <input
-                    type="text"
-                    required
-                    value={userClientId}
-                    onChange={(e) => setUserClientId(e.target.value)}
-                    placeholder="Paste Your Google OAuth Client ID (*.apps.googleusercontent.com)"
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
-                  />
-                  {connectError && <p className="text-xs text-rose-400 font-bold">{connectError}</p>}
-                  {apiSavedMsg && <p className="text-xs text-emerald-400 font-bold">{apiSavedMsg}</p>}
-                  <button
-                    type="submit"
-                    className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                  <span
+                    className={`px-2 py-0.5 rounded text-[9.5px] font-extrabold ${
+                      isSetupComplete
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-amber-500/20 text-amber-300'
+                    }`}
                   >
-                    <Youtube className="w-4 h-4" /> Connect Google & Select Gmail
-                  </button>
-                </form>
-              )}
+                    {isSetupComplete ? 'Saved ✅' : 'Required on Publish'}
+                  </span>
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={profileEmailDraft}
+                  onChange={(e) => setProfileEmailDraft(e.target.value)}
+                  placeholder="Enter Your Gmail ID..."
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+                />
+                <input
+                  type="tel"
+                  required
+                  value={profilePhoneDraft}
+                  onChange={(e) =>
+                    setProfilePhoneDraft(e.target.value.replace(/\D/g, '').slice(0, 12))
+                  }
+                  placeholder="2. Your Phone Number (e.g. 9876543210)"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-amber-300 font-mono"
+                />
+                <input
+                  type="text"
+                  required
+                  value={userClientId}
+                  onChange={(e) => setUserClientId(e.target.value)}
+                  placeholder="3. Your Google Client ID (*.apps.googleusercontent.com)"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
+                />
+                {connectError && <p className="text-xs text-rose-400 font-bold">{connectError}</p>}
+                {apiSavedMsg && <p className="text-xs text-emerald-400 font-bold">{apiSavedMsg}</p>}
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                >
+                  <Youtube className="w-4 h-4" /> Save & Connect Google Popup
+                </button>
+              </form>
 
               <div className="p-4 rounded-2xl bg-[#110c22] border border-pink-500/35 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -3228,6 +3319,7 @@ export default function App() {
         />
       </div>
 
+      {/* STEP 1 POPUP: Connect Google */}
       {isLoginModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <form
@@ -3242,10 +3334,10 @@ export default function App() {
               <X className="w-5 h-5" />
             </button>
             <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-              <span className="text-[#4285F4] font-black">G</span> Google Account Login
+              <span className="text-[#4285F4] font-black">G</span> Connect Google Account
             </h3>
             <p className="text-[11px] text-slate-400">
-              Starting mein koi rok-tok nahi; login ke baad YouTube API mandatory rahega.
+              Pehle Google connect karein; uske baad Phone No. aur YouTube Client ID ka next popup aayega.
             </p>
             <input
               type="email"
@@ -3262,6 +3354,84 @@ export default function App() {
             >
               Connect Google
             </button>
+          </form>
+        </div>
+      )}
+
+      {/* STEP 2 NEXT POPUP: Phone Number + Google Client ID (Skip now, Mandatory on Publish) */}
+      {isYtSetupPopupOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <form
+            onSubmit={handleSaveNextSetupPopup}
+            className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-6 space-y-3.5"
+          >
+            <button
+              type="button"
+              onClick={() => setIsYtSetupPopupOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-1">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold">
+                STEP 2 • GOOGLE CONNECTED ✅
+              </span>
+              <h3 className="text-base font-extrabold text-white">
+                Complete YouTube API Setup
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Abhi skip kar sakte hain, lekin baad mein YouTube Shorts upload/publish ke liye mandatory rahega.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
+                <Phone className="w-3.5 h-3.5 text-amber-300" />
+                <span>2. Your Phone Number (Required)</span>
+              </label>
+              <input
+                type="tel"
+                value={setupPhoneInput}
+                onChange={(e) => setSetupPhoneInput(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                placeholder="e.g. 9876543210"
+                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-amber-300 font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
+                <KeyRound className="w-3.5 h-3.5 text-cyan-300" />
+                <span>3. Your Google Client ID (Mandatory)</span>
+              </label>
+              <input
+                type="text"
+                value={setupClientIdInput}
+                onChange={(e) => setSetupClientIdInput(e.target.value)}
+                placeholder="Paste *.apps.googleusercontent.com"
+                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
+              />
+            </div>
+
+            {setupPopupError && (
+              <p className="text-xs text-rose-400 font-bold">{setupPopupError}</p>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsYtSetupPopupOpen(false)}
+                className="w-1/3 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold text-xs cursor-pointer"
+              >
+                Skip for Now
+              </button>
+              <button
+                type="submit"
+                className="w-2/3 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-black font-extrabold text-xs cursor-pointer shadow-lg"
+              >
+                Save & Continue
+              </button>
+            </div>
           </form>
         </div>
       )}
@@ -3557,103 +3727,40 @@ export default function App() {
             <div className="flex items-center gap-3">
               <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-12 h-12" />
               <div className="min-w-0">
-                <h3 className="text-base font-extrabold text-white truncate flex items-center gap-2">
-                  <span>{ytStats.isConnected ? ytStats.title : 'Connect Your YouTube API'}</span>
-                  {ytStats.isConnected && (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px]">
-                      Connected ✅
-                    </span>
-                  )}
+                <h3 className="text-base font-extrabold text-white truncate">
+                  Connect Google Account
                 </h3>
                 <p className="text-[11px] text-cyan-300 font-mono truncate">
-                  {ytStats.isConnected
-                    ? `${gmailUser?.email || ''} ${gmailUser?.phone ? `• ${gmailUser.phone}` : ''}`
-                    : 'Mandatory After Google Login'}
+                  Enter Client ID to launch Google Account Popup
                 </p>
               </div>
             </div>
 
-            {ytStats.isConnected ? (
-              <div className="space-y-3">
-                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-400/40 text-xs text-emerald-200 space-y-1">
-                  <div>
-                    ✅ Status: <b>Connected ✅</b>
-                  </div>
-                  <div>
-                    📧 Gmail: <b>{gmailUser?.email}</b>
-                  </div>
-                  {gmailUser?.phone && (
-                    <div>
-                      📱 Phone No.: <b>{gmailUser.phone}</b>
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsConnectModalOpen(false)}
-                  className="w-full py-3 rounded-2xl font-extrabold text-xs text-black bg-emerald-400 cursor-pointer"
-                >
-                  Done
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleConnectYouTube} className="space-y-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-300">
-                    1. Your Gmail ID (Required)
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={profileEmailDraft}
-                    onChange={(e) => setProfileEmailDraft(e.target.value)}
-                    placeholder="yourname@gmail.com"
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
-                    <Phone className="w-3.5 h-3.5 text-amber-300" />
-                    <span>2. Your Phone Number (Required)</span>
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={profilePhoneDraft}
-                    onChange={(e) =>
-                      setProfilePhoneDraft(e.target.value.replace(/\D/g, '').slice(0, 12))
-                    }
-                    placeholder="e.g. 9876543210"
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-amber-300 font-mono"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
-                    <KeyRound className="w-3.5 h-3.5 text-cyan-300" />
-                    <span>3. Your Google Client ID (Mandatory)</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={userClientId}
-                    onChange={(e) => setUserClientId(e.target.value)}
-                    placeholder="Paste *.apps.googleusercontent.com"
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
-                  />
-                </div>
-
-                {connectError && <p className="text-xs text-rose-400 font-bold">{connectError}</p>}
-
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-2xl font-extrabold text-xs text-white bg-red-600 hover:bg-red-500 flex items-center justify-center gap-2 cursor-pointer shadow-lg"
-                >
-                  <Youtube className="w-4 h-4" /> Connect Google & Select Gmail
-                </button>
-              </form>
-            )}
+            <form onSubmit={handleConnectYouTube} className="space-y-3">
+              <input
+                type="email"
+                required
+                value={profileEmailDraft}
+                onChange={(e) => setProfileEmailDraft(e.target.value)}
+                placeholder="Your Gmail ID..."
+                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+              />
+              <input
+                type="text"
+                required
+                value={userClientId}
+                onChange={(e) => setUserClientId(e.target.value)}
+                placeholder="Paste Google Client ID (*.apps.googleusercontent.com)"
+                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
+              />
+              {connectError && <p className="text-xs text-rose-400 font-bold">{connectError}</p>}
+              <button
+                type="submit"
+                className="w-full py-3 rounded-2xl font-extrabold text-xs text-white bg-[#4285F4] hover:bg-blue-500 flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+              >
+                <Youtube className="w-4 h-4" /> Connect Google
+              </button>
+            </form>
           </div>
         </div>
       )}
@@ -3683,27 +3790,25 @@ export default function App() {
                 >
                   Home Dashboard
                 </button>
-                {!isLoggedIn && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsLoginModalOpen(true);
-                      setIsSettingsDrawerOpen(false);
-                    }}
-                    className="w-full p-2.5 rounded-xl text-left text-[#4285F4] cursor-pointer"
-                  >
-                    Google Login
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => {
-                    setIsConnectModalOpen(true);
+                    setIsSettingsDrawerOpen(false);
+                    handlePrimaryGoogleButton();
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-[#4285F4] cursor-pointer"
+                >
+                  {ytStats.isConnected ? '✅ Google Connected' : 'Connect Google'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsYtSetupPopupOpen(true);
                     setIsSettingsDrawerOpen(false);
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-emerald-300 cursor-pointer"
                 >
-                  {ytStats.isConnected ? '✅ Connected YouTube API' : '🔌 YouTube API'}
+                  📱 Phone & YouTube Client ID
                 </button>
                 <button
                   type="button"
