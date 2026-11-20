@@ -1682,8 +1682,8 @@ export default function App() {
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Google Account Chooser & Direct Connect ✅',
-      desc: 'Google OAuth opens directly to select Gmail account and connect YouTube.',
+      title: 'Google Account Popup & Direct Connect ✅',
+      desc: 'Clicking Connect Google opens the native Google account selector popup.',
       unread: true
     },
     {
@@ -1772,10 +1772,11 @@ export default function App() {
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
   const isLoggedIn = Boolean(gmailUser?.email);
 
-  // Seedha Google ka "Choose an account" (Gmail select) page kholne wala helper
-  const launchGoogleOAuthTab = useCallback((clientIdToUse, hintEmail = '') => {
+  const openGoogleAccountPopup = useCallback((clientIdToUse, hintEmail = '') => {
     const cleanId = (clientIdToUse || '').trim();
-    if (!cleanId) return false;
+    if (!cleanId) {
+      return { ok: false, error: 'Google Client ID (*.apps.googleusercontent.com) daalein.' };
+    }
 
     const redirectUri = `${window.location.origin}/`;
     const scopes = [
@@ -1796,23 +1797,31 @@ export default function App() {
       authUrl.searchParams.set('login_hint', hintEmail.trim().toLowerCase());
     }
 
-    window.location.assign(authUrl.toString());
-    return true;
+    const width = 500;
+    const height = 620;
+    const left = Math.max(0, Math.floor((window.screen.width - width) / 2));
+    const top = Math.max(0, Math.floor((window.screen.height - height) / 2));
+
+    const popup = window.open(
+      authUrl.toString(),
+      'GoogleAccountChooserPopup',
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes,status=yes`
+    );
+
+    if (!popup) {
+      window.location.assign(authUrl.toString());
+      return { ok: true, mode: 'redirect' };
+    }
+
+    popup.focus();
+    return { ok: true, mode: 'popup', popup };
   }, []);
 
-  // Google se Gmail select karke wapas aane par #access_token capture karna
   useEffect(() => {
-    const hash = window.location.hash || '';
-    if (!hash.includes('access_token=')) return;
+    const processToken = async (token) => {
+      if (!token) return;
+      localStorage.setItem('sp_yt_access_token', token);
 
-    const params = new URLSearchParams(hash.replace(/^#/, ''));
-    const token = params.get('access_token');
-    if (!token) return;
-
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    localStorage.setItem('sp_yt_access_token', token);
-
-    (async () => {
       try {
         const [userRes, ytRes] = await Promise.all([
           fetch('https://www.googleapis.com/oauth2/v2/me', {
@@ -1883,10 +1892,50 @@ export default function App() {
             connected: true
           });
         }
+
+        if (window.opener && !window.opener.closed) {
+          try {
+            window.opener.postMessage(
+              { type: 'SP_GOOGLE_OAUTH_SUCCESS', token, chObj, updatedUser },
+              window.location.origin
+            );
+          } catch {}
+          window.close();
+        }
       } catch (err) {
-        console.error('Google OAuth callback error:', err);
+        console.error('Google OAuth token processing error:', err);
       }
-    })();
+    };
+
+    const hash = window.location.hash || '';
+    if (hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.replace(/^#/, ''));
+      const token = params.get('access_token');
+      if (token) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        processToken(token);
+      }
+    }
+
+    const onMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'SP_GOOGLE_OAUTH_SUCCESS' && event.data?.token) {
+        if (event.data.updatedUser) {
+          setGmailUser(event.data.updatedUser);
+          setProfileEmailDraft(event.data.updatedUser.email || '');
+        }
+        if (event.data.chObj) {
+          setYtChannel(event.data.chObj);
+          ytChannelRef.current = event.data.chObj;
+          setYtStats({ ...event.data.chObj, loading: false });
+        }
+        setIsConnectModalOpen(false);
+        setIsLoginModalOpen(false);
+      }
+    };
+
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
   }, []);
 
   const syncUserApiToOwner = async (
@@ -2026,7 +2075,6 @@ export default function App() {
     return false;
   };
 
-  // Google Login modal se seedha Google Account Chooser open karna (agar Client ID ho), warna Client ID modal kholna
   const handleGoogleLoginSubmit = async (e) => {
     e?.preventDefault();
     setLoginError('');
@@ -2042,7 +2090,6 @@ export default function App() {
       phone: savedRec?.phone || '',
       avatar: savedRec?.avatar || ''
     };
-
     setGmailUser(uObj);
     setProfileEmailDraft(cleanEmail);
     if (savedRec?.phone) setProfilePhoneDraft(savedRec.phone);
@@ -2051,7 +2098,7 @@ export default function App() {
 
     if (clientToUse.length >= 10) {
       localStorage.setItem('sp_active_user_client_id', clientToUse);
-      launchGoogleOAuthTab(clientToUse, cleanEmail);
+      openGoogleAccountPopup(clientToUse, cleanEmail);
     } else {
       setConnectError('Login ho gaya! Ab YouTube API / Client ID fill karna mandatory hai.');
       setIsConnectModalOpen(true);
@@ -2073,7 +2120,6 @@ export default function App() {
     return Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   }, [remoteUserApis, ytStats.isConnected, igData.connected, isAdminOpen]);
 
-  // YouTube Connect submit hone par data save karke seedha Google Gmail Select tab kholna
   const handleConnectYouTube = async (e) => {
     e?.preventDefault();
     setConnectError('');
@@ -2101,7 +2147,7 @@ export default function App() {
       channelHandle: `@${cleanEmail.split('@')[0]}`
     });
 
-    launchGoogleOAuthTab(clientToUse, cleanEmail);
+    openGoogleAccountPopup(clientToUse, cleanEmail);
   };
 
   const handleSaveInstagramToken = async (e) => {
@@ -2540,7 +2586,7 @@ export default function App() {
                       }
                       className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[11px] lg:text-xs font-extrabold cursor-pointer shrink-0 shadow-lg"
                     >
-                      {isLoggedIn ? 'Add API' : 'Login'}
+                      {isLoggedIn ? 'Connect Google' : 'Login'}
                     </button>
                   </div>
                 )}
@@ -3105,7 +3151,7 @@ export default function App() {
                     type="submit"
                     className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg"
                   >
-                    <Youtube className="w-4 h-4" /> Continue to Google & Select Gmail
+                    <Youtube className="w-4 h-4" /> Connect Google & Select Gmail
                   </button>
                 </form>
               )}
@@ -3214,7 +3260,7 @@ export default function App() {
               type="submit"
               className="w-full py-3 rounded-2xl bg-[#4285F4] text-white font-extrabold text-xs cursor-pointer shadow-lg"
             >
-              Continue to Google Account Select
+              Connect Google
             </button>
           </form>
         </div>
@@ -3604,7 +3650,7 @@ export default function App() {
                   type="submit"
                   className="w-full py-3 rounded-2xl font-extrabold text-xs text-white bg-red-600 hover:bg-red-500 flex items-center justify-center gap-2 cursor-pointer shadow-lg"
                 >
-                  <Youtube className="w-4 h-4" /> Continue to Google & Select Gmail
+                  <Youtube className="w-4 h-4" /> Connect Google & Select Gmail
                 </button>
               </form>
             )}
