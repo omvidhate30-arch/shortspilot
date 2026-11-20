@@ -2049,6 +2049,7 @@ export default function App() {
       </div>
 
       {/* STEP 2 NEXT POPUP: Phone Number + Google Client ID (Skip now, Mandatory on Publish) */}
+{/* STEP 2 NEXT POPUP: Only Phone Number (Client ID hidden & automatic) */}
       {isYtSetupPopupOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <form
@@ -2068,7 +2069,7 @@ export default function App() {
                 STEP 2 • GOOGLE CONNECTED ✅
               </span>
               <h3 className="text-base font-extrabold text-white">
-                Complete YouTube API Setup
+                Add Your Phone Number
               </h3>
               <p className="text-[11px] text-slate-400">
                 Abhi skip kar sakte hain, lekin baad mein YouTube Shorts upload/publish ke liye mandatory rahega.
@@ -2078,7 +2079,7 @@ export default function App() {
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
                 <Phone className="w-3.5 h-3.5 text-amber-300" />
-                <span>2. Your Phone Number (Required)</span>
+                <span>Your Phone Number (Required)</span>
               </label>
               <input
                 type="tel"
@@ -2086,20 +2087,6 @@ export default function App() {
                 onChange={(e) => setSetupPhoneInput(e.target.value.replace(/\D/g, '').slice(0, 12))}
                 placeholder="e.g. 9876543210"
                 className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-amber-300 font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
-                <KeyRound className="w-3.5 h-3.5 text-cyan-300" />
-                <span>3. Your Google Client ID (Mandatory)</span>
-              </label>
-              <input
-                type="text"
-                value={setupClientIdInput}
-                onChange={(e) => setSetupClientIdInput(e.target.value)}
-                placeholder="Paste *.apps.googleusercontent.com"
-                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
               />
             </div>
 
