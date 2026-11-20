@@ -7,8 +7,7 @@ import {
   Plus, FolderKanban, Settings, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon, KeyRound, CheckCircle2, UserCheck
 } from 'lucide-react';
 
-const USER_PROFILE_CLIENT_ID_KEY = 'sp_user_custom_client_id';
-const DEFAULT_USER_CLIENT_ID = '391400251257-76vvj4tfmkiurekmmkpbtdpkn7in148h.apps.googleusercontent.com';
+const USER_API_MAP_KEY = 'sp_gmail_api_registry';
 
 const YOUTUBE_REDIRECT_URI =
   typeof window !== 'undefined'
@@ -36,6 +35,31 @@ const formatClockTime = (totalSeconds) => {
   const mins = Math.floor(sec / 60);
   const rem = sec % 60;
   return `${mins}:${String(rem).padStart(2, '0')}`;
+};
+
+const readGmailApiRegistry = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(USER_API_MAP_KEY) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveGmailApiRecord = (email, record) => {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail) return;
+  const current = readGmailApiRegistry();
+  current[cleanEmail] = { ...(current[cleanEmail] || {}), ...record, updatedAt: Date.now() };
+  localStorage.setItem(USER_API_MAP_KEY, JSON.stringify(current));
+};
+
+const removeGmailApiRecord = (email) => {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail) return;
+  const current = readGmailApiRegistry();
+  delete current[cleanEmail];
+  localStorage.setItem(USER_API_MAP_KEY, JSON.stringify(current));
 };
 
 let cachedDbPromise = null;
@@ -354,18 +378,22 @@ const DesktopSidebar = React.memo(({
         </div>
       </div>
 
-      {/* USER PROFILE API TOKEN / CHANNEL CARD */}
+      {/* USER PROFILE CONNECTION STATUS (HIDES CLIENT ID ONCE CONNECTED) */}
       <div
         onClick={onOpenApiConnect}
-        className="p-2.5 rounded-2xl bg-[#120c24] border border-purple-500/35 flex items-center gap-2.5 cursor-pointer hover:border-cyan-400/60 transition-all"
+        className={`p-2.5 rounded-2xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+          ytStats?.isConnected
+            ? 'bg-emerald-500/10 border-emerald-400/50'
+            : 'bg-[#120c24] border-amber-400/50 hover:border-cyan-400/60'
+        }`}
       >
         <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
         <div className="min-w-0">
-          <div className="text-xs font-extrabold text-white truncate">
-            {ytStats?.isConnected ? ytStats.title : 'User API Profile'}
+          <div className="text-xs font-extrabold text-white truncate flex items-center gap-1">
+            <span>{ytStats?.isConnected ? ytStats.title : 'API Setup Required'}</span>
           </div>
-          <div className="text-[10px] text-cyan-300 font-medium truncate">
-            {ytStats?.isConnected ? `${ytStats.customUrl} • Token Active` : 'Create Client ID & Connect'}
+          <div className={`text-[10px] font-bold truncate ${ytStats?.isConnected ? 'text-emerald-400' : 'text-amber-300'}`}>
+            {ytStats?.isConnected ? '✅ Connected' : '⚠️ Enter Client ID'}
           </div>
         </div>
       </div>
@@ -486,8 +514,12 @@ const TopHeader = React.memo(({ tier, hasUnread, ytStats, onOpenDrawer, onGoHome
       </div>
 
       <div className="hidden lg:flex items-center gap-2.5">
-        <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-[11px] font-extrabold text-emerald-300">
-          ● Per-User API Token Mode
+        <span className={`px-2.5 py-1 rounded-full border text-[11px] font-extrabold ${
+          ytStats?.isConnected
+            ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
+            : 'bg-amber-500/15 border-amber-400/40 text-amber-300'
+        }`}>
+          {ytStats?.isConnected ? '● Connected to YouTube' : '● Mandatory Client ID Setup'}
         </span>
         <span className="text-xs text-slate-400">Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b></span>
       </div>
@@ -502,7 +534,7 @@ const TopHeader = React.memo(({ tier, hasUnread, ytStats, onOpenDrawer, onGoHome
         <Bell className="w-4 h-4" />
         {hasUnread && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />}
       </button>
-      <button onClick={onOpenApiConnect} title="User API Profile & Channel Photo" className="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 p-[1.5px] cursor-pointer">
+      <button onClick={onOpenApiConnect} title="User Profile & Connection" className="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 p-[1.5px] cursor-pointer">
         <div className="w-full h-full rounded-full bg-[#0a0818] flex items-center justify-center overflow-hidden">
           {ytStats?.isConnected && sanitizeMediaUrl(ytStats?.avatar) ? (
             <img src={sanitizeMediaUrl(ytStats.avatar)} alt={ytStats.title} className="w-full h-full object-cover" />
@@ -957,14 +989,25 @@ export default function App() {
     };
   });
 
-  // Per-user Client ID & Token stored in user's browser profile (not hardcoded as app owner credential)
+  const [gmailUser, setGmailUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sp_gmail_user') || 'null'); } catch { return null; }
+  });
+
+  // New user starts with empty Client ID (mandatory to enter once per Gmail; hidden once connected)
   const [userClientId, setUserClientId] = useState(() => {
     try {
-      return localStorage.getItem(USER_PROFILE_CLIENT_ID_KEY) || DEFAULT_USER_CLIENT_ID;
+      const email = JSON.parse(localStorage.getItem('sp_gmail_user') || 'null')?.email?.toLowerCase();
+      if (email) {
+        const reg = readGmailApiRegistry();
+        if (reg[email]?.clientId) return reg[email].clientId;
+      }
+      return localStorage.getItem('sp_active_user_client_id') || '';
     } catch {
-      return DEFAULT_USER_CLIENT_ID;
+      return '';
     }
   });
+
+  const [profileEmailDraft, setProfileEmailDraft] = useState(() => gmailUser?.email || '');
   const [apiSavedMsg, setApiSavedMsg] = useState('');
 
   const [activeTab, setActiveTab] = useState('home');
@@ -993,19 +1036,15 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: 'User Profile API & Token Mode Active 👤', desc: 'Users can create/enter their own Google Client ID in profile and connect their own YouTube token.', unread: true },
+    { id: 1, title: 'Mandatory One-Time Client ID Setup 🔐', desc: 'New users enter their Client ID once per Gmail. Once connected, the input hides automatically!', unread: true },
     { id: 2, title: 'Clean Shorts Title & #Tags Active ✨', desc: 'Relevant #Tags, https://shortspilot.in link & "Developed by shortspilot.in" watermark.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! Har user apni profile se apna Client ID dal kar apne khud ke Google account se login aur API token connect kar sakta hai.' }
+    { role: 'ai', text: 'Namaste! New user ko apni Gmail aur Google Client ID ek bar dalni hoti hai. Connect hote hi Client ID box hide ho jata hai aur Connected dikhta hai.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
-
-  const [gmailUser, setGmailUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sp_gmail_user') || 'null'); } catch { return null; }
-  });
 
   const [ytChannel, setYtChannel] = useState(() => {
     try { return JSON.parse(localStorage.getItem('sp_yt_channel') || 'null'); } catch { return null; }
@@ -1041,15 +1080,15 @@ export default function App() {
 
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
 
-  const handleSaveUserClientId = (e) => {
-    if (e) e.preventDefault();
-    const cleaned = (userClientId || '').trim();
-    if (!cleaned) return setConnectError('Enter a valid Google OAuth Client ID first.');
-    localStorage.setItem(USER_PROFILE_CLIENT_ID_KEY, cleaned);
-    setConnectError('');
-    setApiSavedMsg('✅ Saved to your profile!');
-    setTimeout(() => setApiSavedMsg(''), 2500);
-  };
+  // Auto-load saved Client ID if user enters an already-registered Gmail
+  useEffect(() => {
+    const cleanEmail = (profileEmailDraft || '').trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) return;
+    const reg = readGmailApiRegistry();
+    if (reg[cleanEmail]?.clientId) {
+      setUserClientId(reg[cleanEmail].clientId);
+    }
+  }, [profileEmailDraft]);
 
   const fetchFirebaseAll = useCallback(async () => {
     if (!dbBase) return;
@@ -1101,20 +1140,38 @@ export default function App() {
     return fetch(url, { ...options, headers });
   };
 
-  const handleConnectUserProfileOAuth = () => {
+  // Mandatory Gmail + Client ID check -> redirects to Google OAuth; once connected, Client ID box hides permanently for that Gmail
+  const handleConnectUserProfileOAuth = (e) => {
+    if (e) e.preventDefault();
     setConnectError('');
+    const cleanEmail = (profileEmailDraft || gmailUser?.email || '').trim().toLowerCase();
     const clientToUse = (userClientId || '').trim();
-    if (!clientToUse) {
-      return setConnectError('Please create & enter your Google OAuth Client ID in your profile first.');
-    }
-    localStorage.setItem(USER_PROFILE_CLIENT_ID_KEY, clientToUse);
 
-    const scopes = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/userinfo.email'].join(' ');
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return setConnectError('Mandatory: Enter your Gmail ID first.');
+    }
+    if (!clientToUse || !clientToUse.includes('.apps.googleusercontent.com')) {
+      return setConnectError('Mandatory: Enter a valid Google OAuth Client ID (*.apps.googleusercontent.com).');
+    }
+
+    const updatedUser = { ...(gmailUser || {}), email: cleanEmail };
+    setGmailUser(updatedUser);
+    localStorage.setItem('sp_gmail_user', JSON.stringify(updatedUser));
+    localStorage.setItem('sp_active_user_client_id', clientToUse);
+    saveGmailApiRecord(cleanEmail, { clientId: clientToUse, connected: true });
+
+    const scopes = [
+      'https://www.googleapis.com/auth/youtube.upload',
+      'https://www.googleapis.com/auth/youtube.readonly',
+      'https://www.googleapis.com/auth/userinfo.email'
+    ].join(' ');
+
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', clientToUse);
     authUrl.searchParams.set('redirect_uri', YOUTUBE_REDIRECT_URI);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('scope', scopes);
+    authUrl.searchParams.set('login_hint', cleanEmail);
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
     window.location.href = authUrl.toString();
@@ -1133,10 +1190,18 @@ export default function App() {
         const data = await res.json();
         const ch = data?.items?.[0];
         if (ch) {
+          const channelTitle = ch.snippet?.title || 'My Channel';
+          const channelHandle = ch.snippet?.customUrl || `@${channelTitle}`;
+          const channelAvatar =
+            ch.snippet?.thumbnails?.high?.url ||
+            ch.snippet?.thumbnails?.medium?.url ||
+            ch.snippet?.thumbnails?.default?.url ||
+            '';
+
           setYtStats({
-            title: ch.snippet?.title || 'My Channel',
-            customUrl: ch.snippet?.customUrl || `@${ch.snippet?.title || 'Channel'}`,
-            avatar: ch.snippet?.thumbnails?.high?.url || ch.snippet?.thumbnails?.medium?.url || ch.snippet?.thumbnails?.default?.url || '',
+            title: channelTitle,
+            customUrl: channelHandle,
+            avatar: channelAvatar,
             subscribers: Number(ch.statistics?.subscriberCount || 0).toLocaleString(),
             totalViews: Number(ch.statistics?.viewCount || 0).toLocaleString(),
             videoCount: Number(ch.statistics?.videoCount || 0).toLocaleString(),
@@ -1145,21 +1210,38 @@ export default function App() {
             loading: false,
             isConnected: true
           });
+
+          const activeEmail = (gmailUser?.email || profileEmailDraft || '').trim().toLowerCase();
+          if (activeEmail && userClientId) {
+            saveGmailApiRecord(activeEmail, {
+              clientId: userClientId.trim(),
+              connected: true,
+              channelTitle,
+              channelHandle,
+              avatar: channelAvatar
+            });
+          }
         }
       }
     } catch {
       setYtStats((prev) => ({ ...prev, loading: false }));
     }
-  }, []);
+  }, [gmailUser?.email, profileEmailDraft, userClientId]);
 
   useEffect(() => {
     fetchConnectedChannelAnalytics();
   }, [ytChannel?.accessToken, fetchConnectedChannelAnalytics]);
 
   const handleDisconnectChannel = () => {
+    const activeEmail = (gmailUser?.email || profileEmailDraft || '').trim().toLowerCase();
+    if (activeEmail) {
+      removeGmailApiRecord(activeEmail);
+    }
     localStorage.removeItem('sp_yt_access_token');
     localStorage.removeItem('sp_yt_refresh_token');
     localStorage.removeItem('sp_yt_channel');
+    localStorage.removeItem('sp_active_user_client_id');
+    setUserClientId('');
     setYtChannel(null);
     ytChannelRef.current = null;
     setYtStats({ title: '', customUrl: '', avatar: '', subscribers: '0', totalViews: '0', videoCount: '0', country: 'IN', recentVideos: [], loading: false, isConnected: false });
@@ -1205,6 +1287,13 @@ export default function App() {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (files.length === 0) return;
+
+    // Enforce mandatory API connection before direct upload
+    if (!ytStats.isConnected && !manualPostMode) {
+      setConnectError('Mandatory: Please enter your Gmail & Client ID to connect your YouTube API first.');
+      setIsConnectModalOpen(true);
+      return;
+    }
 
     setAutoPublishStatus('Preparing Clean Title, #Tags & Description...');
 
@@ -1260,6 +1349,13 @@ export default function App() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+
+    if (!ytStats.isConnected && !manualPostMode) {
+      setIsSplitterModalOpen(false);
+      setConnectError('Mandatory: Please enter your Gmail & Client ID to connect your YouTube API first.');
+      setIsConnectModalOpen(true);
+      return;
+    }
 
     setIsSplitterModalOpen(false);
     const count = Number(clipSplitCount) || 3;
@@ -1435,7 +1531,7 @@ export default function App() {
     setSupportMessages((prev) => [
       ...prev,
       { role: 'user', text: msg },
-      { role: 'ai', text: `Apni profile / API Connect mein Client ID set karke user apne khud ke Google token se connect kar sakta hai.` }
+      { role: 'ai', text: `New user ko Gmail aur Client ID ek bar dalna mandatory hai. Connect hote hi Client ID box hide ho jata hai aur Connected dikhta hai.` }
     ]);
     setSupportInput('');
   };
@@ -1496,29 +1592,44 @@ export default function App() {
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">PRO</span>
                 </div>
 
-                {/* USER PROFILE API CONNECT CARD */}
-                <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-cyan-600/20 border border-red-500/40 flex items-center justify-between gap-3 shadow-lg">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
-                    <div className="min-w-0">
-                      <div className="text-xs lg:text-sm font-extrabold text-white truncate">
-                        {ytStats.isConnected ? `${ytStats.title} (${ytStats.customUrl})` : 'Profile API & Token Connect'}
-                      </div>
-                      <div className="text-[10px] lg:text-xs text-slate-300 truncate">
-                        {ytStats.isConnected ? 'User Token Active • Channel Photo Linked' : 'Create Client ID & use your own token'}
+                {/* USER PROFILE API CARD: IF CONNECTED -> HIDES CLIENT ID & SHOWS CONNECTED; IF NEW USER -> MANDATORY CLIENT ID PROMPT */}
+                {ytStats.isConnected ? (
+                  <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-emerald-600/20 via-purple-600/20 to-cyan-600/20 border border-emerald-400/50 flex items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
+                      <div className="min-w-0">
+                        <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
+                          <span>{ytStats.title}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 text-[9.5px] font-extrabold">Connected ✅</span>
+                        </div>
+                        <div className="text-[10px] lg:text-xs text-slate-300 truncate">
+                          {ytStats.customUrl} {gmailUser?.email ? `• ${gmailUser.email}` : ''}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  {ytStats.isConnected ? (
                     <button onClick={handleDisconnectChannel} className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 text-[10px] lg:text-xs font-bold cursor-pointer shrink-0">
                       Disconnect
                     </button>
-                  ) : (
+                  </div>
+                ) : (
+                  <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-amber-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
+                      <div className="min-w-0">
+                        <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
+                          <span>Connect Your API (Client ID)</span>
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/25 text-amber-300 text-[9px] font-extrabold">MANDATORY</span>
+                        </div>
+                        <div className="text-[10px] lg:text-xs text-slate-300 truncate">
+                          Enter your Gmail & Client ID once to activate
+                        </div>
+                      </div>
+                    </div>
                     <button onClick={() => setIsConnectModalOpen(true)} className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[11px] lg:text-xs font-extrabold cursor-pointer shrink-0 shadow-lg">
-                      API Connect
+                      Add Client ID
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
@@ -1829,23 +1940,26 @@ export default function App() {
               </div>
 
               {!ytStats.isConnected ? (
-                <div className="p-8 rounded-3xl bg-[#110c22] border border-dashed border-cyan-500/40 text-center space-y-3">
+                <div className="p-8 rounded-3xl bg-[#110c22] border border-dashed border-amber-400/50 text-center space-y-3">
                   <Youtube className="w-12 h-12 text-red-500 mx-auto" />
-                  <div className="text-sm lg:text-base font-extrabold text-white">No YouTube Channel Connected</div>
+                  <div className="text-sm lg:text-base font-extrabold text-white">API Setup Required (Mandatory)</div>
                   <p className="text-xs text-slate-400">
-                    Connect your YouTube channel from your profile API to enable direct Shorts feed publishing.
+                    New users must enter their Gmail & Google Client ID once to connect their YouTube channel.
                   </p>
                   <button onClick={() => setIsConnectModalOpen(true)} className="w-full max-w-xs mx-auto py-3 rounded-2xl bg-red-600 text-xs font-extrabold text-white cursor-pointer">
-                    API Connect YouTube Channel
+                    Enter Client ID & Connect
                   </button>
                 </div>
               ) : (
                 <>
-                  <div className="p-4 rounded-2xl bg-[#130c26] border border-purple-400/40 flex items-center justify-between">
+                  <div className="p-4 rounded-2xl bg-[#130c26] border border-emerald-400/40 flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0">
                       <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-12 h-12" />
                       <div className="min-w-0">
-                        <h3 className="text-sm lg:text-base font-extrabold text-white truncate">{ytStats.title}</h3>
+                        <h3 className="text-sm lg:text-base font-extrabold text-white truncate flex items-center gap-2">
+                          <span>{ytStats.title}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px]">Connected ✅</span>
+                        </h3>
                         <p className="text-xs text-cyan-300 font-mono truncate">{ytStats.customUrl}</p>
                       </div>
                     </div>
@@ -1918,63 +2032,68 @@ export default function App() {
             </div>
           )}
 
-          {/* PROFILE API & SETTINGS TAB */}
+          {/* PROFILE API & SETTINGS TAB: CLIENT ID INPUT HIDES AUTOMATICALLY ONCE CONNECTED */}
           {activeTab === 'settings' && (
             <div className="space-y-4 pt-2 max-w-2xl mx-auto">
               <h2 className="text-base lg:text-xl font-extrabold text-white">Profile API & Settings</h2>
 
-              <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/35 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-12 h-12" />
-                    <div className="min-w-0">
-                      <div className="text-xs lg:text-sm font-extrabold text-white truncate">
-                        {ytStats.isConnected ? ytStats.title : 'User Channel Token'}
+              {ytStats.isConnected ? (
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-600/15 to-cyan-600/15 border border-emerald-400/50 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-14 h-14" />
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm lg:text-base font-extrabold text-white truncate">{ytStats.title}</span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 text-[10px] font-extrabold">
+                          Connected ✅
+                        </span>
                       </div>
-                      <div className="text-[10px] lg:text-xs text-slate-400 truncate">
-                        {ytStats.isConnected ? `${ytStats.customUrl} • Connected` : 'Not Connected'}
-                      </div>
+                      <div className="text-xs text-cyan-300 font-mono truncate">{ytStats.customUrl}</div>
+                      {gmailUser?.email && <div className="text-[11px] text-slate-300 truncate">{gmailUser.email}</div>}
                     </div>
                   </div>
-                  {ytStats.isConnected ? (
-                    <button onClick={handleDisconnectChannel} className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 text-xs font-bold cursor-pointer shrink-0">
-                      Disconnect
-                    </button>
-                  ) : (
-                    <button onClick={handleConnectUserProfileOAuth} className="px-3.5 py-1.5 rounded-xl bg-red-600 text-white text-xs font-extrabold cursor-pointer shrink-0">
-                      Connect
-                    </button>
-                  )}
+                  <button onClick={handleDisconnectChannel} className="px-3.5 py-2 rounded-xl bg-rose-500/20 text-rose-300 text-xs font-bold cursor-pointer shrink-0">
+                    Disconnect
+                  </button>
                 </div>
-              </div>
-
-              <form onSubmit={handleSaveUserClientId} className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/35 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
-                    <UserCheck className="w-4 h-4 text-cyan-300" />
-                    <span>Your Profile Google Client ID</span>
+              ) : (
+                <form onSubmit={handleConnectUserProfileOAuth} className="p-4 rounded-2xl bg-[#110c22] border border-amber-400/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
+                      <UserCheck className="w-4 h-4 text-amber-300" />
+                      <span>One-Time API Setup (Mandatory)</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9.5px] font-extrabold">1x Per Gmail</span>
                   </div>
-                  {apiSavedMsg && <span className="text-[11px] text-emerald-400 font-bold">{apiSavedMsg}</span>}
-                </div>
-                <p className="text-[10px] lg:text-xs text-slate-400">
-                  Redirect URI: <span className="text-cyan-300 font-mono">{YOUTUBE_REDIRECT_URI}</span>
-                </p>
-                <input
-                  type="text"
-                  value={userClientId}
-                  onChange={(e) => setUserClientId(e.target.value)}
-                  placeholder="Enter your Google OAuth Client ID (*.apps.googleusercontent.com)"
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
-                />
-                <div className="flex gap-2 pt-1">
-                  <button type="submit" className="px-4 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer">
-                    Save to Profile
+                  <p className="text-[10.5px] text-slate-300">
+                    Enter your Gmail ID and your Google OAuth Client ID once. After connecting, this input will hide automatically.
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Redirect URI: <span className="text-cyan-300 font-mono">{YOUTUBE_REDIRECT_URI}</span>
+                  </p>
+                  <input
+                    type="email"
+                    required
+                    value={profileEmailDraft}
+                    onChange={(e) => setProfileEmailDraft(e.target.value)}
+                    placeholder="Enter Your Gmail ID (e.g. yourname@gmail.com)"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={userClientId}
+                    onChange={(e) => setUserClientId(e.target.value)}
+                    placeholder="Paste Your Google OAuth Client ID (*.apps.googleusercontent.com)"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
+                  />
+                  {connectError && <p className="text-xs text-rose-400 font-bold">{connectError}</p>}
+                  {apiSavedMsg && <p className="text-xs text-emerald-400 font-bold">{apiSavedMsg}</p>}
+                  <button type="submit" className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg">
+                    <Youtube className="w-4 h-4" /> Connect & Lock API to Gmail
                   </button>
-                  <button type="button" onClick={handleConnectUserProfileOAuth} className="px-4 py-2 rounded-xl bg-red-600 text-white font-extrabold text-xs cursor-pointer">
-                    Get My Token
-                  </button>
-                </div>
-              </form>
+                </form>
+              )}
 
               <button onClick={() => setIsPricingOpen(true)} className="w-full py-3 rounded-2xl bg-amber-500 text-black text-xs font-extrabold cursor-pointer shadow-lg">
                 🔥 View Offer Plans (₹{globalConfig.monthlyPrice}/mo & ₹{globalConfig.yearlyPrice}/yr)
@@ -2178,7 +2297,7 @@ export default function App() {
         </div>
       )}
 
-      {/* USER PROFILE API CONNECT MODAL */}
+      {/* MANDATORY ONE-TIME CLIENT ID MODAL (HIDES INPUT AUTOMATICALLY ONCE CONNECTED) */}
       {isConnectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-4">
@@ -2187,54 +2306,71 @@ export default function App() {
             <div className="flex items-center gap-3">
               <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-12 h-12" />
               <div className="min-w-0">
-                <h3 className="text-base font-extrabold text-white truncate">
-                  {ytStats.isConnected ? ytStats.title : 'User Profile API Connect'}
+                <h3 className="text-base font-extrabold text-white truncate flex items-center gap-2">
+                  <span>{ytStats.isConnected ? ytStats.title : 'Connect Your YouTube API'}</span>
+                  {ytStats.isConnected && (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px]">Connected ✅</span>
+                  )}
                 </h3>
                 <p className="text-[11px] text-cyan-300 font-mono truncate">
-                  {ytStats.isConnected ? `${ytStats.customUrl} • User Token Active` : 'Create Client ID & use your own token'}
+                  {ytStats.isConnected ? `${ytStats.customUrl} • ${gmailUser?.email || ''}` : 'Mandatory 1-Time Setup per Gmail'}
                 </p>
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
-                <KeyRound className="w-3.5 h-3.5 text-cyan-300" />
-                <span>Your Google OAuth Client ID</span>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={userClientId}
-                  onChange={(e) => setUserClientId(e.target.value)}
-                  placeholder="Paste your Google OAuth Client ID..."
-                  className="flex-1 px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveUserClientId}
-                  className="px-3 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer shrink-0"
-                >
-                  Save
-                </button>
-              </div>
-              {apiSavedMsg && <p className="text-[11px] text-emerald-400 font-bold">{apiSavedMsg}</p>}
-            </div>
-
-            {connectError && <p className="text-xs text-rose-400">{connectError}</p>}
-
             {ytStats.isConnected ? (
-              <div className="flex gap-2">
-                <button onClick={handleConnectUserProfileOAuth} className="flex-1 py-3 rounded-2xl font-extrabold text-xs text-white bg-emerald-600 flex items-center justify-center gap-1.5 cursor-pointer">
-                  <CheckCircle2 className="w-4 h-4" /> Refresh User Token
-                </button>
-                <button onClick={handleDisconnectChannel} className="px-4 py-3 rounded-2xl font-extrabold text-xs text-rose-300 bg-rose-500/20 cursor-pointer">
-                  Disconnect
-                </button>
+              <div className="space-y-3">
+                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-400/40 text-xs text-emerald-200">
+                  ✅ Your YouTube API is connected and locked to <b>{gmailUser?.email || ytStats.title}</b>.
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setIsConnectModalOpen(false)} className="flex-1 py-3 rounded-2xl font-extrabold text-xs text-black bg-emerald-400 cursor-pointer">
+                    Done
+                  </button>
+                  <button onClick={handleDisconnectChannel} className="px-4 py-3 rounded-2xl font-extrabold text-xs text-rose-300 bg-rose-500/20 cursor-pointer">
+                    Disconnect
+                  </button>
+                </div>
               </div>
             ) : (
-              <button onClick={handleConnectUserProfileOAuth} className="w-full py-3 rounded-2xl font-extrabold text-xs text-white bg-red-600 flex items-center justify-center gap-2 cursor-pointer shadow-lg">
-                <Youtube className="w-4 h-4" /> Login & Connect With My Token
-              </button>
+              <form onSubmit={handleConnectUserProfileOAuth} className="space-y-3">
+                <p className="text-[11px] text-slate-300">
+                  Enter your Gmail ID and your Google OAuth Client ID once. Once connected, this Client ID box will hide automatically.
+                </p>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-300">1. Your Gmail ID (Required)</label>
+                  <input
+                    type="email"
+                    required
+                    value={profileEmailDraft}
+                    onChange={(e) => setProfileEmailDraft(e.target.value)}
+                    placeholder="yourname@gmail.com"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
+                    <KeyRound className="w-3.5 h-3.5 text-cyan-300" />
+                    <span>2. Your Google Client ID (Mandatory)</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={userClientId}
+                    onChange={(e) => setUserClientId(e.target.value)}
+                    placeholder="Paste *.apps.googleusercontent.com"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
+                  />
+                </div>
+
+                {connectError && <p className="text-xs text-rose-400 font-bold">{connectError}</p>}
+
+                <button type="submit" className="w-full py-3 rounded-2xl font-extrabold text-xs text-white bg-red-600 hover:bg-red-500 flex items-center justify-center gap-2 cursor-pointer shadow-lg">
+                  <Youtube className="w-4 h-4" /> Save & Connect YouTube Channel
+                </button>
+              </form>
             )}
           </div>
         </div>
@@ -2250,7 +2386,9 @@ export default function App() {
               </div>
               <div className="space-y-1 text-xs font-bold">
                 <button onClick={() => { setActiveTab('home'); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-slate-200 cursor-pointer">Home Dashboard</button>
-                <button onClick={() => { setIsConnectModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-red-400 cursor-pointer">🔌 Profile API & Token</button>
+                <button onClick={() => { setIsConnectModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-emerald-300 cursor-pointer">
+                  {ytStats.isConnected ? '✅ Connected YouTube API' : '🔌 Connect API (Mandatory)'}
+                </button>
                 <button onClick={() => { setIsSplitterModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-pink-300 cursor-pointer">✂️ AI Engaging Clips (1, 3, 5)</button>
                 <button onClick={() => { setIsThumbnailModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer">🎨 9:16 Shorts Thumbnail Gen</button>
                 <button onClick={() => { setIsPricingOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer">🔥 Offer Plans (₹99 / ₹1,499)</button>
