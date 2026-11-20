@@ -4,15 +4,11 @@ import {
   Youtube, X, Trash2, RefreshCw, Calendar,
   Clock, Bot, Crown, Tag,
   Bell, Layers, Home, BarChart2 as ChartIcon,
-  Plus, FolderKanban, Settings, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon, KeyRound, CheckCircle2
+  Plus, FolderKanban, Settings, Menu, Flame, Zap, TrendingUp, Scissors, Image as ImageIcon, KeyRound, CheckCircle2, UserCheck
 } from 'lucide-react';
 
-const DEFAULT_GOOGLE_CLIENT_ID =
-  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-  '391400251257-76vvj4tfmkiurekmmkpbtdpkn7in148h.apps.googleusercontent.com';
-const DEFAULT_GOOGLE_SECRET =
-  import.meta.env.VITE_GOOGLE_CLIENT_SECRET ||
-  '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';
+const USER_PROFILE_CLIENT_ID_KEY = 'sp_user_custom_client_id';
+const DEFAULT_USER_CLIENT_ID = '391400251257-76vvj4tfmkiurekmmkpbtdpkn7in148h.apps.googleusercontent.com';
 
 const YOUTUBE_REDIRECT_URI =
   typeof window !== 'undefined'
@@ -325,7 +321,7 @@ const ChannelAvatarBadge = React.memo(({ ytStats, sizeClass = 'w-10 h-10' }) => 
       <div className="relative shrink-0">
         <img
           src={safeAvatar}
-          alt={ytStats?.title || 'YouTube Channel'}
+          alt={ytStats?.title || 'User Channel'}
           className={`${sizeClass} rounded-full object-cover border-2 border-emerald-400 shadow-md`}
         />
         <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#090614]" />
@@ -358,6 +354,7 @@ const DesktopSidebar = React.memo(({
         </div>
       </div>
 
+      {/* USER PROFILE API TOKEN / CHANNEL CARD */}
       <div
         onClick={onOpenApiConnect}
         className="p-2.5 rounded-2xl bg-[#120c24] border border-purple-500/35 flex items-center gap-2.5 cursor-pointer hover:border-cyan-400/60 transition-all"
@@ -365,10 +362,10 @@ const DesktopSidebar = React.memo(({
         <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
         <div className="min-w-0">
           <div className="text-xs font-extrabold text-white truncate">
-            {ytStats?.isConnected ? ytStats.title : 'API Connect'}
+            {ytStats?.isConnected ? ytStats.title : 'User API Profile'}
           </div>
           <div className="text-[10px] text-cyan-300 font-medium truncate">
-            {ytStats?.isConnected ? `${ytStats.customUrl} • Linked` : 'Set Client ID & Connect'}
+            {ytStats?.isConnected ? `${ytStats.customUrl} • Token Active` : 'Create Client ID & Connect'}
           </div>
         </div>
       </div>
@@ -423,7 +420,7 @@ const DesktopSidebar = React.memo(({
           }`}
         >
           <Settings className="w-4 h-4" />
-          <span>API Connect & Settings</span>
+          <span>Profile API & Settings</span>
         </button>
 
         <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">AI Studio Tools</div>
@@ -490,7 +487,7 @@ const TopHeader = React.memo(({ tier, hasUnread, ytStats, onOpenDrawer, onGoHome
 
       <div className="hidden lg:flex items-center gap-2.5">
         <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-[11px] font-extrabold text-emerald-300">
-          ● API Connect & Shorts Engine
+          ● Per-User API Token Mode
         </span>
         <span className="text-xs text-slate-400">Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b></span>
       </div>
@@ -505,7 +502,7 @@ const TopHeader = React.memo(({ tier, hasUnread, ytStats, onOpenDrawer, onGoHome
         <Bell className="w-4 h-4" />
         {hasUnread && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />}
       </button>
-      <button onClick={onOpenApiConnect} title="API Connect & Channel Photo" className="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 p-[1.5px] cursor-pointer">
+      <button onClick={onOpenApiConnect} title="User API Profile & Channel Photo" className="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 p-[1.5px] cursor-pointer">
         <div className="w-full h-full rounded-full bg-[#0a0818] flex items-center justify-center overflow-hidden">
           {ytStats?.isConnected && sanitizeMediaUrl(ytStats?.avatar) ? (
             <img src={sanitizeMediaUrl(ytStats.avatar)} alt={ytStats.title} className="w-full h-full object-cover" />
@@ -939,8 +936,7 @@ export default function App() {
           yearlyPrice: saved.yearlyPrice || '1499',
           watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
           ownerAlertEmail: saved.ownerAlertEmail || '',
-          paymentWebhookUrl: saved.paymentWebhookUrl || '',
-          googleClientId: saved.googleClientId || DEFAULT_GOOGLE_CLIENT_ID
+          paymentWebhookUrl: saved.paymentWebhookUrl || ''
         };
       }
     } catch {}
@@ -957,12 +953,18 @@ export default function App() {
       ownerAlertEmail: '',
       paymentWebhookUrl: '',
       ytAutoUploadActive: true,
-      googleClientId: DEFAULT_GOOGLE_CLIENT_ID,
       adminPin: '9767905729'
     };
   });
 
-  const [clientIdDraft, setClientIdDraft] = useState(() => globalConfig.googleClientId || DEFAULT_GOOGLE_CLIENT_ID);
+  // Per-user Client ID & Token stored in user's browser profile (not hardcoded as app owner credential)
+  const [userClientId, setUserClientId] = useState(() => {
+    try {
+      return localStorage.getItem(USER_PROFILE_CLIENT_ID_KEY) || DEFAULT_USER_CLIENT_ID;
+    } catch {
+      return DEFAULT_USER_CLIENT_ID;
+    }
+  });
   const [apiSavedMsg, setApiSavedMsg] = useState('');
 
   const [activeTab, setActiveTab] = useState('home');
@@ -991,13 +993,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: 'New Google OAuth Client Added 🔑', desc: 'Client ID 391400251257... is active for YouTube API connection.', unread: true },
+    { id: 1, title: 'User Profile API & Token Mode Active 👤', desc: 'Users can create/enter their own Google Client ID in profile and connect their own YouTube token.', unread: true },
     { id: 2, title: 'Clean Shorts Title & #Tags Active ✨', desc: 'Relevant #Tags, https://shortspilot.in link & "Developed by shortspilot.in" watermark.', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! Aapka naya Google OAuth Client ID aur Secret add ho chuka hai.' }
+    { role: 'ai', text: 'Namaste! Har user apni profile se apna Client ID dal kar apne khud ke Google account se login aur API token connect kar sakta hai.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -1037,21 +1039,15 @@ export default function App() {
   const splitterInputRef = useRef(null);
   const ytChannelRef = useRef(ytChannel);
 
-  const activeClientId = globalConfig.googleClientId || DEFAULT_GOOGLE_CLIENT_ID;
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
 
-  useEffect(() => {
-    setClientIdDraft(activeClientId);
-  }, [activeClientId]);
-
-  const handleSaveClientId = (e) => {
+  const handleSaveUserClientId = (e) => {
     if (e) e.preventDefault();
-    const cleaned = (clientIdDraft || '').trim();
-    if (!cleaned) return;
-    const updated = { ...globalConfig, googleClientId: cleaned };
-    setGlobalConfig(updated);
-    localStorage.setItem('sp_global_config', JSON.stringify(updated));
-    setApiSavedMsg('✅ Google Client ID saved!');
+    const cleaned = (userClientId || '').trim();
+    if (!cleaned) return setConnectError('Enter a valid Google OAuth Client ID first.');
+    localStorage.setItem(USER_PROFILE_CLIENT_ID_KEY, cleaned);
+    setConnectError('');
+    setApiSavedMsg('✅ Saved to your profile!');
     setTimeout(() => setApiSavedMsg(''), 2500);
   };
 
@@ -1099,51 +1095,19 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
 
-  const refreshYouTubeAccessToken = async () => {
-    const storedRefresh = ytChannelRef.current?.refreshToken || localStorage.getItem('sp_yt_refresh_token');
-    if (!storedRefresh) return null;
-    try {
-      const directRes = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: activeClientId.trim(),
-          client_secret: DEFAULT_GOOGLE_SECRET,
-          refresh_token: String(storedRefresh).trim(),
-          grant_type: 'refresh_token'
-        })
-      });
-      if (directRes.ok) {
-        const data = await directRes.json();
-        if (data?.access_token) {
-          localStorage.setItem('sp_yt_access_token', data.access_token);
-          return data.access_token;
-        }
-      }
-    } catch {}
-    return null;
-  };
-
   const fetchWithAuth = async (url, options = {}) => {
-    let token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
-    const getHeaders = (t) => ({ ...(options.headers || {}), Authorization: `Bearer ${t}` });
-    let res = await fetch(url, { ...options, headers: getHeaders(token) });
-    if (res.status === 401) {
-      const freshToken = await refreshYouTubeAccessToken();
-      if (freshToken) res = await fetch(url, { ...options, headers: getHeaders(freshToken) });
-    }
-    return res;
+    const token = ytChannelRef.current?.accessToken || localStorage.getItem('sp_yt_access_token');
+    const headers = { ...(options.headers || {}), Authorization: `Bearer ${token}` };
+    return fetch(url, { ...options, headers });
   };
 
-  const handleConnectYouTubeOAuth = () => {
+  const handleConnectUserProfileOAuth = () => {
     setConnectError('');
-    const clientToUse = (clientIdDraft || activeClientId || '').trim();
+    const clientToUse = (userClientId || '').trim();
     if (!clientToUse) {
-      return setConnectError('Please enter your Google OAuth Client ID first.');
+      return setConnectError('Please create & enter your Google OAuth Client ID in your profile first.');
     }
-    const updated = { ...globalConfig, googleClientId: clientToUse };
-    setGlobalConfig(updated);
-    localStorage.setItem('sp_global_config', JSON.stringify(updated));
+    localStorage.setItem(USER_PROFILE_CLIENT_ID_KEY, clientToUse);
 
     const scopes = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/userinfo.email'].join(' ');
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -1259,7 +1223,7 @@ export default function App() {
 
       let isPublished = false;
       if (!manualPostMode && ytStats.isConnected) {
-        setAutoPublishStatus(`Publishing ${aiMeta.category} Short to YouTube...`);
+        setAutoPublishStatus(`Publishing ${aiMeta.category} Short to User Channel...`);
         isPublished = await publishClipToYouTube(file, aiMeta);
       }
 
@@ -1471,7 +1435,7 @@ export default function App() {
     setSupportMessages((prev) => [
       ...prev,
       { role: 'user', text: msg },
-      { role: 'ai', text: `API Connect mein Client ID set karein aur connect hote hi channel photo wahin show hogi.` }
+      { role: 'ai', text: `Apni profile / API Connect mein Client ID set karke user apne khud ke Google token se connect kar sakta hai.` }
     ]);
     setSupportInput('');
   };
@@ -1532,15 +1496,16 @@ export default function App() {
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">PRO</span>
                 </div>
 
+                {/* USER PROFILE API CONNECT CARD */}
                 <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-cyan-600/20 border border-red-500/40 flex items-center justify-between gap-3 shadow-lg">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
                     <div className="min-w-0">
                       <div className="text-xs lg:text-sm font-extrabold text-white truncate">
-                        {ytStats.isConnected ? `${ytStats.title} (${ytStats.customUrl})` : 'API Connect • YouTube Channel'}
+                        {ytStats.isConnected ? `${ytStats.title} (${ytStats.customUrl})` : 'Profile API & Token Connect'}
                       </div>
                       <div className="text-[10px] lg:text-xs text-slate-300 truncate">
-                        {ytStats.isConnected ? 'Channel Photo & Shorts Auto-Publish Active' : 'Link Client ID & connect channel photo'}
+                        {ytStats.isConnected ? 'User Token Active • Channel Photo Linked' : 'Create Client ID & use your own token'}
                       </div>
                     </div>
                   </div>
@@ -1868,7 +1833,7 @@ export default function App() {
                   <Youtube className="w-12 h-12 text-red-500 mx-auto" />
                   <div className="text-sm lg:text-base font-extrabold text-white">No YouTube Channel Connected</div>
                   <p className="text-xs text-slate-400">
-                    Connect your YouTube channel to enable direct Shorts feed publishing.
+                    Connect your YouTube channel from your profile API to enable direct Shorts feed publishing.
                   </p>
                   <button onClick={() => setIsConnectModalOpen(true)} className="w-full max-w-xs mx-auto py-3 rounded-2xl bg-red-600 text-xs font-extrabold text-white cursor-pointer">
                     API Connect YouTube Channel
@@ -1953,9 +1918,10 @@ export default function App() {
             </div>
           )}
 
+          {/* PROFILE API & SETTINGS TAB */}
           {activeTab === 'settings' && (
             <div className="space-y-4 pt-2 max-w-2xl mx-auto">
-              <h2 className="text-base lg:text-xl font-extrabold text-white">API Connect & Settings</h2>
+              <h2 className="text-base lg:text-xl font-extrabold text-white">Profile API & Settings</h2>
 
               <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/35 space-y-3">
                 <div className="flex items-center justify-between gap-3">
@@ -1963,10 +1929,10 @@ export default function App() {
                     <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-12 h-12" />
                     <div className="min-w-0">
                       <div className="text-xs lg:text-sm font-extrabold text-white truncate">
-                        {ytStats.isConnected ? ytStats.title : 'API Connect Status'}
+                        {ytStats.isConnected ? ytStats.title : 'User Channel Token'}
                       </div>
                       <div className="text-[10px] lg:text-xs text-slate-400 truncate">
-                        {ytStats.isConnected ? `${ytStats.customUrl} • Linked` : 'Not Connected'}
+                        {ytStats.isConnected ? `${ytStats.customUrl} • Connected` : 'Not Connected'}
                       </div>
                     </div>
                   </div>
@@ -1975,37 +1941,37 @@ export default function App() {
                       Disconnect
                     </button>
                   ) : (
-                    <button onClick={handleConnectYouTubeOAuth} className="px-3.5 py-1.5 rounded-xl bg-red-600 text-white text-xs font-extrabold cursor-pointer shrink-0">
+                    <button onClick={handleConnectUserProfileOAuth} className="px-3.5 py-1.5 rounded-xl bg-red-600 text-white text-xs font-extrabold cursor-pointer shrink-0">
                       Connect
                     </button>
                   )}
                 </div>
               </div>
 
-              <form onSubmit={handleSaveClientId} className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/35 space-y-2.5">
+              <form onSubmit={handleSaveUserClientId} className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/35 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
-                    <KeyRound className="w-4 h-4 text-cyan-300" />
-                    <span>API Client ID (shortspilot.in)</span>
+                    <UserCheck className="w-4 h-4 text-cyan-300" />
+                    <span>Your Profile Google Client ID</span>
                   </div>
                   {apiSavedMsg && <span className="text-[11px] text-emerald-400 font-bold">{apiSavedMsg}</span>}
                 </div>
                 <p className="text-[10px] lg:text-xs text-slate-400">
-                  Authorized Redirect URI: <span className="text-cyan-300 font-mono">{YOUTUBE_REDIRECT_URI}</span>
+                  Redirect URI: <span className="text-cyan-300 font-mono">{YOUTUBE_REDIRECT_URI}</span>
                 </p>
                 <input
                   type="text"
-                  value={clientIdDraft}
-                  onChange={(e) => setClientIdDraft(e.target.value)}
-                  placeholder="Paste Google OAuth Client ID (*.apps.googleusercontent.com)"
+                  value={userClientId}
+                  onChange={(e) => setUserClientId(e.target.value)}
+                  placeholder="Enter your Google OAuth Client ID (*.apps.googleusercontent.com)"
                   className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
                 />
                 <div className="flex gap-2 pt-1">
                   <button type="submit" className="px-4 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer">
-                    Save Client ID
+                    Save to Profile
                   </button>
-                  <button type="button" onClick={handleConnectYouTubeOAuth} className="px-4 py-2 rounded-xl bg-red-600 text-white font-extrabold text-xs cursor-pointer">
-                    Connect With Client ID
+                  <button type="button" onClick={handleConnectUserProfileOAuth} className="px-4 py-2 rounded-xl bg-red-600 text-white font-extrabold text-xs cursor-pointer">
+                    Get My Token
                   </button>
                 </div>
               </form>
@@ -2212,6 +2178,7 @@ export default function App() {
         </div>
       )}
 
+      {/* USER PROFILE API CONNECT MODAL */}
       {isConnectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-4">
@@ -2221,27 +2188,30 @@ export default function App() {
               <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-12 h-12" />
               <div className="min-w-0">
                 <h3 className="text-base font-extrabold text-white truncate">
-                  {ytStats.isConnected ? ytStats.title : 'API Connect'}
+                  {ytStats.isConnected ? ytStats.title : 'User Profile API Connect'}
                 </h3>
                 <p className="text-[11px] text-cyan-300 font-mono truncate">
-                  {ytStats.isConnected ? `${ytStats.customUrl} • Photo Linked` : 'shortspilot.in'}
+                  {ytStats.isConnected ? `${ytStats.customUrl} • User Token Active` : 'Create Client ID & use your own token'}
                 </p>
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-300">API Client ID</label>
+              <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
+                <KeyRound className="w-3.5 h-3.5 text-cyan-300" />
+                <span>Your Google OAuth Client ID</span>
+              </label>
               <div className="flex gap-2">
                 <input
                   type="text"
-                  value={clientIdDraft}
-                  onChange={(e) => setClientIdDraft(e.target.value)}
-                  placeholder="Enter Google OAuth Client ID..."
+                  value={userClientId}
+                  onChange={(e) => setUserClientId(e.target.value)}
+                  placeholder="Paste your Google OAuth Client ID..."
                   className="flex-1 px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
                 />
                 <button
                   type="button"
-                  onClick={handleSaveClientId}
+                  onClick={handleSaveUserClientId}
                   className="px-3 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer shrink-0"
                 >
                   Save
@@ -2254,16 +2224,16 @@ export default function App() {
 
             {ytStats.isConnected ? (
               <div className="flex gap-2">
-                <button onClick={handleConnectYouTubeOAuth} className="flex-1 py-3 rounded-2xl font-extrabold text-xs text-white bg-emerald-600 flex items-center justify-center gap-1.5 cursor-pointer">
-                  <CheckCircle2 className="w-4 h-4" /> Re-Sync Channel Photo
+                <button onClick={handleConnectUserProfileOAuth} className="flex-1 py-3 rounded-2xl font-extrabold text-xs text-white bg-emerald-600 flex items-center justify-center gap-1.5 cursor-pointer">
+                  <CheckCircle2 className="w-4 h-4" /> Refresh User Token
                 </button>
                 <button onClick={handleDisconnectChannel} className="px-4 py-3 rounded-2xl font-extrabold text-xs text-rose-300 bg-rose-500/20 cursor-pointer">
                   Disconnect
                 </button>
               </div>
             ) : (
-              <button onClick={handleConnectYouTubeOAuth} className="w-full py-3 rounded-2xl font-extrabold text-xs text-white bg-red-600 flex items-center justify-center gap-2 cursor-pointer shadow-lg">
-                <Youtube className="w-4 h-4" /> Connect with Google OAuth
+              <button onClick={handleConnectUserProfileOAuth} className="w-full py-3 rounded-2xl font-extrabold text-xs text-white bg-red-600 flex items-center justify-center gap-2 cursor-pointer shadow-lg">
+                <Youtube className="w-4 h-4" /> Login & Connect With My Token
               </button>
             )}
           </div>
@@ -2280,7 +2250,7 @@ export default function App() {
               </div>
               <div className="space-y-1 text-xs font-bold">
                 <button onClick={() => { setActiveTab('home'); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-slate-200 cursor-pointer">Home Dashboard</button>
-                <button onClick={() => { setIsConnectModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-red-400 cursor-pointer">🔌 API Connect & Photo</button>
+                <button onClick={() => { setIsConnectModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-red-400 cursor-pointer">🔌 Profile API & Token</button>
                 <button onClick={() => { setIsSplitterModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-pink-300 cursor-pointer">✂️ AI Engaging Clips (1, 3, 5)</button>
                 <button onClick={() => { setIsThumbnailModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer">🎨 9:16 Shorts Thumbnail Gen</button>
                 <button onClick={() => { setIsPricingOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer">🔥 Offer Plans (₹99 / ₹1,499)</button>
