@@ -121,7 +121,6 @@ const idbClearAllClips = async () => {
   } catch { return false; }
 };
 
-// DEEP VIDEO VISUAL FRAME, RESOLUTION & CONTENT ANALYZER
 const analyzeVideoDeeply = (file) =>
   new Promise((resolve) => {
     if (!(file instanceof Blob)) {
@@ -129,7 +128,7 @@ const analyzeVideoDeeply = (file) =>
         duration: 30,
         width: 1080,
         height: 1920,
-        orientation: 'Vertical 9:16',
+        orientation: 'Vertical 9:16 Shorts',
         visualMood: 'High-Energy',
         detectedScene: 'Dynamic Action'
       });
@@ -218,7 +217,6 @@ const analyzeVideoDeeply = (file) =>
     };
   });
 
-// DEEP TOPIC CLASSIFICATION + PROPER TITLE, DETAILED DESCRIPTION, #TAGS & WATERMARK
 const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, partLabel = '', watermarkLabel = 'Developed by shortspilot.in') => {
   const cleanName = (rawName || '')
     .replace(/\.[^/.]+$/, '')
@@ -236,7 +234,6 @@ const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, par
   let subType = 'High-Retention Short Video';
   let hookTitle = '';
   let tagList = [];
-  let keywordList = [];
 
   if (/(free\s?fire|ff|bgmi|pubg|valorant|gta|minecraft|cod|clutch|headshot|booyah|rank|squad|gaming|gameplay|pro\s?player)/i.test(lower)) {
     category = 'Gaming & Esports';
@@ -252,7 +249,6 @@ const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, par
       '#BGMIShorts', '#ClutchMoment', '#Headshot', '#ProGameplay', '#EsportsIndia',
       '#IndianGamer', '#Shorts', '#YouTubeShorts', '#ViralGaming'
     ];
-    keywordList = ['gaming shorts', '1v4 clutch', 'free fire gameplay', 'bgmi highlights', 'pro gamer montage'];
   } else if (/(anime|naruto|goku|luffy|zoro|gojo|sukuna|itachi|amv|sad|emotional|manga|otaku|edit)/i.test(lower)) {
     category = 'Anime & AMV Edits';
     subType = 'Cinematic Anime Scene / Emotional AMV Edit';
@@ -267,7 +263,6 @@ const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, par
       '#Otaku', '#Gojo', '#Naruto', '#Luffy', '#EmotionalEdit',
       '#CinematicEdit', '#Shorts', '#YouTubeShorts', '#TrendingAnime'
     ];
-    keywordList = ['anime edit', 'amv shorts', 'emotional anime scene', 'anime whatsapp status', '4k anime edit'];
   } else if (/(car|bmw|supra|gtr|lamborghini|ferrari|porsche|bike|zx10r|kawasaki|duke|thar|scorpio|drift|exhaust|supercar)/i.test(lower)) {
     category = 'Automobiles & Supercars';
     subType = 'Supercar / Superbike Exhaust & Speed Showcase';
@@ -282,7 +277,6 @@ const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, par
       '#ExhaustSound', '#JDM', '#BMW', '#Kawasaki', '#CarsOfIndia',
       '#ModifiedCars', '#Shorts', '#YouTubeShorts', '#ViralCars'
     ];
-    keywordList = ['supercars india', 'exhaust sound', 'modified cars', 'superbike reaction', 'car shorts'];
   } else if (/(tech|ai|mobile|iphone|android|laptop|coding|app|website|gadget|review|unboxing|trick|tips)/i.test(lower)) {
     category = 'Technology & AI Tools';
     subType = 'Tech Tutorial / AI Productivity & Gadget Showcase';
@@ -297,7 +291,6 @@ const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, par
       '#SmartphoneTricks', '#Gadgets', '#TechIndia', '#AIAutomation', '#Coding',
       '#DigitalIndia', '#Shorts', '#YouTubeShorts', '#ViralTech'
     ];
-    keywordList = ['tech tips', 'ai tools 2026', 'secret mobile tricks', 'tech shorts hindi', 'useful websites'];
   } else if (/(motivation|success|business|money|finance|stock|trading|gym|fitness|workout|mindset|sigma)/i.test(lower)) {
     category = 'Motivation, Fitness & Finance';
     subType = 'High-Impact Mindset / Growth & Discipline Short';
@@ -312,7 +305,6 @@ const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, par
       '#GymMotivation', '#FinanceTips', '#Entrepreneurship', '#Hustle', '#SelfImprovement',
       '#HindiMotivation', '#Shorts', '#YouTubeShorts', '#ViralMotivation'
     ];
-    keywordList = ['motivation shorts', 'success mindset', 'gym discipline', 'business tips hindi', 'self improvement'];
   } else {
     category = 'Trending Entertainment & Viral';
     subType = 'High-Retention Story / Viral Moment Clip';
@@ -327,7 +319,6 @@ const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, par
       '#MustWatch', '#ViralVideo', '#Explore', '#ForYou', '#DailyShorts',
       '#Entertainment', '#Amazing', '#Shocking', '#ShortsFeed'
     ];
-    keywordList = ['viral shorts', 'trending video india', 'must watch shorts', 'youtube shorts feed', displayTopic.toLowerCase()];
   }
 
   const finalTitle = hookTitle.slice(0, 95);
@@ -356,7 +347,6 @@ const buildDeepAiVideoPackage = (rawName, videoAnalysis = {}, clipIndex = 0, par
     title: finalTitle,
     hashtags: hashtagsString,
     tagArray: tagList.map((t) => t.replace(/^#/, '')),
-    keywords: keywordList,
     description: detailedDescription,
     watermarkText: brandCredit,
     websiteUrl: 'https://shortspilot.in',
@@ -536,7 +526,7 @@ const TopHeader = React.memo(({ tier, hasUnread, gmailUser, onOpenDrawer, onGoHo
 
       <div className="hidden lg:flex items-center gap-2.5">
         <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-[11px] font-extrabold text-emerald-300">
-          ● Deep Video AI & SEO Engine
+          ● Deep Video AI & Gmail Alerts
         </span>
         <span className="text-xs text-slate-400">Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b></span>
       </div>
@@ -805,7 +795,7 @@ const AdminConsoleModal = React.memo(({
                 { id: 'payments', label: `🧾 UTR (${pendingCount})` },
                 { id: 'users', label: '👥 Users & VIP' },
                 { id: 'ai', label: '🤖 AI Prompt' },
-                { id: 'system', label: '⚙️ System' }
+                { id: 'system', label: '⚙️ System & Gmail Alert' }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -929,6 +919,26 @@ const AdminConsoleModal = React.memo(({
                 <form onSubmit={handlePublishAllChanges} className="space-y-3">
                   <div className="p-3.5 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-2.5">
                     <div>
+                      <label className="text-[10px] text-emerald-300 font-bold">Owner Alert Gmail (UPI Payment Notifications)</label>
+                      <input
+                        type="email"
+                        value={globalConfig.ownerAlertEmail || ''}
+                        onChange={(e) => setGlobalConfig({ ...globalConfig, ownerAlertEmail: e.target.value })}
+                        placeholder="yourname@gmail.com"
+                        className="w-full mt-1 px-3 py-2 rounded-xl bg-[#06040c] border border-emerald-500/40 text-emerald-300 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-cyan-300 font-bold">Email Alert Webhook URL (EmailJS / Formspree / Apps Script)</label>
+                      <input
+                        type="url"
+                        value={globalConfig.paymentWebhookUrl || ''}
+                        onChange={(e) => setGlobalConfig({ ...globalConfig, paymentWebhookUrl: e.target.value })}
+                        placeholder="https://formspree.io/f/your_id or Apps Script Web App URL"
+                        className="w-full mt-1 px-3 py-2 rounded-xl bg-[#06040c] border border-cyan-500/40 text-cyan-300 font-mono"
+                      />
+                    </div>
+                    <div>
                       <label className="text-[10px] text-slate-400">Master Admin PIN</label>
                       <input type="text" value={globalConfig.adminPin || ''} onChange={(e) => setGlobalConfig({ ...globalConfig, adminPin: e.target.value })} className="w-full mt-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-pink-400 font-mono font-bold" />
                     </div>
@@ -937,7 +947,7 @@ const AdminConsoleModal = React.memo(({
                       <input type="text" value={liveDbUrl || ''} onChange={(e) => setLiveDbUrl(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-cyan-300 font-mono" />
                     </div>
                   </div>
-                  <button type="submit" className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-extrabold cursor-pointer">Save System Config</button>
+                  <button type="submit" className="w-full py-2.5 rounded-xl bg-purple-600 text-white font-extrabold cursor-pointer">Save System & Gmail Alert Config</button>
                 </form>
               )}
             </div>
@@ -959,7 +969,9 @@ export default function App() {
           monthlyPrice: saved.monthlyPrice || '99',
           yearlyOriginalPrice: '3999',
           yearlyPrice: saved.yearlyPrice || '1499',
-          watermarkText: saved.watermarkText || 'Developed by shortspilot.in'
+          watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
+          ownerAlertEmail: saved.ownerAlertEmail || '',
+          paymentWebhookUrl: saved.paymentWebhookUrl || ''
         };
       }
     } catch {}
@@ -973,6 +985,8 @@ export default function App() {
       couponDiscount: '200',
       freeLimit: 3,
       watermarkText: 'Developed by shortspilot.in',
+      ownerAlertEmail: '',
+      paymentWebhookUrl: '',
       ytAutoUploadActive: true,
       googleClientId: DEFAULT_GOOGLE_CLIENT_ID,
       adminPin: '9767905729'
@@ -1005,13 +1019,13 @@ export default function App() {
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
-    { id: 1, title: 'Deep Video AI & SEO Tags Active 🔍', desc: 'Auto-detects Gaming, Anime, Cars, Tech & adds proper #Tags + https://shortspilot.in link!', unread: true },
-    { id: 2, title: 'Watermark Added: Developed by shortspilot.in ✨', desc: 'Every uploaded & cut Short now includes official website link & branding watermark.', unread: true }
+    { id: 1, title: 'Gmail UPI Payment Alert Ready 📧', desc: 'Configure Owner Gmail & Webhook in Admin > System for instant UTR alerts!', unread: true },
+    { id: 2, title: 'Deep Video AI & Watermark Active ✨', desc: 'Auto topic detection, #Tags, shortspilot.in link & "Developed by shortspilot.in".', unread: true }
   ]);
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! Ab har video ka deep analysis hoga, proper #Tags + Title + Description aur https://shortspilot.in watermark auto-add hoga.' }
+    { role: 'ai', text: 'Namaste! Ab koi bhi UPI UTR submit karega to aapke Gmail alert webhook par payment details turant bheji jayengi.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -1389,6 +1403,37 @@ export default function App() {
     setVideoQueue([]);
   };
 
+  const sendOwnerGmailAlert = async (txnObj) => {
+    const webhook = (globalConfig.paymentWebhookUrl || '').trim();
+    const ownerEmail = (globalConfig.ownerAlertEmail || '').trim();
+    if (!webhook) return false;
+
+    try {
+      const res = await fetch(webhook, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({
+          subject: `New ShortsPilot UPI Payment: ${txnObj.amount} (UTR: ${txnObj.utr})`,
+          ownerEmail,
+          userGmail: txnObj.user,
+          plan: txnObj.plan,
+          amount: txnObj.amount,
+          utr: txnObj.utr,
+          receiverUpi: globalConfig.receiverUpi,
+          domain: 'https://shortspilot.in',
+          time: txnObj.time,
+          message: `User ${txnObj.user} submitted UTR ${txnObj.utr} for ${txnObj.amount} on shortspilot.in.`
+        })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
   const handleVerifyPayment = async (e) => {
     e.preventDefault();
     setCheckoutError('');
@@ -1422,7 +1467,13 @@ export default function App() {
         });
       } catch {}
     }
-    setCheckoutPendingMsg('⏳ UTR Submitted! Pro Offer will activate within 1–2 minutes.');
+
+    const alertSent = await sendOwnerGmailAlert(newTxn);
+    setCheckoutPendingMsg(
+      alertSent
+        ? '⏳ UTR Submitted & Owner Gmail Alert Sent! VIP will activate within 1–2 mins.'
+        : '⏳ UTR Submitted! (Add Email Alert Webhook in Admin > System to receive instant Gmail messages.)'
+    );
     setUtrNumber('');
   };
 
@@ -1433,7 +1484,7 @@ export default function App() {
     setSupportMessages((prev) => [
       ...prev,
       { role: 'user', text: msg },
-      { role: 'ai', text: `Deep Video AI har video ka type (Gaming, Anime, Cars, Tech, Motivation) analyze karke proper #Tags, detailed description, https://shortspilot.in aur "Developed by shortspilot.in" watermark lagata hai.` }
+      { role: 'ai', text: `UTR submit hote hi Gmail webhook alert trigger hoga, aur har video par proper #Tags + https://shortspilot.in + "Developed by shortspilot.in" watermark lagega.` }
     ]);
     setSupportInput('');
   };
@@ -1941,9 +1992,10 @@ export default function App() {
               </div>
 
               <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/30 space-y-2">
-                <div className="text-xs lg:text-sm font-extrabold text-white">Domain, Watermark & OAuth Config</div>
+                <div className="text-xs lg:text-sm font-extrabold text-white">Domain, Watermark & Gmail Alert Config</div>
                 <p className="text-[10px] lg:text-xs text-slate-400">Website Link in Descriptions: <span className="text-emerald-300 font-mono">https://shortspilot.in</span></p>
                 <p className="text-[10px] lg:text-xs text-slate-400">Watermark Credit: <span className="text-pink-300 font-bold">{globalConfig.watermarkText || 'Developed by shortspilot.in'}</span></p>
+                <p className="text-[10px] lg:text-xs text-slate-400">Owner Alert Gmail: <span className="text-emerald-300 font-mono">{globalConfig.ownerAlertEmail || 'Not set (Configure in Admin > System)'}</span></p>
                 <p className="text-[10px] lg:text-xs text-slate-400">Authorized Redirect URI: <span className="text-cyan-300 font-mono">{YOUTUBE_REDIRECT_URI}</span></p>
                 <input type="text" readOnly value={activeClientId} className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono" />
               </div>
@@ -2224,7 +2276,6 @@ export default function App() {
         </div>
       )}
 
-      {/* VIDEO PREVIEW & FULL SEO METADATA INSPECTOR MODAL */}
       {previewClip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
           <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-4 space-y-3 max-h-[92vh] overflow-y-auto">
