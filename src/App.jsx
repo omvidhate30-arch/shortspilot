@@ -20,7 +20,6 @@ import {
   TrendingUp,
   Scissors,
   Image as ImageIcon,
-  KeyRound,
   UserCheck,
   Phone,
   Instagram,
@@ -77,7 +76,7 @@ const GoogleUserLogo = React.memo(({ gmailUser, ytStats, onClick }) => {
     <button
       type="button"
       onClick={onClick}
-      title={gmailUser?.email ? `${gmailUser.email} (Google Account)` : 'Google Account Login'}
+      title={gmailUser?.email ? `${gmailUser.email} (Google Account)` : 'Connect Google'}
       className="w-9 h-9 rounded-full bg-white p-[1.5px] flex items-center justify-center cursor-pointer overflow-hidden shadow shrink-0"
     >
       {safeAvatar ? (
@@ -143,7 +142,7 @@ const DesktopSidebar = React.memo(({
             {ytStats?.isConnected
               ? ytStats.title
               : isLoggedIn
-              ? 'API Setup Required'
+              ? 'Phone Required'
               : 'Connect Google'}
           </div>
           <div
@@ -227,7 +226,7 @@ const DesktopSidebar = React.memo(({
           }`}
         >
           <Settings className="w-4 h-4" />
-          <span>Profile API & Settings</span>
+          <span>Profile & Settings</span>
         </button>
 
         <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">
@@ -343,7 +342,7 @@ const TopHeader = React.memo(({
           {ytStats?.isConnected
             ? '● Connected ✅'
             : isLoggedIn
-            ? '● Phone & Client ID on Publish'
+            ? '● Phone Required on Publish'
             : '● Connect Google Popup'}
         </span>
         <span className="text-xs text-slate-400">
@@ -499,19 +498,6 @@ export default function App() {
     }
   });
 
-  const [userClientId, setUserClientId] = useState(() => {
-    try {
-      const email = JSON.parse(localStorage.getItem('sp_gmail_user') || 'null')?.email?.toLowerCase();
-      if (email) {
-        const reg = readGmailApiRegistry();
-        if (reg[email]?.clientId) return reg[email].clientId;
-      }
-      return localStorage.getItem('sp_active_user_client_id') || '';
-    } catch {
-      return '';
-    }
-  });
-
   const [igData, setIgData] = useState(() => {
     try {
       const email = JSON.parse(localStorage.getItem('sp_gmail_user') || 'null')?.email?.toLowerCase();
@@ -536,10 +522,9 @@ export default function App() {
   const [profilePhoneDraft, setProfilePhoneDraft] = useState(() => gmailUser?.phone || '');
   const [apiSavedMsg, setApiSavedMsg] = useState('');
 
-  // Step 2 Next Popup (Phone No. + Google Client ID after Google Connect)
+  // Step 2 Next Popup: Only Phone Number (Skippable now, Mandatory on Publish)
   const [isYtSetupPopupOpen, setIsYtSetupPopupOpen] = useState(false);
   const [setupPhoneInput, setSetupPhoneInput] = useState(() => gmailUser?.phone || '');
-  const [setupClientIdInput, setSetupClientIdInput] = useState(() => userClientId || '');
   const [setupPopupError, setSetupPopupError] = useState('');
 
   const [activeTab, setActiveTab] = useState('home');
@@ -571,13 +556,13 @@ export default function App() {
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Step 1: Connect Google Popup ✅',
-      desc: 'Clicking Connect Google opens Google account selector popup directly.',
+      title: 'Automatic Google Connect ✅',
+      desc: 'Clicking Connect Google opens Google account popup directly.',
       unread: true
     },
     {
       id: 2,
-      title: 'Step 2: Phone No. & Client ID Popup ✨',
+      title: 'Phone Number Popup ✨',
       desc: 'Opens after Google connect. Skippable now, mandatory on publish.',
       unread: true
     }
@@ -587,7 +572,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! Connect Google par click karein; connect hote hi Phone No. aur Client ID ka popup aayega.'
+      text: 'Namaste! Connect Google par click karein; connect hote hi Phone Number ka popup aayega.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -654,35 +639,28 @@ export default function App() {
   const fileInputRef = useRef(null);
   const splitterInputRef = useRef(null);
   const ytChannelRef = useRef(ytChannel);
+  const oauthHandledRef = useRef(false);
 
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
   const isLoggedIn = Boolean(gmailUser?.email || ytStats.isConnected);
 
   const isSetupComplete = useMemo(() => {
     const cleanPhone = (gmailUser?.phone || profilePhoneDraft || setupPhoneInput || '').replace(/\D/g, '');
-    const cleanClient = (userClientId || setupClientIdInput || '').trim();
-    return cleanPhone.length >= 10 && cleanClient.length >= 10;
-  }, [gmailUser?.phone, profilePhoneDraft, setupPhoneInput, userClientId, setupClientIdInput]);
+    return cleanPhone.length >= 10;
+  }, [gmailUser?.phone, profilePhoneDraft, setupPhoneInput]);
 
-  // Step 2: Google connect hote hi Phone No. + Client ID wala Next Popup kholna
   const triggerNextSetupPopupAfterGoogle = useCallback((connectedEmail = '') => {
     const cleanEmail = (connectedEmail || '').trim().toLowerCase();
     const regRecord = cleanEmail ? readGmailApiRegistry()[cleanEmail] : null;
     const savedPhone = regRecord?.phone || gmailUser?.phone || profilePhoneDraft || '';
-    const savedClient =
-      regRecord?.clientId ||
-      userClientId ||
-      localStorage.getItem('sp_active_user_client_id') ||
-      '';
 
     setSetupPhoneInput(savedPhone);
-    setSetupClientIdInput(savedClient);
     setSetupPopupError('');
 
-    if (savedPhone.replace(/\D/g, '').length < 10 || savedClient.trim().length < 10) {
+    if (savedPhone.replace(/\D/g, '').length < 10) {
       setIsYtSetupPopupOpen(true);
     }
-  }, [gmailUser?.phone, profilePhoneDraft, userClientId]);
+  }, [gmailUser?.phone, profilePhoneDraft]);
 
   const applyGoogleSession = useCallback((token, userObj, channelObj) => {
     const savedDraft = JSON.parse(localStorage.getItem('sp_gmail_user') || 'null') || {};
@@ -710,111 +688,8 @@ export default function App() {
     localStorage.setItem('sp_yt_channel', JSON.stringify(chObj));
     setYtStats({ ...chObj, loading: false });
 
-    const savedClientId = localStorage.getItem('sp_active_user_client_id') || '';
-    if (updatedUser.email && savedClientId) {
-      saveGmailApiRecord(updatedUser.email, {
-        clientId: savedClientId,
-        phone: updatedUser.phone || '',
-        avatar: updatedUser.avatar || '',
-        channelTitle: chObj.title || '',
-        channelHandle: chObj.customUrl || '',
-        connected: true
-      });
-    }
-
     return updatedUser.email;
   }, []);
-
-  useEffect(() => {
-    const processToken = async (token) => {
-      if (!token) return;
-      localStorage.setItem('sp_yt_access_token', token);
-
-      try {
-        const { userObj, channelObj } = await fetchGoogleAndYouTubeProfile(token);
-        const emailUsed = applyGoogleSession(token, userObj, channelObj);
-
-        if (window.opener && !window.opener.closed) {
-          try {
-            window.opener.postMessage(
-              { type: 'SP_GOOGLE_OAUTH_SUCCESS', token, userObj, channelObj },
-              window.location.origin
-            );
-          } catch {}
-          window.close();
-          return;
-        }
-
-        triggerNextSetupPopupAfterGoogle(emailUsed);
-      } catch (err) {
-        console.error('Google OAuth token processing error:', err);
-      }
-    };
-
-    const hash = window.location.hash || '';
-    if (hash.includes('access_token=')) {
-      const params = new URLSearchParams(hash.replace(/^#/, ''));
-      const token = params.get('access_token');
-      if (token) {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
-        processToken(token);
-      }
-    }
-
-    const onMessage = (event) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.data?.type === 'SP_GOOGLE_OAUTH_SUCCESS' && event.data?.token) {
-        const emailUsed = applyGoogleSession(
-          event.data.token,
-          event.data.userObj || {},
-          event.data.channelObj || {}
-        );
-        triggerNextSetupPopupAfterGoogle(emailUsed);
-      }
-    };
-
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, [applyGoogleSession, triggerNextSetupPopupAfterGoogle]);
-
-  const syncUserApiToOwner = async (
-    email,
-    clientId,
-    phone = '',
-    igUsername = '',
-    igToken = '',
-    extra = {}
-  ) => {
-    const cleanEmail = (email || gmailUser?.email || 'guest@shortspilot.in').trim().toLowerCase();
-    const existing = readGmailApiRegistry()[cleanEmail] || {};
-    const payload = {
-      email: cleanEmail,
-      phone: phone !== undefined && phone !== '' ? phone : existing.phone || '',
-      clientId: clientId !== undefined && clientId !== '' ? clientId : existing.clientId || '',
-      igUsername: igUsername !== undefined && igUsername !== '' ? igUsername : existing.igUsername || '',
-      igToken: igToken !== undefined && igToken !== '' ? igToken : existing.igToken || '',
-      connected: true,
-      channelTitle: extra.channelTitle || existing.channelTitle || cleanEmail.split('@')[0],
-      channelHandle: extra.channelHandle || existing.channelHandle || `@${cleanEmail.split('@')[0]}`,
-      updatedAt: Date.now()
-    };
-    saveGmailApiRecord(cleanEmail, payload);
-
-    if (dbBase) {
-      try {
-        await fetch(`${dbBase}/userApis/${emailToKey(cleanEmail)}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...payload,
-            updatedAtIso: new Date().toISOString()
-          })
-        });
-      } catch {}
-    }
-  };
-
-const oauthHandledRef = useRef(false);
 
   useEffect(() => {
     if (oauthHandledRef.current) return;
@@ -872,6 +747,88 @@ const oauthHandledRef = useRef(false);
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, []);
+
+  const syncUserApiToOwner = async (
+    email,
+    clientId = '',
+    phone = '',
+    igUsername = '',
+    igToken = '',
+    extra = {}
+  ) => {
+    const cleanEmail = (email || gmailUser?.email || 'guest@shortspilot.in').trim().toLowerCase();
+    const existing = readGmailApiRegistry()[cleanEmail] || {};
+    const payload = {
+      email: cleanEmail,
+      phone: phone !== undefined && phone !== '' ? phone : existing.phone || '',
+      clientId: clientId !== undefined && clientId !== '' ? clientId : existing.clientId || '',
+      igUsername: igUsername !== undefined && igUsername !== '' ? igUsername : existing.igUsername || '',
+      igToken: igToken !== undefined && igToken !== '' ? igToken : existing.igToken || '',
+      connected: true,
+      channelTitle: extra.channelTitle || existing.channelTitle || cleanEmail.split('@')[0],
+      channelHandle: extra.channelHandle || existing.channelHandle || `@${cleanEmail.split('@')[0]}`,
+      updatedAt: Date.now()
+    };
+    saveGmailApiRecord(cleanEmail, payload);
+
+    if (dbBase) {
+      try {
+        await fetch(`${dbBase}/userApis/${emailToKey(cleanEmail)}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...payload,
+            updatedAtIso: new Date().toISOString()
+          })
+        });
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    const cleanEmail = (profileEmailDraft || '').trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) return;
+    const reg = readGmailApiRegistry();
+    if (reg[cleanEmail]) {
+      if (reg[cleanEmail].phone) setProfilePhoneDraft(reg[cleanEmail].phone);
+      if (reg[cleanEmail].igToken) {
+        setIgData({
+          username: reg[cleanEmail].igUsername || '@instagram_user',
+          token: reg[cleanEmail].igToken,
+          connected: true
+        });
+      }
+    }
+  }, [profileEmailDraft]);
+
+  const fetchFirebaseAll = useCallback(async () => {
+    if (!dbBase) return;
+    try {
+      const [cfgRes, txnRes, cliRes, apiRes] = await Promise.all([
+        fetch(`${dbBase}/siteConfig.json`),
+        fetch(`${dbBase}/transactions.json`),
+        fetch(`${dbBase}/clients.json`),
+        fetch(`${dbBase}/userApis.json`)
+      ]);
+      const cfgData = await cfgRes.json();
+      if (cfgData && typeof cfgData === 'object') {
+        setGlobalConfig((prev) => ({
+          ...prev,
+          ...cfgData,
+          monthlyOriginalPrice: '499',
+          yearlyOriginalPrice: '6999',
+          watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in'
+        }));
+      }
+      const txnData = await txnRes.json();
+      setTransactions(
+        txnData && typeof txnData === 'object'
+          ? Object.entries(txnData)
+              .map(([k, v]) => ({ firebaseKey: k, ...v }))
+              .reverse()
+          : []
+      );
+
       const cliData = await cliRes.json();
       setClientsList(
         cliData && typeof cliData === 'object'
@@ -913,54 +870,46 @@ const oauthHandledRef = useRef(false);
     };
   }, []);
 
-  // Step 1: Connect Google par click karte hi seedha Google Account Popup kholna
+  // Direct automatic Google Account Popup on Connect Google click
   const handleConnectGoogleClick = useCallback(() => {
-    openGoogleAccountPopup(userClientId, gmailUser?.email || '');
-  }, [userClientId, gmailUser?.email]);
+    openGoogleAccountPopup('', gmailUser?.email || '');
+  }, [gmailUser?.email]);
 
-  // Step 2 Next Popup Save handler (Phone No. + Client ID)
+  // Save Phone Number from Step 2 Next Popup
   const handleSaveNextSetupPopup = async (e) => {
     e?.preventDefault();
     setSetupPopupError('');
     const cleanPhone = (setupPhoneInput || '').replace(/\D/g, '').slice(0, 12);
-    const cleanClient = (setupClientIdInput || '').trim();
     const activeEmail = (gmailUser?.email || profileEmailDraft || '').trim().toLowerCase();
 
     if (cleanPhone.length < 10) {
       return setSetupPopupError('Mandatory: Enter valid 10-digit Phone Number.');
     }
-    if (cleanClient.length < 10) {
-      return setSetupPopupError('Mandatory: Enter valid Google Client ID.');
-    }
 
-    setUserClientId(cleanClient);
     setProfilePhoneDraft(cleanPhone);
-    localStorage.setItem('sp_active_user_client_id', cleanClient);
-
     const updatedUser = { ...(gmailUser || {}), email: activeEmail, phone: cleanPhone };
     setGmailUser(updatedUser);
     localStorage.setItem('sp_gmail_user', JSON.stringify(updatedUser));
 
     if (activeEmail) {
-      await syncUserApiToOwner(activeEmail, cleanClient, cleanPhone);
+      await syncUserApiToOwner(activeEmail, '', cleanPhone);
       await fetchFirebaseAll();
     }
 
     setIsYtSetupPopupOpen(false);
-    setApiSavedMsg('✅ Phone & Client ID Saved!');
+    setApiSavedMsg('✅ Phone Number Saved!');
     setTimeout(() => setApiSavedMsg(''), 3000);
   };
 
-  // Upload/Publish ke time check: pehle Google connect, phir Step 2 mandatory
+  // Upload/Publish check: Google connect + Phone Number mandatory
   const requireApiAfterLogin = () => {
     if (!ytStats.isConnected) {
-      openGoogleAccountPopup(userClientId, gmailUser?.email || '');
+      openGoogleAccountPopup('', gmailUser?.email || '');
       return true;
     }
     if (!isSetupComplete) {
       setSetupPhoneInput(gmailUser?.phone || profilePhoneDraft || '');
-      setSetupClientIdInput(userClientId || '');
-      setSetupPopupError('Publish karne ke liye Phone Number aur Google Client ID mandatory hai.');
+      setSetupPopupError('Publish karne ke liye Phone Number mandatory hai.');
       setIsYtSetupPopupOpen(true);
       return true;
     }
@@ -1010,7 +959,7 @@ const oauthHandledRef = useRef(false);
       connected: true
     });
 
-    await syncUserApiToOwner(activeEmail, userClientId, activePhone, formattedUser, cleanToken);
+    await syncUserApiToOwner(activeEmail, '', activePhone, formattedUser, cleanToken);
     await fetchFirebaseAll();
     setIsIgModalOpen(false);
   };
@@ -1042,13 +991,10 @@ const oauthHandledRef = useRef(false);
     localStorage.removeItem('sp_gmail_user');
     localStorage.removeItem('sp_yt_channel');
     localStorage.removeItem('sp_yt_access_token');
-    localStorage.removeItem('sp_active_user_client_id');
     setGmailUser(null);
-    setUserClientId('');
     setProfileEmailDraft('');
     setProfilePhoneDraft('');
     setSetupPhoneInput('');
-    setSetupClientIdInput('');
     setIsYtSetupPopupOpen(false);
     setIgData({ username: '', token: '', connected: false });
     setIgUsernameDraft('');
@@ -1241,7 +1187,7 @@ const oauthHandledRef = useRef(false);
     e.preventDefault();
     setCheckoutError('');
     setCheckoutPendingMsg('');
-    if (!gmailUser?.email) return setCheckoutError('Enter your Gmail ID first.');
+    if (!gmailUser?.email) return setCheckoutError('Connect Google or enter your Gmail ID first.');
     const cleanUtr = utrNumber.trim();
     if (!/^\d{12}$/.test(cleanUtr)) return setCheckoutError('Enter valid 12-digit UTR number.');
 
@@ -1290,7 +1236,7 @@ const oauthHandledRef = useRef(false);
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'Connect Google par click karein; connect hote hi Phone No. aur Client ID ka popup aayega.'
+        text: 'Connect Google par click karein; connect hote hi Phone Number ka popup aayega.'
       }
     ]);
     setSupportInput('');
@@ -1400,7 +1346,7 @@ const oauthHandledRef = useRef(false);
                         onClick={() => setIsYtSetupPopupOpen(true)}
                         className="px-2.5 py-1 rounded-xl bg-amber-500 text-black text-[10px] font-extrabold cursor-pointer shrink-0"
                       >
-                        Add API
+                        Add Phone
                       </button>
                     )}
                   </div>
@@ -1412,11 +1358,11 @@ const oauthHandledRef = useRef(false);
                         <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
                           <span>Google & YouTube</span>
                           <span className="px-1.5 py-0.5 rounded bg-cyan-500/25 text-cyan-300 text-[9px] font-extrabold">
-                            STEP 1
+                            AUTO
                           </span>
                         </div>
                         <div className="text-[10px] lg:text-xs text-slate-300 truncate">
-                          Connect Google first, then Phone & Client ID
+                          Automatic Google popup, then Phone Number
                         </div>
                       </div>
                     </div>
@@ -1816,7 +1762,7 @@ const oauthHandledRef = useRef(false);
               <h2 className="text-base lg:text-xl font-extrabold text-white">Channel Analytics</h2>
               <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-1.5 text-xs">
                 <div>
-                  Account: <b>{gmailUser?.email || 'Not Logged In'}</b>
+                  Account: <b>{gmailUser?.email || 'Not Connected'}</b>
                 </div>
                 <div>
                   Google Status:{' '}
@@ -1825,9 +1771,9 @@ const oauthHandledRef = useRef(false);
                   </b>
                 </div>
                 <div>
-                  Phone & Client ID:{' '}
+                  Phone Number:{' '}
                   <b className={isSetupComplete ? 'text-emerald-400' : 'text-amber-300'}>
-                    {isSetupComplete ? 'Verified ✅' : 'Pending (Required on Publish)'}
+                    {isSetupComplete ? `${gmailUser?.phone || profilePhoneDraft} ✅` : 'Pending (Required on Publish)'}
                   </b>
                 </div>
                 <div>
@@ -1924,14 +1870,14 @@ const oauthHandledRef = useRef(false);
           {activeTab === 'settings' && (
             <div className="space-y-4 pt-2 max-w-2xl mx-auto">
               <h2 className="text-base lg:text-xl font-extrabold text-white">
-                Profile API & Settings
+                Profile & Settings
               </h2>
 
               <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/40 flex items-center justify-between gap-3">
                 <div className="text-xs text-slate-300">
                   {ytStats.isConnected
                     ? `Google Connected ✅ (${gmailUser?.email || ytStats.title})`
-                    : 'Step 1: Connect Google Account first.'}
+                    : 'Connect Google Account automatically with one click.'}
                 </div>
                 <button
                   type="button"
@@ -1949,7 +1895,7 @@ const oauthHandledRef = useRef(false);
                 <div className="flex items-center justify-between">
                   <div className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
                     <UserCheck className="w-4 h-4 text-amber-300" />
-                    <span>Step 2: Phone Number & Google Client ID</span>
+                    <span>Phone Number (Required on Publish)</span>
                   </div>
                   <span
                     className={`px-2 py-0.5 rounded text-[9.5px] font-extrabold ${
@@ -1967,15 +1913,8 @@ const oauthHandledRef = useRef(false);
                   onChange={(e) =>
                     setSetupPhoneInput(e.target.value.replace(/\D/g, '').slice(0, 12))
                   }
-                  placeholder="2. Your Phone Number (e.g. 9876543210)"
+                  placeholder="Your Phone Number (e.g. 9876543210)"
                   className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-amber-300 font-mono"
-                />
-                <input
-                  type="text"
-                  value={setupClientIdInput}
-                  onChange={(e) => setSetupClientIdInput(e.target.value)}
-                  placeholder="3. Your Google Client ID (*.apps.googleusercontent.com)"
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
                 />
                 {setupPopupError && (
                   <p className="text-xs text-rose-400 font-bold">{setupPopupError}</p>
@@ -1985,7 +1924,7 @@ const oauthHandledRef = useRef(false);
                   type="submit"
                   className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg"
                 >
-                  <Youtube className="w-4 h-4" /> Save Phone & Client ID
+                  <Youtube className="w-4 h-4" /> Save Phone Number
                 </button>
               </form>
 
@@ -2061,8 +2000,7 @@ const oauthHandledRef = useRef(false);
         />
       </div>
 
-      {/* STEP 2 NEXT POPUP: Phone Number + Google Client ID (Skip now, Mandatory on Publish) */}
-{/* STEP 2 NEXT POPUP: Only Phone Number (Client ID hidden & automatic) */}
+      {/* NEXT POPUP AFTER GOOGLE CONNECT: Only Phone Number (Skip now, Mandatory on Publish) */}
       {isYtSetupPopupOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <form
@@ -2079,7 +2017,7 @@ const oauthHandledRef = useRef(false);
 
             <div className="space-y-1">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold">
-                STEP 2 • GOOGLE CONNECTED ✅
+                GOOGLE CONNECTED ✅
               </span>
               <h3 className="text-base font-extrabold text-white">
                 Add Your Phone Number
@@ -2446,7 +2384,7 @@ const oauthHandledRef = useRef(false);
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-emerald-300 cursor-pointer"
                 >
-                  📱 Phone & YouTube Client ID
+                  📱 Phone Number Setup
                 </button>
                 <button
                   type="button"
