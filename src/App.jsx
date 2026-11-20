@@ -993,7 +993,7 @@ const AdminConsoleModal = React.memo(({
                   <form onSubmit={handleManualGrantSubmit} className="p-3 rounded-2xl bg-[#110c22] border border-emerald-500/40 flex gap-2">
                     <input type="email" value={manualEmail} onChange={(e) => setManualEmail(e.target.value)} placeholder="User Gmail ID..." className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white" />
                     <select value={manualPlan} onChange={(e) => setManualPlan(e.target.value)} className="px-2 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-amber-300 font-bold">
-                      <option value="yearly">Yearly VIP (₹1499)</option>
+                      <option value="yearly">Yearly VIP (₹3999)</option>
                       <option value="monthly">Monthly Pro (₹99)</option>
                     </select>
                     <button type="submit" className="px-3 py-2 rounded-xl bg-emerald-600 text-white font-bold cursor-pointer">Grant VIP</button>
@@ -1081,8 +1081,8 @@ export default function App() {
           ...saved,
           monthlyOriginalPrice: '499',
           monthlyPrice: saved.monthlyPrice || '99',
-          yearlyOriginalPrice: '3999',
-          yearlyPrice: saved.yearlyPrice || '1499',
+          yearlyOriginalPrice: '6999',
+          yearlyPrice: saved.yearlyPrice || '3999',
           watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
           ownerAlertEmail: saved.ownerAlertEmail || '',
           paymentWebhookUrl: saved.paymentWebhookUrl || ''
@@ -1093,8 +1093,8 @@ export default function App() {
       receiverUpi: '9767905729@paytm',
       monthlyOriginalPrice: '499',
       monthlyPrice: '99',
-      yearlyOriginalPrice: '3999',
-      yearlyPrice: '1499',
+      yearlyOriginalPrice: '6999',
+      yearlyPrice: '3999',
       couponCode: 'SAVE200',
       couponDiscount: '200',
       freeLimit: 3,
@@ -1159,7 +1159,7 @@ export default function App() {
 
   const [showAiSupport, setShowAiSupport] = useState(false);
   const [supportMessages, setSupportMessages] = useState([
-    { role: 'ai', text: 'Namaste! Instagram abhi Pending ⏳ dikh raha hai, aur jab aap chahein tab isme add kar sakte hain.' }
+    { role: 'ai', text: 'Namaste! Instagram abhi Pending ⏳ dikh raha hai, aur aapka API setup Owner Dashboard par sync hota hai.' }
   ]);
   const [supportInput, setSupportInput] = useState('');
 
@@ -1274,7 +1274,7 @@ export default function App() {
           ...prev,
           ...cfgData,
           monthlyOriginalPrice: '499',
-          yearlyOriginalPrice: '3999',
+          yearlyOriginalPrice: '6999',
           watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in'
         }));
       }
@@ -1695,7 +1695,7 @@ export default function App() {
     if (!/^\d{12}$/.test(cleanUtr)) return setCheckoutError('Enter valid 12-digit UTR number.');
 
     const amt = selectedBilling === 'yearly'
-      ? Number(globalConfig.yearlyPrice || 1499)
+      ? Number(globalConfig.yearlyPrice || 3999)
       : Number(globalConfig.monthlyPrice || 99);
 
     const newTxn = {
@@ -1736,7 +1736,7 @@ export default function App() {
     setSupportMessages((prev) => [
       ...prev,
       { role: 'user', text: msg },
-      { role: 'ai', text: `Instagram abhi Pending ⏳ dikh raha hai, aur jab aap chahein tab isme add kar sakte hain.` }
+      { role: 'ai', text: `Instagram abhi Pending ⏳ dikh raha hai, aur aapka API setup Owner Dashboard par sync hota hai.` }
     ]);
     setSupportInput('');
   };
@@ -1757,7 +1757,7 @@ export default function App() {
         onOpenPricing={() => setIsPricingOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
         monthlyPrice={globalConfig.monthlyPrice || '99'}
-        yearlyPrice={globalConfig.yearlyPrice || '1499'}
+        yearlyPrice={globalConfig.yearlyPrice || '3999'}
         videoCount={videoQueue.length}
         ytStats={ytStats}
         onOpenApiConnect={() => setIsConnectModalOpen(true)}
@@ -1832,7 +1832,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* INSTAGRAM PENDING CARD */}
                 <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-fuchsia-600/15 via-pink-600/15 to-amber-500/15 border border-pink-500/35 flex items-center justify-between gap-3 shadow-lg">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-10 h-10 rounded-full bg-pink-500/20 border border-pink-400/40 flex items-center justify-center shrink-0">
@@ -2034,11 +2033,11 @@ export default function App() {
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] lg:text-xs font-extrabold text-amber-300 uppercase">Yearly VIP</span>
-                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-[8.5px] font-extrabold text-amber-300">62% OFF</span>
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-[8.5px] font-extrabold text-amber-300">43% OFF</span>
                     </div>
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-base lg:text-2xl font-extrabold text-amber-400">₹{globalConfig.yearlyPrice || '1499'}</span>
-                      <span className="text-[11px] lg:text-sm text-slate-400 line-through">₹{globalConfig.yearlyOriginalPrice || '3999'}</span>
+                      <span className="text-base lg:text-2xl font-extrabold text-amber-400">₹{globalConfig.yearlyPrice || '3999'}</span>
+                      <span className="text-[11px] lg:text-sm text-slate-400 line-through">₹{globalConfig.yearlyOriginalPrice || '6999'}</span>
                       <span className="text-[9px] lg:text-xs text-slate-400">/yr</span>
                     </div>
                     <div className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1">
@@ -2488,8 +2487,8 @@ export default function App() {
               >
                 <div className="text-[10px] font-extrabold text-amber-300">YEARLY VIP</div>
                 <div className="flex items-baseline gap-1.5 mt-1">
-                  <span className="text-lg font-extrabold text-amber-400">₹{globalConfig.yearlyPrice || '1499'}</span>
-                  <span className="text-xs line-through text-slate-500">₹3999</span>
+                  <span className="text-lg font-extrabold text-amber-400">₹{globalConfig.yearlyPrice || '3999'}</span>
+                  <span className="text-xs line-through text-slate-500">₹6999</span>
                 </div>
                 <div className="text-[9.5px] text-amber-200 font-bold mt-1">100K+ Views Guarantee</div>
               </button>
@@ -2501,7 +2500,7 @@ export default function App() {
               <div className="p-2.5 rounded-xl bg-[#120d24] border border-emerald-500/30 text-xs text-slate-300 flex items-center justify-between">
                 <span>Pay UPI: <b className="text-emerald-400 font-mono">{globalConfig.receiverUpi}</b></span>
                 <span className="font-extrabold text-white">
-                  ₹{selectedBilling === 'yearly' ? (globalConfig.yearlyPrice || '1499') : (globalConfig.monthlyPrice || '99')}
+                  ₹{selectedBilling === 'yearly' ? (globalConfig.yearlyPrice || '3999') : (globalConfig.monthlyPrice || '99')}
                 </span>
               </div>
               <input
@@ -2522,7 +2521,7 @@ export default function App() {
               {checkoutError && <p className="text-xs text-rose-400">{checkoutError}</p>}
               {checkoutPendingMsg && <p className="text-xs text-amber-300">{checkoutPendingMsg}</p>}
               <button type="submit" className="w-full py-3 rounded-2xl bg-amber-500 text-black font-extrabold text-xs cursor-pointer shadow-lg">
-                Submit UTR & Unlock ₹{selectedBilling === 'yearly' ? (globalConfig.yearlyPrice || '1499') : (globalConfig.monthlyPrice || '99')} Offer
+                Submit UTR & Unlock ₹{selectedBilling === 'yearly' ? (globalConfig.yearlyPrice || '3999') : (globalConfig.monthlyPrice || '99')} Offer
               </button>
             </form>
           </div>
@@ -2634,7 +2633,7 @@ export default function App() {
                 </div>
                 <button onClick={() => { setIsSplitterModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-pink-300 cursor-pointer">✂️ AI Engaging Clips (1, 3, 5)</button>
                 <button onClick={() => { setIsThumbnailModalOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer">🎨 9:16 Shorts Thumbnail Gen</button>
-                <button onClick={() => { setIsPricingOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer">🔥 Offer Plans (₹99 / ₹1,499)</button>
+                <button onClick={() => { setIsPricingOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer">🔥 Offer Plans (₹99 / ₹3,999)</button>
                 <button onClick={() => { setActiveTab('settings'); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-slate-300 cursor-pointer">Settings</button>
                 <button onClick={() => { setIsAdminOpen(true); setIsSettingsDrawerOpen(false); }} className="w-full p-2.5 rounded-xl text-left text-rose-400 cursor-pointer">🔐 Owner Admin Console</button>
               </div>
