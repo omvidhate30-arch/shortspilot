@@ -224,20 +224,65 @@ const buildClipPackage = (
   rawTopic,
   index = 0,
   partLabel = '',
-  watermarkText = 'Developed by shortspilot.in'
+  watermarkText = 'Developed by shortspilot.in',
+  durationLabel = '',
+  hookText = ''
 ) => {
   const cleanTopic = (rawTopic || 'Insane Viral Moment').trim();
   const title = partLabel ? `${cleanTopic} (${partLabel})` : cleanTopic;
-  const tagBase = cleanTopic
+
+  const hookLines = [
+    `Watch till the end for ${cleanTopic} — this moment catches you completely off guard.`,
+    `High-retention highlight from ${cleanTopic} crafted for fast vertical Shorts discovery.`,
+    `Blink and you might miss what happens next in ${cleanTopic}.`,
+    `Pure highlight energy from ${cleanTopic} — clipped for quick mobile viewing.`,
+    `Unexpected turn in ${cleanTopic} that keeps viewers hooked till the final second.`
+  ];
+
+  const tagPools = [
+    ['#Shorts', '#ViralShorts', '#TrendingNow'],
+    ['#YouTubeShorts', '#MustWatch', '#ShortClip'],
+    ['#ShortsFeed', '#ViralClip', '#ForYou'],
+    ['#DailyShorts', '#Highlight', '#TrendingShorts'],
+    ['#QuickWatch', '#ViralMoment', '#ShortsCreator']
+  ];
+
+  const words = cleanTopic
     .replace(/[^a-zA-Z0-9\s]/g, '')
     .trim()
     .split(/\s+/)
-    .filter(Boolean)
+    .filter((w) => w.length > 1)
     .slice(0, 3)
-    .map((w) => `#${w}`)
-    .join(' ');
-  const hashtags = `${tagBase || '#Shorts'} #ShortsPilot #ViralShorts #Trending`;
-  const description = `${title}\n\n${hashtags}\n\n${watermarkText}`;
+    .map((w) => `#${w.charAt(0).toUpperCase()}${w.slice(1)}`);
+
+  const pool = tagPools[index % tagPools.length];
+  const combinedTags = Array.from(new Set([...words, ...pool])).slice(0, 5);
+  const hashtags = combinedTags.join(' ');
+
+  const openingLine = hookLines[index % hookLines.length];
+  const metaBits = [
+    partLabel ? `Segment: ${partLabel}` : 'Format: 9:16 Vertical Short',
+    durationLabel ? `Length: ${durationLabel}` : '',
+    hookText ? `Hook: ${hookText}` : ''
+  ]
+    .filter(Boolean)
+    .join(' • ');
+
+  const description = [
+    title,
+    '',
+    openingLine,
+    metaBits ? `\n${metaBits}` : '',
+    '',
+    hashtags,
+    '',
+    watermarkText
+  ]
+    .filter((line) => line !== undefined)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
   const hookScore = `${Math.min(99, 88 + ((index * 3) % 10))}/100`;
 
   return {
