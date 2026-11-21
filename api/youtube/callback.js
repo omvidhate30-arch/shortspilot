@@ -18,13 +18,8 @@ export default async function handler(req, res) {
     process.env.VITE_GOOGLE_CLIENT_ID ||
     '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
 
-  const clientSecret =
-    customClientSecret ||
-    process.env.GOOGLE_CLIENT_SECRET ||
-    ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-');
-
-  const proto = req.headers['x-forwarded-proto'] || 'https';
-  const redirectUri = `${proto}://${req.headers.host}/api/youtube/callback`;
+  const clientSecret = customClientSecret || process.env.GOOGLE_CLIENT_SECRET || '';
+  const redirectUri = 'https://www.shortspilot.in/api/youtube/callback';
 
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
