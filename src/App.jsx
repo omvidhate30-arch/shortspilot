@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   Sparkles,
   Play,
+  Youtube,
   X,
   Trash2,
   Calendar,
@@ -19,10 +20,12 @@ import {
   TrendingUp,
   Scissors,
   Image as ImageIcon,
-  Instagram
+  Instagram,
+  LogOut
 } from 'lucide-react';
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-default-rtdb.firebaseio.com';
+const GOOGLE_CLIENT_ID = '801917804614-ro5jolalps8bbtai6g1s1l6f1kj0sgk2.apps.googleusercontent.com';
 
 const emailToKey = (email = '') =>
   String(email || '')
@@ -32,7 +35,12 @@ const emailToKey = (email = '') =>
 
 const sanitizeMediaUrl = (url = '') => {
   if (!url || typeof url !== 'string') return '';
-  if (url.startsWith('blob:') || url.startsWith('https://') || url.startsWith('http://')) {
+  if (
+    url.startsWith('blob:') ||
+    url.startsWith('https://') ||
+    url.startsWith('http://') ||
+    url.startsWith('data:image/')
+  ) {
     return url;
   }
   return '';
@@ -62,14 +70,6 @@ const saveLocalRegistry = (email, record) => {
   } catch {}
 };
 
-const removeLocalRegistry = (email) => {
-  try {
-    const current = readLocalRegistry();
-    delete current[email];
-    localStorage.setItem('sp_user_registry', JSON.stringify(current));
-  } catch {}
-};
-
 const readVideoMetadata = (file) =>
   new Promise((resolve) => {
     try {
@@ -91,7 +91,12 @@ const readVideoMetadata = (file) =>
     }
   });
 
-const buildClipPackage = (rawTopic, index = 0, partLabel = '', watermarkText = 'Developed by shortspilot.in') => {
+const buildClipPackage = (
+  rawTopic,
+  index = 0,
+  partLabel = '',
+  watermarkText = 'Developed by shortspilot.in'
+) => {
   const cleanTopic = (rawTopic || 'Viral Short').trim();
   const title = partLabel ? `${cleanTopic} (${partLabel})` : cleanTopic;
   const tagBase = cleanTopic
@@ -150,6 +155,55 @@ const buildThumbnailConcepts = (topic = 'GTA 6') => {
   ];
 };
 
+const ChannelAvatarBadge = React.memo(({ googleUser, sizeClass = 'w-10 h-10' }) => {
+  const safeAvatar = sanitizeMediaUrl(googleUser?.avatar);
+  if (googleUser?.email && safeAvatar) {
+    return (
+      <div className="relative shrink-0">
+        <img
+          src={safeAvatar}
+          alt={googleUser?.name || googleUser?.email || 'Google Account'}
+          className={`${sizeClass} rounded-full object-cover border-2 border-emerald-400 shadow-md`}
+        />
+        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#090614]" />
+      </div>
+    );
+  }
+  return (
+    <div
+      className={`${sizeClass} rounded-full bg-red-600/20 border border-red-500/40 flex items-center justify-center shrink-0`}
+    >
+      <Youtube className="w-5 h-5 text-red-500" />
+    </div>
+  );
+});
+
+const GoogleUserLogo = React.memo(({ googleUser, onClick }) => {
+  const safeAvatar = sanitizeMediaUrl(googleUser?.avatar);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={googleUser?.email ? `${googleUser.email} (Google Connected)` : 'Connect Google'}
+      className="w-9 h-9 rounded-full bg-white p-[1.5px] flex items-center justify-center cursor-pointer overflow-hidden shadow shrink-0"
+    >
+      {safeAvatar ? (
+        <img
+          src={safeAvatar}
+          alt="Google Profile"
+          className="w-full h-full rounded-full object-cover"
+        />
+      ) : googleUser?.email ? (
+        <span className="w-full h-full rounded-full bg-[#4285F4] text-white text-xs font-black flex items-center justify-center uppercase">
+          {googleUser.email[0]}
+        </span>
+      ) : (
+        <span className="text-sm font-black text-[#4285F4] leading-none">G</span>
+      )}
+    </button>
+  );
+});
+
 const DesktopSidebar = React.memo(
   ({
     activeTab,
@@ -159,6 +213,11 @@ const DesktopSidebar = React.memo(
     onOpenThumbnail,
     onOpenPricing,
     onOpenAdmin,
+    onGoogleLogin,
+    onGoogleLogout,
+    isGoogleConnected,
+    isLoggingIn,
+    googleUser,
     monthlyPrice,
     yearlyPrice,
     videoCount
@@ -175,6 +234,33 @@ const DesktopSidebar = React.memo(
               <span className="text-pink-400">Pilot AI</span>
             </div>
             <p className="text-[11px] text-slate-400 font-medium mt-1">shortspilot.in • PC Studio</p>
+          </div>
+        </div>
+
+        <div
+          onClick={() => (!isGoogleConnected ? onGoogleLogin() : setActiveTab('settings'))}
+          className={`p-2.5 rounded-2xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+            isGoogleConnected
+              ? 'bg-emerald-500/10 border-emerald-400/50'
+              : 'bg-[#120c24] border-amber-400/50 hover:border-cyan-400/60'
+          }`}
+        >
+          <ChannelAvatarBadge googleUser={googleUser} sizeClass="w-10 h-10" />
+          <div className="min-w-0">
+            <div className="text-xs font-extrabold text-white truncate">
+              {isLoggingIn
+                ? 'Connecting...'
+                : isGoogleConnected
+                ? googleUser?.name || googleUser?.email
+                : 'Connect Google'}
+            </div>
+            <div
+              className={`text-[10px] font-bold truncate ${
+                isGoogleConnected ? 'text-emerald-400' : 'text-amber-300'
+              }`}
+            >
+              {isGoogleConnected ? '✅ Connected' : 'Click for Google Popup'}
+            </div>
           </div>
         </div>
 
@@ -214,7 +300,7 @@ const DesktopSidebar = React.memo(
             }`}
           >
             <ChartIcon className="w-4 h-4" />
-            <span>Studio Analytics</span>
+            <span>Channel Analytics</span>
           </button>
 
           <button
@@ -245,7 +331,7 @@ const DesktopSidebar = React.memo(
             }`}
           >
             <Settings className="w-4 h-4" />
-            <span>Settings</span>
+            <span>Profile & Settings</span>
           </button>
 
           <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">
@@ -287,6 +373,17 @@ const DesktopSidebar = React.memo(
           </div>
         </button>
 
+        {isGoogleConnected && (
+          <button
+            type="button"
+            onClick={onGoogleLogout}
+            className="w-full py-2 px-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer hover:bg-rose-500/25"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Disconnect Google</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onOpenAdmin}
@@ -303,7 +400,20 @@ const DesktopSidebar = React.memo(
 );
 
 const TopHeader = React.memo(
-  ({ tier, hasUnread, onOpenDrawer, onGoHome, onOpenPricing, onOpenNotifications }) => (
+  ({
+    tier,
+    hasUnread,
+    googleUser,
+    isGoogleConnected,
+    isLoggingIn,
+    onOpenDrawer,
+    onGoHome,
+    onOpenPricing,
+    onOpenNotifications,
+    onGoogleLogin,
+    onGoogleLogout,
+    onOpenSettings
+  }) => (
     <header className="flex items-center justify-between px-4 lg:px-8 pt-4 pb-3 bg-[#090614]/95 backdrop-blur sticky top-0 z-30 border-b border-purple-500/15">
       <div className="flex items-center gap-2.5">
         <button
@@ -329,8 +439,14 @@ const TopHeader = React.memo(
         </div>
 
         <div className="hidden lg:flex items-center gap-2.5">
-          <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold">
-            ● Studio Ready
+          <span
+            className={`px-2.5 py-1 rounded-full border text-[11px] font-extrabold ${
+              isGoogleConnected
+                ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
+                : 'bg-amber-500/15 border-amber-400/40 text-amber-300'
+            }`}
+          >
+            {isGoogleConnected ? '● Google Connected ✅' : '● Connect Google Popup'}
           </span>
           <span className="text-xs text-slate-400">
             Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b>
@@ -339,6 +455,27 @@ const TopHeader = React.memo(
       </div>
 
       <div className="flex items-center gap-2">
+        {!isGoogleConnected ? (
+          <button
+            type="button"
+            onClick={onGoogleLogin}
+            disabled={isLoggingIn}
+            className="px-3 py-1.5 rounded-full bg-[#4285F4] hover:bg-blue-500 text-white font-extrabold text-xs cursor-pointer shadow disabled:opacity-60"
+          >
+            {isLoggingIn ? 'Connecting...' : 'Connect Google'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onGoogleLogout}
+            title="Disconnect Google"
+            className="px-2.5 py-1.5 rounded-full bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center gap-1 cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onOpenPricing}
@@ -356,6 +493,8 @@ const TopHeader = React.memo(
           <Bell className="w-4 h-4" />
           {hasUnread && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />}
         </button>
+
+        <GoogleUserLogo googleUser={googleUser} onClick={onOpenSettings} />
       </div>
     </header>
   )
@@ -419,6 +558,22 @@ const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUploa
 ));
 
 export default function App() {
+  const [googleUser, setGoogleUser] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('sp_google_user') || 'null');
+      return saved && typeof saved === 'object' ? saved : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [isGoogleAccountModalOpen, setIsGoogleAccountModalOpen] = useState(false);
+  const [manualGoogleEmail, setManualGoogleEmail] = useState('');
+  const [manualGoogleName, setManualGoogleName] = useState('');
+
+  const isGoogleConnected = Boolean(googleUser?.email);
+
   const [globalConfig, setGlobalConfig] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('sp_global_config') || 'null');
@@ -500,8 +655,8 @@ export default function App() {
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Studio Ready ✅',
-      desc: 'Upload videos, cut 1, 3, or 5 clips, and generate 9:16 thumbnails.',
+      title: 'Google Login & Studio Ready ✅',
+      desc: 'Connect Google account or upload/cut Shorts directly.',
       unread: true
     }
   ]);
@@ -510,7 +665,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Video upload karein, AI Clip Cutter se 1/3/5 clips cut karein, ya 9:16 thumbnail banayein.'
+      text: 'Namaste! Connect Google par click karein ya video upload/cut karein.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -522,7 +677,7 @@ export default function App() {
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
   const [previewClip, setPreviewClip] = useState(null);
 
-  const [checkoutEmail, setCheckoutEmail] = useState('');
+  const [checkoutEmail, setCheckoutEmail] = useState(() => googleUser?.email || '');
   const [utrNumber, setUtrNumber] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutPendingMsg, setCheckoutPendingMsg] = useState('');
@@ -540,6 +695,104 @@ export default function App() {
   const splitterInputRef = useRef(null);
 
   const dbBase = (liveDbUrl || DEFAULT_FIREBASE_URL).trim().replace(/\/$/, '');
+
+  const applyConnectedGoogleProfile = useCallback((profile) => {
+    if (!profile?.email) return;
+    const cleanEmail = String(profile.email).trim().toLowerCase();
+    const formattedProfile = {
+      name: profile.name || cleanEmail.split('@')[0],
+      email: cleanEmail,
+      avatar: profile.avatar || ''
+    };
+    setGoogleUser(formattedProfile);
+    setCheckoutEmail(cleanEmail);
+    setLoginError('');
+    try {
+      localStorage.setItem('sp_google_user', JSON.stringify(formattedProfile));
+    } catch {}
+    saveLocalRegistry(cleanEmail, {
+      email: cleanEmail,
+      name: formattedProfile.name,
+      updatedAt: Date.now()
+    });
+  }, []);
+
+  const startGoogleLogin = useCallback(() => {
+    setLoginError('');
+    setIsLoggingIn(true);
+
+    const handleMessage = async (event) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (!data || data.source !== 'shortspilot_google_auth') return;
+
+      window.removeEventListener('message', handleMessage);
+      if (data.accessToken) {
+        try {
+          const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${data.accessToken}` }
+          });
+          if (res.ok) {
+            const info = await res.json();
+            if (info?.email) {
+              applyConnectedGoogleProfile({
+                name: info.name,
+                email: info.email,
+                avatar: info.picture
+              });
+              setIsLoggingIn(false);
+              return;
+            }
+          }
+        } catch {}
+      }
+      setIsLoggingIn(false);
+      setIsGoogleAccountModalOpen(true);
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    try {
+      const redirectUri = encodeURIComponent(window.location.origin);
+      const scope = encodeURIComponent('openid email profile');
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+        GOOGLE_CLIENT_ID
+      )}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}&prompt=select_account`;
+
+      const popup = window.open(
+        authUrl,
+        'GoogleAccountChooser',
+        'width=500,height=600,menubar=no,toolbar=no,location=no,status=no'
+      );
+
+      if (!popup) {
+        window.removeEventListener('message', handleMessage);
+        setIsLoggingIn(false);
+        setIsGoogleAccountModalOpen(true);
+        return;
+      }
+
+      const timer = window.setInterval(() => {
+        if (popup.closed) {
+          window.clearInterval(timer);
+          window.removeEventListener('message', handleMessage);
+          setIsLoggingIn(false);
+        }
+      }, 600);
+    } catch {
+      window.removeEventListener('message', handleMessage);
+      setIsLoggingIn(false);
+      setIsGoogleAccountModalOpen(true);
+    }
+  }, [applyConnectedGoogleProfile]);
+
+  const logoutGoogle = useCallback(() => {
+    setGoogleUser(null);
+    setLoginError('');
+    try {
+      localStorage.removeItem('sp_google_user');
+    } catch {}
+  }, []);
 
   const fetchFirebaseData = useCallback(async () => {
     if (!dbBase) return;
@@ -589,7 +842,7 @@ export default function App() {
       token: cleanToken,
       connected: true
     });
-    saveLocalRegistry('creator@shortspilot.in', {
+    saveLocalRegistry((googleUser?.email || 'creator@shortspilot.in').toLowerCase(), {
       igUsername: formattedUser,
       igToken: cleanToken,
       updatedAt: Date.now()
@@ -712,8 +965,8 @@ export default function App() {
     e.preventDefault();
     setCheckoutError('');
     setCheckoutPendingMsg('');
-    const cleanEmail = (checkoutEmail || '').trim().toLowerCase();
-    if (!cleanEmail) return setCheckoutError('Enter your contact email first.');
+    const cleanEmail = (checkoutEmail || googleUser?.email || '').trim().toLowerCase();
+    if (!cleanEmail) return setCheckoutError('Enter your Gmail ID first.');
     const cleanUtr = utrNumber.trim();
     if (!/^\d{12}$/.test(cleanUtr)) return setCheckoutError('Enter valid 12-digit UTR number.');
 
@@ -758,7 +1011,7 @@ export default function App() {
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'Video upload karein, AI Clip Cutter se 1/3/5 clips cut karein, ya 9:16 thumbnail banayein.'
+        text: 'Connect Google par click karein ya video upload/cut karein.'
       }
     ]);
     setSupportInput('');
@@ -776,6 +1029,11 @@ export default function App() {
         onOpenThumbnail={() => setIsThumbnailModalOpen(true)}
         onOpenPricing={() => setIsPricingOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
+        onGoogleLogin={startGoogleLogin}
+        onGoogleLogout={logoutGoogle}
+        isGoogleConnected={isGoogleConnected}
+        isLoggingIn={isLoggingIn}
+        googleUser={googleUser}
         monthlyPrice={globalConfig.monthlyPrice || '99'}
         yearlyPrice={globalConfig.yearlyPrice || '3999'}
         videoCount={videoQueue.length}
@@ -785,6 +1043,9 @@ export default function App() {
         <TopHeader
           tier={tier}
           hasUnread={notificationsList.some((n) => n.unread)}
+          googleUser={googleUser}
+          isGoogleConnected={isGoogleConnected}
+          isLoggingIn={isLoggingIn}
           onOpenDrawer={() => setIsSettingsDrawerOpen(true)}
           onGoHome={() => setActiveTab('home')}
           onOpenPricing={() => setIsPricingOpen(true)}
@@ -792,7 +1053,16 @@ export default function App() {
             setIsNotificationOpen(true);
             setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
           }}
+          onGoogleLogin={startGoogleLogin}
+          onGoogleLogout={logoutGoogle}
+          onOpenSettings={() => setActiveTab('settings')}
         />
+
+        {loginError && (
+          <div className="mx-4 lg:mx-8 mt-2 px-3 py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-xs text-rose-300 font-bold">
+            {loginError}
+          </div>
+        )}
 
         <input
           ref={fileInputRef}
@@ -813,7 +1083,7 @@ export default function App() {
         <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-3 lg:pt-6 pb-28 lg:pb-12 space-y-4 lg:space-y-6">
           {activeTab === 'home' && (
             <>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
                 <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-purple-600/20 to-pink-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Crown className="w-6 h-6 text-amber-400 fill-amber-400 shrink-0" />
@@ -830,6 +1100,50 @@ export default function App() {
                     PRO
                   </span>
                 </div>
+
+                {isGoogleConnected ? (
+                  <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-emerald-600/20 via-purple-600/20 to-cyan-600/20 border border-emerald-400/50 flex items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <ChannelAvatarBadge googleUser={googleUser} sizeClass="w-10 h-10" />
+                      <div className="min-w-0">
+                        <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
+                          <span>{googleUser?.name || 'Google Account'}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 text-[9.5px] font-extrabold">
+                            Connected ✅
+                          </span>
+                        </div>
+                        <div className="text-[10px] lg:text-xs text-slate-300 truncate">
+                          {googleUser?.email}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-amber-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <ChannelAvatarBadge googleUser={googleUser} sizeClass="w-10 h-10" />
+                      <div className="min-w-0">
+                        <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
+                          <span>Google & YouTube</span>
+                          <span className="px-1.5 py-0.5 rounded bg-cyan-500/25 text-cyan-300 text-[9px] font-extrabold">
+                            AUTO
+                          </span>
+                        </div>
+                        <div className="text-[10px] lg:text-xs text-slate-300 truncate">
+                          One-click Google account popup
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={startGoogleLogin}
+                      disabled={isLoggingIn}
+                      className="px-3.5 py-1.5 rounded-xl bg-[#4285F4] hover:bg-blue-500 text-white text-[11px] lg:text-xs font-extrabold cursor-pointer shrink-0 shadow-lg disabled:opacity-60"
+                    >
+                      {isLoggingIn ? 'Connecting...' : 'Connect Google'}
+                    </button>
+                  </div>
+                )}
 
                 {igData.connected ? (
                   <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-pink-600/20 via-purple-600/20 to-amber-500/15 border border-pink-400/50 flex items-center justify-between gap-3 shadow-lg">
@@ -1205,8 +1519,17 @@ export default function App() {
 
           {activeTab === 'analytics' && (
             <div className="space-y-4 pt-2 max-w-3xl mx-auto">
-              <h2 className="text-base lg:text-xl font-extrabold text-white">Studio Analytics</h2>
+              <h2 className="text-base lg:text-xl font-extrabold text-white">Channel Analytics</h2>
               <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-1.5 text-xs">
+                <div>
+                  Google Account: <b>{googleUser?.email || 'Not Connected'}</b>
+                </div>
+                <div>
+                  Google Status:{' '}
+                  <b className={isGoogleConnected ? 'text-emerald-400' : 'text-amber-300'}>
+                    {isGoogleConnected ? 'Connected ✅' : 'Not Connected'}
+                  </b>
+                </div>
                 <div>
                   Instagram:{' '}
                   <b className={igData.connected ? 'text-emerald-400' : 'text-amber-300'}>
@@ -1215,9 +1538,6 @@ export default function App() {
                 </div>
                 <div>
                   Total Queued Clips: <b>{totalPostedCount}</b>
-                </div>
-                <div>
-                  Split Clip Count: <b>{clipSplitCount}</b>
                 </div>
               </div>
             </div>
@@ -1303,7 +1623,29 @@ export default function App() {
 
           {activeTab === 'settings' && (
             <div className="space-y-4 pt-2 max-w-2xl mx-auto">
-              <h2 className="text-base lg:text-xl font-extrabold text-white">Settings</h2>
+              <h2 className="text-base lg:text-xl font-extrabold text-white">
+                Profile & Settings
+              </h2>
+
+              <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/40 flex items-center justify-between gap-3">
+                <div className="text-xs text-slate-300">
+                  {isGoogleConnected
+                    ? `Google Connected ✅ (${googleUser?.email})`
+                    : 'Connect Google Account with one click.'}
+                </div>
+                <button
+                  type="button"
+                  onClick={startGoogleLogin}
+                  disabled={isLoggingIn}
+                  className="px-4 py-2 rounded-xl bg-[#4285F4] text-white text-xs font-extrabold cursor-pointer shrink-0 disabled:opacity-60"
+                >
+                  {isLoggingIn
+                    ? 'Connecting...'
+                    : isGoogleConnected
+                    ? 'Switch Google'
+                    : 'Connect Google'}
+                </button>
+              </div>
 
               <div className="p-4 rounded-2xl bg-[#110c22] border border-pink-500/35 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -1329,6 +1671,17 @@ export default function App() {
                   {igData.connected ? 'Update Token' : 'Add Token'}
                 </button>
               </div>
+
+              {isGoogleConnected && (
+                <button
+                  type="button"
+                  onClick={logoutGoogle}
+                  className="w-full py-3 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Disconnect Google Account</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1364,6 +1717,55 @@ export default function App() {
           onTriggerUpload={() => fileInputRef.current?.click()}
         />
       </div>
+
+      {isGoogleAccountModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!manualGoogleEmail.trim()) return;
+              applyConnectedGoogleProfile({
+                name: manualGoogleName.trim() || manualGoogleEmail.trim().split('@')[0],
+                email: manualGoogleEmail.trim()
+              });
+              setManualGoogleEmail('');
+              setManualGoogleName('');
+              setIsGoogleAccountModalOpen(false);
+            }}
+            className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-6 space-y-3"
+          >
+            <button
+              type="button"
+              onClick={() => setIsGoogleAccountModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-extrabold text-white">Connect Google Account</h3>
+            <input
+              type="text"
+              value={manualGoogleName}
+              onChange={(e) => setManualGoogleName(e.target.value)}
+              placeholder="Channel / Creator Name"
+              className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+            />
+            <input
+              type="email"
+              required
+              value={manualGoogleEmail}
+              onChange={(e) => setManualGoogleEmail(e.target.value)}
+              placeholder="Enter Google Gmail ID"
+              className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+            />
+            <button
+              type="submit"
+              className="w-full py-3 rounded-2xl bg-[#4285F4] text-white font-extrabold text-xs cursor-pointer"
+            >
+              Save & Connect Google
+            </button>
+          </form>
+        </div>
+      )}
 
       {isIgModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
@@ -1614,7 +2016,7 @@ export default function App() {
                 type="email"
                 value={checkoutEmail}
                 onChange={(e) => setCheckoutEmail(e.target.value)}
-                placeholder="Enter Your Email ID"
+                placeholder="Enter Your Gmail ID"
                 className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
               />
               <input
@@ -1666,6 +2068,16 @@ export default function App() {
                   className="w-full p-2.5 rounded-xl text-left text-slate-200 cursor-pointer"
                 >
                   Home Dashboard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    startGoogleLogin();
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-[#4285F4] cursor-pointer"
+                >
+                  {isGoogleConnected ? '✅ Google Connected' : 'Connect Google'}
                 </button>
                 <button
                   type="button"
@@ -1732,7 +2144,21 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <div className="text-[10px] text-slate-500">Developed by shortspilot.in</div>
+            <div className="space-y-2">
+              {isGoogleConnected && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    logoutGoogle();
+                    setIsSettingsDrawerOpen(false);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" /> Logout
+                </button>
+              )}
+              <div className="text-[10px] text-slate-500">Developed by shortspilot.in</div>
+            </div>
           </div>
           <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
         </div>
