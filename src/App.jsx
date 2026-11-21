@@ -23,7 +23,8 @@ import {
   Instagram,
   LogOut,
   ExternalLink,
-  Copy
+  Copy,
+  FileText
 } from 'lucide-react';
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
@@ -494,6 +495,7 @@ const DesktopSidebar = React.memo(
     onOpenThumbnail,
     onOpenPricing,
     onOpenAdmin,
+    onOpenTerms,
     onGoogleLogin,
     onGoogleLogout,
     isGoogleConnected,
@@ -672,6 +674,16 @@ const DesktopSidebar = React.memo(
         >
           🔐 Owner Admin Console
         </button>
+
+        <button
+          type="button"
+          onClick={onOpenTerms}
+          className="w-full py-1.5 px-3 rounded-xl text-slate-400 hover:text-cyan-300 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Terms & Conditions</span>
+        </button>
+
         <div className="text-[9.5px] text-center text-slate-500 font-mono">
           Developed by shortspilot.in
         </div>
@@ -782,7 +794,7 @@ const TopHeader = React.memo(
 );
 
 const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUpload }) => (
-  <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-[#090614] border-t border-purple-500/25 px-3 flex items-center justify-around z-40">
+  <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-[#090614] border-t border-purple-500/25 px-3 flex items-center justify-around z-30">
     <button
       type="button"
       onClick={() => setActiveTab('home')}
@@ -807,11 +819,11 @@ const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUploa
       <button
         type="button"
         onClick={onTriggerUpload}
-        className="w-15 h-15 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-cyan-400 p-[2px] shadow-lg flex items-center justify-center cursor-pointer active:scale-95 transition-transform"
+        className="w-14 h-14 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-cyan-400 p-[2px] shadow-lg flex items-center justify-center cursor-pointer active:scale-95 transition-transform"
       >
-        <div className="w-full h-full rounded-full bg-[#160b2e] flex flex-col items-center justify-center px-3 py-2">
-          <Plus className="w-6 h-6 text-white" />
-          <span className="text-[8.5px] font-extrabold text-white -mt-0.5">Upload</span>
+        <div className="w-full h-full rounded-full bg-[#160b2e] flex flex-col items-center justify-center px-2.5 py-2">
+          <Plus className="w-5 h-5 text-white" />
+          <span className="text-[8px] font-extrabold text-white -mt-0.5">Upload</span>
         </div>
       </button>
     </div>
@@ -967,6 +979,7 @@ export default function App() {
   ]);
   const [supportInput, setSupportInput] = useState('');
 
+  const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [selectedBilling, setSelectedBilling] = useState('yearly');
   const [upgradeReason] = useState('');
@@ -1575,6 +1588,7 @@ export default function App() {
         onOpenThumbnail={() => setIsThumbnailModalOpen(true)}
         onOpenPricing={() => setIsPricingOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenTerms={() => setIsTermsOpen(true)}
         onGoogleLogin={startGoogleLogin}
         onGoogleLogout={logoutGoogle}
         isGoogleConnected={isGoogleConnected}
@@ -1626,7 +1640,7 @@ export default function App() {
           className="hidden"
         />
 
-        <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-3 lg:pt-6 pb-28 lg:pb-12 space-y-4 lg:space-y-6">
+        <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-3 lg:pt-6 pb-32 lg:pb-12 space-y-4 lg:space-y-6">
           {activeTab === 'home' && (
             <>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
@@ -2065,6 +2079,17 @@ export default function App() {
                   ))}
                 </div>
               </div>
+
+              <footer className="pt-2 pb-1 flex flex-wrap items-center justify-between gap-2 text-[10.5px] text-slate-400 border-t border-white/10">
+                <span>Developed by shortspilot.in</span>
+                <button
+                  type="button"
+                  onClick={() => setIsTermsOpen(true)}
+                  className="text-cyan-300 hover:underline font-bold cursor-pointer"
+                >
+                  Terms & Conditions
+                </button>
+              </footer>
             </>
           )}
 
@@ -2244,6 +2269,15 @@ export default function App() {
                 </button>
               </div>
 
+              <button
+                type="button"
+                onClick={() => setIsTermsOpen(true)}
+                className="w-full py-3 rounded-2xl bg-[#110c22] border border-cyan-500/35 text-cyan-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Terms & Conditions</span>
+              </button>
+
               {isGoogleConnected && (
                 <button
                   type="button"
@@ -2278,7 +2312,7 @@ export default function App() {
           type="button"
           onClick={() => setShowAiSupport(true)}
           aria-label="Floating AI Support"
-          className="fixed bottom-22 lg:bottom-6 right-5 z-40 w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 text-white shadow-xl flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
+          className="fixed bottom-24 lg:bottom-6 right-4 lg:right-6 z-20 w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 text-white shadow-xl border border-white/20 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform"
         >
           <Bot className="w-6 h-6" />
         </button>
@@ -2289,6 +2323,53 @@ export default function App() {
           onTriggerUpload={() => fileInputRef.current?.click()}
         />
       </div>
+
+      {isTermsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-3 max-h-[85vh] overflow-y-auto text-xs text-slate-300">
+            <button
+              type="button"
+              onClick={() => setIsTermsOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-extrabold text-white">Terms & Conditions</h3>
+            <p className="text-[11px] text-slate-400">
+              Service: ShortsPilot AI (shortspilot.in)
+            </p>
+            <div className="space-y-2 leading-relaxed">
+              <p>
+                <b className="text-white">1. Content Rights:</b> Aap sirf wahi videos upload/cut aur
+                publish karein jinke rights aapke paas hain ya jo copyright guidelines ke anusaar
+                allowed hain.
+              </p>
+              <p>
+                <b className="text-white">2. YouTube & Third-Party Rules:</b> Videos YouTube ke
+                Community Guidelines aur Terms of Service ke mutabik publish kiye jaate hain;
+                platform moderation ya reach ki guarantee nahi deta.
+              </p>
+              <p>
+                <b className="text-white">3. Subscriptions & Payments:</b> Plans (Monthly / Yearly)
+                digital automation access ke liye hain; UPI/UTR verification ke baad plan active
+                hota hai.
+              </p>
+              <p>
+                <b className="text-white">4. Local Storage & Tokens:</b> Clips local IndexedDB mein
+                aur account/token details aapke browser storage mein save rehte hain; public ya
+                shared devices par logout karein.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsTermsOpen(false)}
+              className="w-full py-2.5 rounded-2xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {isGoogleAccountModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
@@ -2696,6 +2777,16 @@ export default function App() {
                   className="w-full p-2.5 rounded-xl text-left text-slate-300 cursor-pointer"
                 >
                   Settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsTermsOpen(true);
+                    setIsSettingsDrawerOpen(false);
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
+                >
+                  📄 Terms & Conditions
                 </button>
                 <button
                   type="button"
