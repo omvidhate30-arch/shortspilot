@@ -842,41 +842,57 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oauthErr = params.get('error');
-    if (oauthErr) {
-      setLoginError(`Google Auth Error: ${oauthErr}`);
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  const oauthErr = params.get('error');
+  if (oauthErr) {
+    setLoginError(`Google Auth Error: ${oauthErr}`);
+    setIsLoggingIn(false);
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
 
-    if (window.location.hash && window.location.hash.includes('access_token=')) {
-      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-      const accessToken = hashParams.get('access_token');
-      const refreshToken = hashParams.get('refresh_token') || '';
-      window.history.replaceState({}, document.title, window.location.pathname);
+  if (window.location.hash && window.location.hash.includes('access_token=')) {
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token') || '';
+    window.history.replaceState({}, document.title, window.location.pathname);
 
-      if (accessToken) {
-        setIsLoggingIn(true);
+    if (accessToken) {
+      setIsLoggingIn(true);
+      Promise.all([
         fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }).then((r) => (r.ok ? r.json() : null)),
+        fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
           headers: { Authorization: `Bearer ${accessToken}` }
         })
           .then((r) => (r.ok ? r.json() : null))
-          .then((info) => {
-            if (info?.email) {
-              applyConnectedGoogleProfile(
-                { name: info.name, email: info.email, avatar: info.picture },
-                { accessToken, refreshToken }
-              );
-            } else {
-              setIsGoogleAccountModalOpen(true);
-            }
-          })
-          .catch(() => setIsGoogleAccountModalOpen(true))
-          .finally(() => setIsLoggingIn(false));
-      }
+          .catch(() => null)
+      ])
+        .then(([info, ytData]) => {
+          const ytChannel = ytData?.items?.[0]?.snippet;
+          if (info?.email) {
+            applyConnectedGoogleProfile(
+              {
+                name: ytChannel?.title || info.name,
+                email: info.email,
+                avatar: ytChannel?.thumbnails?.default?.url || info.picture
+              },
+              { accessToken, refreshToken }
+            );
+          } else {
+            setLoginError('Could not read Google profile. Please try again.');
+            setIsGoogleAccountModalOpen(true);
+          }
+        })
+        .catch(() => {
+          setLoginError('Network error while connecting Google profile.');
+          setIsGoogleAccountModalOpen(true);
+        })
+        .finally(() => setIsLoggingIn(false));
     }
-  }, [applyConnectedGoogleProfile]);
+  }
+}, [applyConnectedGoogleProfile]);
 
 const startGoogleLogin = useCallback(() => {
   setLoginError('');
