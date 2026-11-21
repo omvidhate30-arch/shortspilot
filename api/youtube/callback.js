@@ -32,9 +32,7 @@ export default async function handler(req, res) {
   const clientSecret = (customClientSecret || process.env.GOOGLE_CLIENT_SECRET || '').trim();
 
   if (!clientSecret) {
-    return res.redirect(
-      `${baseOrigin}/?error=${encodeURIComponent('missing_GOOGLE_CLIENT_SECRET_in_vercel')}`
-    );
+    return res.redirect(`${baseOrigin}/?error=no_client_secret_found`);
   }
 
   const redirectUri = `${baseOrigin}/api/youtube/callback`;
