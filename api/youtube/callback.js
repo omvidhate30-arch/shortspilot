@@ -1,17 +1,24 @@
 export default async function handler(req, res) {
   const { code, state } = req.query;
-  if (!code) return res.redirect('/?error=no_code');
 
   let customClientId = '';
   let customClientSecret = '';
+  let stateOrigin = '';
 
   if (state) {
     try {
       const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
       if (decoded.cid) customClientId = String(decoded.cid).trim();
       if (decoded.csec) customClientSecret = String(decoded.csec).trim();
+      if (decoded.origin) stateOrigin = String(decoded.origin).trim();
     } catch {}
   }
+
+  const proto = req.headers['x-forwarded-proto'] || 'https';
+  const hostOrigin = req.headers.host ? `${proto}://${req.headers.host}` : '';
+  const baseOrigin = stateOrigin || hostOrigin || 'https://www.shortspilot.in';
+
+  if (!code) return res.redirect(`${baseOrigin}/?error=no_code`);
 
   const clientId =
     customClientId ||
@@ -19,7 +26,7 @@ export default async function handler(req, res) {
     '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
 
   const clientSecret = customClientSecret || process.env.GOOGLE_CLIENT_SECRET || '';
-  const redirectUri = 'https://www.shortspilot.in/api/youtube/callback';
+  const redirectUri = `${baseOrigin}/api/youtube/callback`;
 
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -36,7 +43,7 @@ export default async function handler(req, res) {
 
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) {
-      return res.redirect('/?error=token_exchange_failed');
+      return res.redirect(`${baseOrigin}/?error=token_exchange_failed`);
     }
 
     const hash = new URLSearchParams({
@@ -44,8 +51,8 @@ export default async function handler(req, res) {
       ...(tokenData.refresh_token ? { refresh_token: tokenData.refresh_token } : {})
     }).toString();
 
-    return res.redirect(`/#${hash}`);
+    return res.redirect(`${baseOrigin}/#${hash}`);
   } catch {
-    return res.redirect('/?error=callback_exception');
+    return res.redirect(`${baseOrigin}/?error=callback_exception`);
   }
 }
