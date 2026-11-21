@@ -898,9 +898,9 @@ const startGoogleLogin = useCallback(() => {
   setLoginError('');
   setIsLoggingIn(true);
   try {
-    const origin = window.location.origin;
-    const statePayload = btoa(JSON.stringify({ cid: GOOGLE_CLIENT_ID, origin }));
-    const redirectUri = encodeURIComponent(`${origin}/api/youtube/callback`);
+    const fixedOrigin = 'https://www.shortspilot.in';
+    const statePayload = btoa(JSON.stringify({ cid: GOOGLE_CLIENT_ID, origin: fixedOrigin }));
+    const redirectUri = encodeURIComponent(`${fixedOrigin}/api/youtube/callback`);
     const scope = encodeURIComponent(
       'openid email profile https://www.googleapis.com/auth/youtube.upload'
     );
