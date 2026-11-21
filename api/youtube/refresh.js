@@ -1,14 +1,24 @@
-// api/youtube/refresh.js
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { refresh_token, client_id, client_secret } = req.body || {};
+  const body =
+    typeof req.body === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(req.body);
+          } catch {
+            return {};
+          }
+        })()
+      : req.body || {};
+
+  const { refresh_token, client_id, client_secret } = body;
   if (!refresh_token) return res.status(400).json({ error: 'Missing refresh_token' });
 
   const activeClientId =
     (client_id || '').trim() ||
     process.env.VITE_GOOGLE_CLIENT_ID ||
-    '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
+    '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
 
   const activeClientSecret =
     (client_secret || '').trim() ||
