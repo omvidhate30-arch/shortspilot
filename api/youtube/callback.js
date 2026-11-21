@@ -1,4 +1,3 @@
-// api/youtube/callback.js
 export default async function handler(req, res) {
   const { code, state } = req.query;
   if (!code) return res.redirect('/?error=no_code');
@@ -9,22 +8,23 @@ export default async function handler(req, res) {
   if (state) {
     try {
       const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
-      if (decoded.cid) customClientId = decoded.cid.trim();
-      if (decoded.csec) customClientSecret = decoded.csec.trim();
+      if (decoded.cid) customClientId = String(decoded.cid).trim();
+      if (decoded.csec) customClientSecret = String(decoded.csec).trim();
     } catch {}
   }
 
   const clientId =
     customClientId ||
     process.env.VITE_GOOGLE_CLIENT_ID ||
-    '483431402516-h3o0j453anu0br2dm2mra54kr7vutroq.apps.googleusercontent.com';
+    '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
 
   const clientSecret =
     customClientSecret ||
     process.env.GOOGLE_CLIENT_SECRET ||
     ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-');
 
-  const redirectUri = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}/api/youtube/callback`;
+  const proto = req.headers['x-forwarded-proto'] || 'https';
+  const redirectUri = `${proto}://${req.headers.host}/api/youtube/callback`;
 
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
