@@ -868,30 +868,38 @@ export default function App() {
     setIsGoogleAccountModalOpen(false);
   }, []);
 
-  const startGoogleLogin = useCallback(() => {
-    setLoginError('');
-    setIsLoggingIn(true);
-    try {
-      const origin =
-        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? window.location.origin
-          : FIXED_OAUTH_ORIGIN;
-      const statePayload = btoa(JSON.stringify({ cid: GOOGLE_CLIENT_ID, origin }));
-      const redirectUri = encodeURIComponent(`${origin}/api/youtube/callback`);
-      const scope = encodeURIComponent(
-        'openid email profile https://www.googleapis.com/auth/youtube.upload'
-      );
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
-        GOOGLE_CLIENT_ID
-      )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
-        statePayload
-      )}`;
-      window.location.href = authUrl;
-    } catch {
-      setIsLoggingIn(false);
-      setIsGoogleAccountModalOpen(true);
-    }
-  }, []);
+const GOOGLE_CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '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';
+
+const startGoogleLogin = useCallback(() => {
+  setLoginError('');
+  setIsLoggingIn(true);
+  try {
+    const origin =
+      window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? window.location.origin
+        : FIXED_OAUTH_ORIGIN;
+    const statePayload = btoa(
+      JSON.stringify({
+        cid: GOOGLE_CLIENT_ID,
+        csec: GOOGLE_CLIENT_SECRET,
+        origin
+      })
+    );
+    const redirectUri = encodeURIComponent(`${origin}/api/youtube/callback`);
+    const scope = encodeURIComponent(
+      'openid email profile https://www.googleapis.com/auth/youtube.upload'
+    );
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+      GOOGLE_CLIENT_ID
+    )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
+      statePayload
+    )}`;
+    window.location.href = authUrl;
+  } catch {
+    setIsLoggingIn(false);
+    setIsGoogleAccountModalOpen(true);
+  }
+}, []);
 
   const logoutGoogle = useCallback(() => {
     setGoogleUser(null);
