@@ -396,6 +396,128 @@ const buildThumbnailConcepts = (topic = 'VIRAL') => {
   ];
 };
 
+const GoogleVerificationGuideModal = React.memo(
+  ({
+    isOpen,
+    onClose,
+    onConnectGoogle,
+    isLoggingIn,
+    clientId,
+    blockedOptionName = ''
+  }) => {
+    const [stepIndex, setStepIndex] = useState(0);
+
+    useEffect(() => {
+      if (isOpen) setStepIndex(0);
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const guideSteps = [
+      {
+        badge: 'POPUP 1 / 3 • VERIFICATION',
+        title: 'Google Verification Pending',
+        desc: blockedOptionName
+          ? `"${blockedOptionName}" use karne ke liye Google login zaroori hai. Abhi hamara Google verification/setup pending hai, isliye login popup mein warning ya redirect error aa sakta hai.`
+          : 'Abhi hamara Google verification / OAuth setup pending hai, isliye Google sign-in popup mein warning ya redirect error dikh sakta hai.'
+      },
+      {
+        badge: 'POPUP 2 / 3 • REDIRECT CHECK',
+        title: 'Redirect URI & Origin Check',
+        desc: 'Google Cloud Console mein usi Client ID ke andar Authorized redirect URI "https://www.shortspilot.in/api/youtube/callback" aur Origin "https://www.shortspilot.in" saved hona chahiye.'
+      },
+      {
+        badge: 'POPUP 3 / 3 • CONNECT NOW',
+        title: 'Continue With Google',
+        desc: 'Agar aap test karna chahte hain (ya Incognito/browser mein try karna hai), to neeche Connect Google par click karein.'
+      }
+    ];
+
+    const current = guideSteps[stepIndex] || guideSteps[0];
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs">
+        <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-4 shadow-2xl">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close guide popup"
+            className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          <div className="space-y-1 pr-6">
+            <span className="inline-block px-2.5 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/40 text-[10px] font-extrabold text-cyan-300">
+              {current.badge}
+            </span>
+            <h3 className="text-base font-extrabold text-white flex items-center gap-1.5">
+              <Lock className="w-4 h-4 text-cyan-300 shrink-0" />
+              <span>{current.title}</span>
+            </h3>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-[#120d24] border border-purple-500/30 text-xs text-slate-200 leading-relaxed min-h-[84px]">
+            {current.desc}
+          </div>
+
+          {stepIndex === 1 && clientId && (
+            <div className="p-2.5 rounded-xl bg-[#06040c] border border-slate-800 text-[10px] text-slate-400 font-mono break-all">
+              Client ID: <span className="text-cyan-300">{clientId}</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setStepIndex((prev) => Math.max(0, prev - 1))}
+              disabled={stepIndex === 0}
+              className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 disabled:opacity-35 cursor-pointer"
+            >
+              Prev
+            </button>
+
+            <div className="flex items-center gap-1.5">
+              {guideSteps.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setStepIndex(idx)}
+                  aria-label={`Guide popup ${idx + 1}`}
+                  className={`h-2 rounded-full transition-all cursor-pointer ${
+                    stepIndex === idx ? 'w-5 bg-cyan-400' : 'w-2 bg-slate-600'
+                  }`}
+                />
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setStepIndex((prev) => Math.min(guideSteps.length - 1, prev + 1))
+              }
+              disabled={stepIndex === guideSteps.length - 1}
+              className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-cyan-300 disabled:opacity-35 cursor-pointer"
+            >
+              Next
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={onConnectGoogle}
+            disabled={isLoggingIn}
+            className="w-full py-3 rounded-2xl bg-[#4285F4] hover:bg-blue-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-60"
+          >
+            <Youtube className="w-4 h-4 text-white" />
+            <span>{isLoggingIn ? 'Connecting...' : 'Connect Google'}</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+);
+
 const ClipActionShortcuts = React.memo(({ clip, onPreview, onCopyDescription }) => {
   const youtubeShortUrl = clip?.youtubeVideoId
     ? `https://www.youtube.com/shorts/${clip.youtubeVideoId}`
@@ -1728,7 +1850,7 @@ export default function App() {
                     </div>
                     <button
                       type="button"
-                      onClick={startGoogleLogin}
+                      onClick={() => requireGoogleAuth(startGoogleLogin, 'Google Connect')}
                       disabled={isLoggingIn}
                       className="px-3.5 py-1.5 rounded-xl bg-[#4285F4] hover:bg-blue-500 text-white text-[11px] lg:text-xs font-extrabold cursor-pointer shrink-0 shadow-lg disabled:opacity-60"
                     >
@@ -2166,8 +2288,7 @@ export default function App() {
                   Google Account: <b>{googleUser?.email || 'Not Connected'}</b>
                 </div>
                 <div>
-                  Google Status:{' '}
-                  <b className="text-emerald-400">Connected ✅</b>
+                  Google Status: <b className="text-emerald-400">Connected ✅</b>
                 </div>
                 <div>
                   YouTube Token:{' '}
@@ -2379,37 +2500,17 @@ export default function App() {
         />
       </div>
 
-      {isAuthGateModalOpen && !isGoogleConnected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-6 space-y-4 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                pendingActionRef.current = null;
-                setIsAuthGateModalOpen(false);
-              }}
-              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center mx-auto">
-              <Lock className="w-6 h-6 text-cyan-300" />
-            </div>
-            <h3 className="text-base font-extrabold text-white">Google Login Required</h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              <b>{blockedOptionName}</b> open karne ke liye pehle apna Google account connect karein.
-            </p>
-            <button
-              type="button"
-              onClick={startGoogleLogin}
-              disabled={isLoggingIn}
-              className="w-full py-3 rounded-2xl bg-[#4285F4] hover:bg-blue-500 text-white font-extrabold text-xs cursor-pointer shadow-lg disabled:opacity-60"
-            >
-              {isLoggingIn ? 'Connecting...' : 'Connect Google'}
-            </button>
-          </div>
-        </div>
-      )}
+      <GoogleVerificationGuideModal
+        isOpen={isAuthGateModalOpen && !isGoogleConnected}
+        onClose={() => {
+          pendingActionRef.current = null;
+          setIsAuthGateModalOpen(false);
+        }}
+        onConnectGoogle={startGoogleLogin}
+        isLoggingIn={isLoggingIn}
+        clientId={GOOGLE_CLIENT_ID}
+        blockedOptionName={blockedOptionName}
+      />
 
       {isTermsOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
@@ -2422,9 +2523,7 @@ export default function App() {
               <X className="w-5 h-5" />
             </button>
             <h3 className="text-base font-extrabold text-white">Terms & Conditions</h3>
-            <p className="text-[11px] text-slate-400">
-              Service: ShortsPilot AI (shortspilot.in)
-            </p>
+            <p className="text-[11px] text-slate-400">Service: ShortsPilot AI (shortspilot.in)</p>
             <div className="space-y-2 leading-relaxed">
               <p>
                 <b className="text-white">1. Content Rights:</b> Aap sirf wahi videos upload/cut aur
@@ -2806,7 +2905,7 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     setIsSettingsDrawerOpen(false);
-                    startGoogleLogin();
+                    requireGoogleAuth(startGoogleLogin, 'Google Connect');
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-[#4285F4] cursor-pointer"
                 >
