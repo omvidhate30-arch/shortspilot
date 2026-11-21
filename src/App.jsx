@@ -402,7 +402,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! Video upload karein ya AI Clip Cutter se 1, 3, ya 5 clips cut karein.'
+      text: 'Video upload karein, AI Clip Cutter se 1/3/5 clips cut karein, ya 9:16 thumbnail banayein.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -741,7 +741,7 @@ export default function App() {
     setCheckoutError('');
     setCheckoutPendingMsg('');
     const cleanEmail = (checkoutEmail || '').trim().toLowerCase();
-    if (!cleanEmail) return setCheckoutError('Enter your Gmail ID first.');
+    if (!cleanEmail) return setCheckoutError('Enter your contact email first.');
     const cleanUtr = utrNumber.trim();
     if (!/^\d{12}$/.test(cleanUtr)) return setCheckoutError('Enter valid 12-digit UTR number.');
 
@@ -775,7 +775,7 @@ export default function App() {
     const alertSent = await sendOwnerGmailAlert(newTxn);
     setCheckoutPendingMsg(
       alertSent
-        ? '⏳ UTR Submitted & Owner Gmail Alert Sent! VIP will activate within 1–2 mins.'
+        ? '⏳ UTR Submitted & Owner Email Alert Sent! VIP will activate within 1–2 mins.'
         : '⏳ UTR Submitted! VIP will activate after verification.'
     );
     setUtrNumber('');
