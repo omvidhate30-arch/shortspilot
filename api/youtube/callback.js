@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  const { code, state } = req.query;
+  const { code, state, error } = req.query;
 
   let customClientId = '';
   let customClientSecret = '';
@@ -18,14 +18,27 @@ export default async function handler(req, res) {
   const hostOrigin = req.headers.host ? `${proto}://${req.headers.host}` : '';
   const baseOrigin = stateOrigin || hostOrigin || 'https://www.shortspilot.in';
 
-  if (!code) return res.redirect(`${baseOrigin}/?error=no_code`);
+  if (error) {
+    return res.redirect(`${baseOrigin}/?error=${encodeURIComponent(String(error))}`);
+  }
+
+  if (!code) {
+    return res.redirect(`${baseOrigin}/?error=no_code_received`);
+  }
 
   const clientId =
     customClientId ||
     process.env.VITE_GOOGLE_CLIENT_ID ||
     '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
 
-  const clientSecret = customClientSecret || process.env.GOOGLE_CLIENT_SECRET || '';
+  const clientSecret = (customClientSecret || process.env.GOOGLE_CLIENT_SECRET || '').trim();
+
+  if (!clientSecret) {
+    return res.redirect(
+      `${baseOrigin}/?error=${encodeURIComponent('missing_GOOGLE_CLIENT_SECRET_in_vercel')}`
+    );
+  }
+
   const redirectUri = `${baseOrigin}/api/youtube/callback`;
 
   try {
@@ -33,7 +46,7 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        code,
+        code: String(code),
         client_id: clientId,
         client_secret: clientSecret,
         redirect_uri: redirectUri,
@@ -42,8 +55,11 @@ export default async function handler(req, res) {
     });
 
     const tokenData = await tokenRes.json();
+
     if (!tokenData.access_token) {
-      return res.redirect(`${baseOrigin}/?error=token_exchange_failed`);
+      const reason =
+        tokenData.error_description || tokenData.error || 'token_exchange_failed';
+      return res.redirect(`${baseOrigin}/?error=${encodeURIComponent(reason)}`);
     }
 
     const hash = new URLSearchParams({
@@ -52,7 +68,9 @@ export default async function handler(req, res) {
     }).toString();
 
     return res.redirect(`${baseOrigin}/#${hash}`);
-  } catch {
-    return res.redirect(`${baseOrigin}/?error=callback_exception`);
+  } catch (err) {
+    return res.redirect(
+      `${baseOrigin}/?error=${encodeURIComponent(err?.message || 'callback_exception')}`
+    );
   }
 }
