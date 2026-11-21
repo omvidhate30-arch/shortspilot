@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-default-rtdb.firebaseio.com';
-const GOOGLE_CLIENT_ID = '246603049926-deo6tr0db2s54ncbppk7nnr1gsfaqmbm.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
 const emailToKey = (email = '') =>
   String(email || '')
     .trim()
