@@ -23,136 +23,22 @@ import {
   Instagram,
   LogOut
 } from 'lucide-react';
-
-const DEFAULT_FIREBASE_URL = 'https://shortspilot-default-rtdb.firebaseio.com';
-const GOOGLE_CLIENT_ID = '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
-const emailToKey = (email = '') =>
-  String(email || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[.#$[\]@]/g, '_');
-
-const sanitizeMediaUrl = (url = '') => {
-  if (!url || typeof url !== 'string') return '';
-  if (
-    url.startsWith('blob:') ||
-    url.startsWith('https://') ||
-    url.startsWith('http://') ||
-    url.startsWith('data:image/')
-  ) {
-    return url;
-  }
-  return '';
-};
-
-const formatClockTime = (seconds = 0) => {
-  const total = Math.max(0, Math.floor(Number(seconds) || 0));
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-};
-
-const readLocalRegistry = () => {
-  try {
-    const raw = JSON.parse(localStorage.getItem('sp_user_registry') || '{}');
-    return raw && typeof raw === 'object' ? raw : {};
-  } catch {
-    return {};
-  }
-};
-
-const saveLocalRegistry = (email, record) => {
-  try {
-    const current = readLocalRegistry();
-    current[email] = { ...(current[email] || {}), ...record };
-    localStorage.setItem('sp_user_registry', JSON.stringify(current));
-  } catch {}
-};
-
-const readVideoMetadata = (file) =>
-  new Promise((resolve) => {
-    try {
-      const url = URL.createObjectURL(file);
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 30;
-        URL.revokeObjectURL(url);
-        resolve({ duration: dur });
-      };
-      video.onerror = () => {
-        URL.revokeObjectURL(url);
-        resolve({ duration: 30 });
-      };
-      video.src = url;
-    } catch {
-      resolve({ duration: 30 });
-    }
-  });
-
-const buildClipPackage = (
-  rawTopic,
-  index = 0,
-  partLabel = '',
-  watermarkText = 'Developed by shortspilot.in'
-) => {
-  const cleanTopic = (rawTopic || 'Viral Short').trim();
-  const title = partLabel ? `${cleanTopic} (${partLabel})` : cleanTopic;
-  const tagBase = cleanTopic
-    .replace(/[^a-zA-Z0-9\s]/g, '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 3)
-    .map((w) => `#${w}`)
-    .join(' ');
-  const hashtags = `${tagBase || '#Shorts'} #ShortsPilot #ViralShorts #Trending`;
-  const description = `${title}\n\n${hashtags}\n\n${watermarkText}`;
-  const hookScore = `${Math.min(99, 88 + ((index * 3) % 10))}/100`;
-
-  return {
-    title,
-    category: 'Shorts',
-    hashtags,
-    description,
-    watermarkText,
-    websiteUrl: 'https://shortspilot.in',
-    hookScore
-  };
-};
-
-const buildThumbnailConcepts = (topic = 'GTA 6') => {
-  const clean = (topic || 'VIRAL').trim().toUpperCase().slice(0, 18);
-  return [
-    {
-      id: 't1',
-      badge: 'HIGH CTR',
-      hookText: 'WAIT FOR END 😱',
-      subText: clean,
-      accentText: 'text-amber-300',
-      ctrScore: '9.6 CTR',
-      gradient: 'from-pink-600 via-purple-900 to-slate-950'
-    },
-    {
-      id: 't2',
-      badge: 'TRENDING',
-      hookText: 'INSANE CLUTCH 🔥',
-      subText: clean,
-      accentText: 'text-cyan-300',
-      ctrScore: '9.4 CTR',
-      gradient: 'from-cyan-600 via-blue-950 to-slate-950'
-    },
-    {
-      id: 't3',
-      badge: 'VIRAL',
-      hookText: 'NO WAY!! 🤯',
-      subText: clean,
-      accentText: 'text-rose-300',
-      ctrScore: '9.2 CTR',
-      gradient: 'from-amber-500 via-rose-900 to-slate-950'
-    }
-  ];
-};
+import {
+  DEFAULT_FIREBASE_URL,
+  GOOGLE_CLIENT_ID,
+  emailToKey,
+  sanitizeMediaUrl,
+  formatClockTime,
+  readGmailApiRegistry,
+  saveGmailApiRecord,
+  idbSaveClip,
+  idbGetAllClips,
+  idbDeleteClip,
+  idbClearAllClips,
+  analyzeVideoDeeply,
+  buildDeepAiVideoPackage,
+  buildShortsThumbnailConcepts
+} from './utils/helpers';
 
 const ChannelAvatarBadge = React.memo(({ googleUser, sizeClass = 'w-10 h-10' }) => {
   const safeAvatar = sanitizeMediaUrl(googleUser?.avatar);
@@ -608,7 +494,7 @@ export default function App() {
 
   const [igData, setIgData] = useState(() => {
     try {
-      const reg = readLocalRegistry()['creator@shortspilot.in'];
+      const reg = readGmailApiRegistry()['creator@shortspilot.in'];
       if (reg?.igToken) {
         return {
           username: reg.igUsername || '@instagram_user',
@@ -634,10 +520,10 @@ export default function App() {
 
   const [isThumbnailModalOpen, setIsThumbnailModalOpen] = useState(false);
   const [thumbTopicInput, setThumbTopicInput] = useState('');
+  const [thumbConcepts, setThumbConcepts] = useState(() => buildShortsThumbnailConcepts('GTA 6'));
   const [selectedThumbConcept, setSelectedThumbConcept] = useState(
-    () => buildThumbnailConcepts('GTA 6')[0]
+    () => buildShortsThumbnailConcepts('GTA 6')[0]
   );
-  const [thumbConcepts, setThumbConcepts] = useState(() => buildThumbnailConcepts('GTA 6'));
 
   const [selectedTimeSlot] = useState(() => {
     const h = new Date().getHours();
@@ -695,13 +581,15 @@ export default function App() {
 
   const dbBase = (liveDbUrl || DEFAULT_FIREBASE_URL).trim().replace(/\/$/, '');
 
-  const applyConnectedGoogleProfile = useCallback((profile) => {
+  const applyConnectedGoogleProfile = useCallback((profile, tokens = {}) => {
     if (!profile?.email) return;
     const cleanEmail = String(profile.email).trim().toLowerCase();
     const formattedProfile = {
       name: profile.name || cleanEmail.split('@')[0],
       email: cleanEmail,
-      avatar: profile.avatar || ''
+      avatar: profile.avatar || '',
+      ...(tokens.accessToken ? { accessToken: tokens.accessToken } : {}),
+      ...(tokens.refreshToken ? { refreshToken: tokens.refreshToken } : {})
     };
     setGoogleUser(formattedProfile);
     setCheckoutEmail(cleanEmail);
@@ -709,81 +597,82 @@ export default function App() {
     try {
       localStorage.setItem('sp_google_user', JSON.stringify(formattedProfile));
     } catch {}
-    saveLocalRegistry(cleanEmail, {
+    saveGmailApiRecord(cleanEmail, {
       email: cleanEmail,
       name: formattedProfile.name,
-      updatedAt: Date.now()
+      ...(tokens.accessToken ? { accessToken: tokens.accessToken } : {}),
+      ...(tokens.refreshToken ? { refreshToken: tokens.refreshToken } : {})
     });
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    idbGetAllClips().then((savedClips) => {
+      if (active && Array.isArray(savedClips) && savedClips.length > 0) {
+        setVideoQueue(savedClips);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthErr = params.get('error');
+    if (oauthErr) {
+      setLoginError(`Google Auth Error: ${oauthErr}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (window.location.hash && window.location.hash.includes('access_token=')) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token') || '';
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      if (accessToken) {
+        setIsLoggingIn(true);
+        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((info) => {
+            if (info?.email) {
+              applyConnectedGoogleProfile(
+                { name: info.name, email: info.email, avatar: info.picture },
+                { accessToken, refreshToken }
+              );
+            } else {
+              setIsGoogleAccountModalOpen(true);
+            }
+          })
+          .catch(() => setIsGoogleAccountModalOpen(true))
+          .finally(() => setIsLoggingIn(false));
+      }
+    }
+  }, [applyConnectedGoogleProfile]);
 
   const startGoogleLogin = useCallback(() => {
     setLoginError('');
     setIsLoggingIn(true);
-
-    const handleMessage = async (event) => {
-      if (event.origin !== window.location.origin) return;
-      const data = event.data;
-      if (!data || data.source !== 'shortspilot_google_auth') return;
-
-      window.removeEventListener('message', handleMessage);
-      if (data.accessToken) {
-        try {
-          const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-            headers: { Authorization: `Bearer ${data.accessToken}` }
-          });
-          if (res.ok) {
-            const info = await res.json();
-            if (info?.email) {
-              applyConnectedGoogleProfile({
-                name: info.name,
-                email: info.email,
-                avatar: info.picture
-              });
-              setIsLoggingIn(false);
-              return;
-            }
-          }
-        } catch {}
-      }
-      setIsLoggingIn(false);
-      setIsGoogleAccountModalOpen(true);
-    };
-
-    window.addEventListener('message', handleMessage);
-
     try {
-      const redirectUri = encodeURIComponent(window.location.origin);
-      const scope = encodeURIComponent('openid email profile');
+      const statePayload = btoa(JSON.stringify({ cid: GOOGLE_CLIENT_ID }));
+      const redirectUri = encodeURIComponent(`${window.location.origin}/api/youtube/callback`);
+      const scope = encodeURIComponent(
+        'openid email profile https://www.googleapis.com/auth/youtube.upload'
+      );
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
         GOOGLE_CLIENT_ID
-      )}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}&prompt=select_account`;
-
-      const popup = window.open(
-        authUrl,
-        'GoogleAccountChooser',
-        'width=500,height=600,menubar=no,toolbar=no,location=no,status=no'
-      );
-
-      if (!popup) {
-        window.removeEventListener('message', handleMessage);
-        setIsLoggingIn(false);
-        setIsGoogleAccountModalOpen(true);
-        return;
-      }
-
-      const timer = window.setInterval(() => {
-        if (popup.closed) {
-          window.clearInterval(timer);
-          window.removeEventListener('message', handleMessage);
-          setIsLoggingIn(false);
-        }
-      }, 600);
+      )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
+        statePayload
+      )}`;
+      window.location.href = authUrl;
     } catch {
-      window.removeEventListener('message', handleMessage);
       setIsLoggingIn(false);
       setIsGoogleAccountModalOpen(true);
     }
-  }, [applyConnectedGoogleProfile]);
+  }, []);
 
   const logoutGoogle = useCallback(() => {
     setGoogleUser(null);
@@ -806,7 +695,9 @@ export default function App() {
           ...prev,
           ...cfgData,
           monthlyOriginalPrice: '499',
+          monthlyPrice: cfgData.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
+          yearlyPrice: cfgData.yearlyPrice || '3999',
           watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in'
         }));
       }
@@ -829,7 +720,7 @@ export default function App() {
     e?.preventDefault();
     setIgError('');
     const cleanToken = (igTokenDraft || '').trim();
-    const rawUser = (igUsernameDraft || '').trim() || '@instagram_creator';
+    const rawUser = (igUsernameDraft || '').trim() || '@instagram_user';
     const formattedUser = rawUser.startsWith('@') ? rawUser : `@${rawUser}`;
 
     if (!cleanToken || cleanToken.length < 6) {
@@ -841,10 +732,9 @@ export default function App() {
       token: cleanToken,
       connected: true
     });
-    saveLocalRegistry((googleUser?.email || 'creator@shortspilot.in').toLowerCase(), {
+    saveGmailApiRecord((googleUser?.email || 'creator@shortspilot.in').toLowerCase(), {
       igUsername: formattedUser,
-      igToken: cleanToken,
-      updatedAt: Date.now()
+      igToken: cleanToken
     });
     setIsIgModalOpen(false);
   };
@@ -858,10 +748,11 @@ export default function App() {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
-      const meta = await readVideoMetadata(file);
-      const aiMeta = buildClipPackage(
+      const rawName = customVideoTopic.trim() || file.name;
+      const meta = await analyzeVideoDeeply(file);
+      const aiMeta = buildDeepAiVideoPackage(
         rawName,
+        meta,
         i,
         '',
         globalConfig.watermarkText || 'Developed by shortspilot.in'
@@ -879,10 +770,12 @@ export default function App() {
         status: manualPostMode ? 'Manual Ready' : 'Published to Queue',
         hookScore: aiMeta.hookScore,
         duration: formatClockTime(meta.duration),
-        croppedUrl: objectUrl
+        croppedUrl: objectUrl,
+        blob: file
       };
 
       setVideoQueue((prev) => [readyClip, ...prev]);
+      await idbSaveClip(readyClip);
     }
     setAutoPublishStatus('');
   };
@@ -896,8 +789,8 @@ export default function App() {
     const count = Number(clipSplitCount) || 3;
     setAutoPublishStatus(`Cutting ${count} Clips...`);
 
-    const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
-    const meta = await readVideoMetadata(file);
+    const rawName = customVideoTopic.trim() || file.name;
+    const meta = await analyzeVideoDeeply(file);
     const totalDur = Math.max(15, meta.duration || 60);
     const segDur = Math.max(5, Math.floor(totalDur / count));
     const baseObjectUrl = URL.createObjectURL(file);
@@ -910,14 +803,15 @@ export default function App() {
       const clipLength = Math.max(1, endSec - startSec);
       const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
       const partLabel = count > 1 ? `Part ${i + 1}/${count}` : '';
-      const aiMeta = buildClipPackage(
+      const aiMeta = buildDeepAiVideoPackage(
         rawName,
+        meta,
         i,
         partLabel,
         globalConfig.watermarkText || 'Developed by shortspilot.in'
       );
 
-      generated.push({
+      const clipItem = {
         id: `${Date.now()}-${Math.random()}-${i}`,
         title: aiMeta.title,
         hashtags: aiMeta.hashtags,
@@ -928,8 +822,14 @@ export default function App() {
         status: manualPostMode ? `Cut Ready (${timeRangeLabel})` : `Cut Clip (${timeRangeLabel})`,
         hookScore: aiMeta.hookScore,
         duration: formatClockTime(clipLength),
-        croppedUrl: `${baseObjectUrl}#t=${startSec},${endSec}`
-      });
+        croppedUrl: `${baseObjectUrl}#t=${startSec},${endSec}`,
+        blob: file,
+        startSec,
+        endSec
+      };
+
+      generated.push(clipItem);
+      await idbSaveClip(clipItem);
     }
 
     setVideoQueue((prev) => [...generated, ...prev]);
@@ -938,26 +838,28 @@ export default function App() {
 
   const handleGenerateThumbnails = (e) => {
     e.preventDefault();
-    const updated = buildThumbnailConcepts(thumbTopicInput || customVideoTopic || 'GTA 6');
+    const updated = buildShortsThumbnailConcepts(thumbTopicInput || customVideoTopic || 'GTA 6');
     setThumbConcepts(updated);
     setSelectedThumbConcept(updated[0]);
   };
 
-  const handleDeleteClip = (clipId) => {
+  const handleDeleteClip = async (clipId) => {
     const target = videoQueue.find((c) => c.id === clipId);
     if (target?.croppedUrl && target.croppedUrl.startsWith('blob:')) {
       URL.revokeObjectURL(target.croppedUrl.split('#')[0]);
     }
     setVideoQueue((prev) => prev.filter((item) => item.id !== clipId));
+    await idbDeleteClip(clipId);
   };
 
-  const handleClearAllClips = () => {
+  const handleClearAllClips = async () => {
     videoQueue.forEach((c) => {
       if (c.croppedUrl && c.croppedUrl.startsWith('blob:')) {
         URL.revokeObjectURL(c.croppedUrl.split('#')[0]);
       }
     });
     setVideoQueue([]);
+    await idbClearAllClips();
   };
 
   const handleVerifyPayment = async (e) => {
