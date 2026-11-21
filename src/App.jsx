@@ -25,7 +25,10 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
-const GOOGLE_CLIENT_ID = '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
+const FIXED_OAUTH_ORIGIN = 'https://www.shortspilot.in';
 const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
 
@@ -670,12 +673,29 @@ const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUploa
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('sp_google_user') || 'null');
-      return saved && typeof saved === 'object' ? saved : null;
+      const saved =
+        localStorage.getItem('sp_google_user') || localStorage.getItem('shortspilot_google_user');
+      const parsed = saved ? JSON.parse(saved) : null;
+      return parsed && typeof parsed === 'object' ? parsed : null;
     } catch {
       return null;
     }
   });
+
+  const [youtubeAccessToken, setYoutubeAccessToken] = useState(
+    () =>
+      localStorage.getItem('sp_yt_access_token') ||
+      localStorage.getItem('shortspilot_yt_access_token') ||
+      ''
+  );
+
+  const [youtubeRefreshToken, setYoutubeRefreshToken] = useState(
+    () =>
+      localStorage.getItem('sp_yt_refresh_token') ||
+      localStorage.getItem('shortspilot_yt_refresh_token') ||
+      ''
+  );
+
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isGoogleAccountModalOpen, setIsGoogleAccountModalOpen] = useState(false);
@@ -806,142 +826,153 @@ export default function App() {
 
   const dbBase = (liveDbUrl || DEFAULT_FIREBASE_URL).trim().replace(/\/$/, '');
 
-const GOOGLE_CLIENT_ID =
-  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-  '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
-
-const FIXED_OAUTH_ORIGIN = 'https://www.shortspilot.in';
-
-const applyConnectedGoogleProfile = useCallback(
-  (profile, tokens = {}) => {
+  const applyConnectedGoogleProfile = useCallback((profile, tokens = {}) => {
     const userPayload = {
       name: profile.name || 'YouTube Creator',
       email: profile.email,
       avatar: profile.avatar || '',
+      channelId: profile.channelId || '',
       connectedAt: Date.now()
     };
+
     setGoogleUser(userPayload);
-    localStorage.setItem('shortspilot_google_user', JSON.stringify(userPayload));
+    setCheckoutEmail((prev) => prev || profile.email);
+    try {
+      localStorage.setItem('sp_google_user', JSON.stringify(userPayload));
+      localStorage.setItem('shortspilot_google_user', JSON.stringify(userPayload));
+    } catch {}
 
     if (tokens.accessToken) {
       setYoutubeAccessToken(tokens.accessToken);
-      localStorage.setItem('shortspilot_yt_access_token', tokens.accessToken);
+      try {
+        localStorage.setItem('sp_yt_access_token', tokens.accessToken);
+        localStorage.setItem('shortspilot_yt_access_token', tokens.accessToken);
+      } catch {}
     }
+
     if (tokens.refreshToken) {
       setYoutubeRefreshToken(tokens.refreshToken);
-      localStorage.setItem('shortspilot_yt_refresh_token', tokens.refreshToken);
+      try {
+        localStorage.setItem('sp_yt_refresh_token', tokens.refreshToken);
+        localStorage.setItem('shortspilot_yt_refresh_token', tokens.refreshToken);
+      } catch {}
     }
+
+    saveLocalRegistry(profile.email, {
+      name: userPayload.name,
+      avatar: userPayload.avatar,
+      channelId: userPayload.channelId
+    });
 
     setLoginError('');
     setIsGoogleAccountModalOpen(false);
-  },
-  []
-);
+  }, []);
 
-const startGoogleLogin = useCallback(() => {
-  setLoginError('');
-  setIsLoggingIn(true);
-  try {
-    const statePayload = btoa(
-      JSON.stringify({ cid: GOOGLE_CLIENT_ID, origin: FIXED_OAUTH_ORIGIN })
-    );
-    const redirectUri = encodeURIComponent(`${FIXED_OAUTH_ORIGIN}/api/youtube/callback`);
-    const scope = encodeURIComponent(
-      'openid email profile https://www.googleapis.com/auth/youtube.upload'
-    );
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
-      GOOGLE_CLIENT_ID
-    )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
-      statePayload
-    )}`;
-    window.location.href = authUrl;
-  } catch {
-    setIsLoggingIn(false);
-    setIsGoogleAccountModalOpen(true);
-  }
-}, []);
-
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  const oauthErr = params.get('error');
-  if (oauthErr) {
-    setLoginError(`Google Auth Error: ${oauthErr}`);
-    setIsLoggingIn(false);
-    window.history.replaceState({}, document.title, window.location.pathname);
-  }
-
-  if (window.location.hash && window.location.hash.includes('access_token=')) {
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const accessToken = hashParams.get('access_token');
-    const refreshToken = hashParams.get('refresh_token') || '';
-    window.history.replaceState({}, document.title, window.location.pathname);
-
-    if (accessToken) {
-      setIsLoggingIn(true);
-      Promise.all([
-        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        }).then((r) => (r.ok ? r.json() : null)),
-        fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        })
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null)
-      ])
-        .then(([info, ytData]) => {
-          const ytChannel = ytData?.items?.[0]?.snippet;
-          if (info?.email) {
-            applyConnectedGoogleProfile(
-              {
-                name: ytChannel?.title || info.name,
-                email: info.email,
-                avatar: ytChannel?.thumbnails?.default?.url || info.picture
-              },
-              { accessToken, refreshToken }
-            );
-          } else {
-            setLoginError('Could not read Google profile. Please try again.');
-            setIsGoogleAccountModalOpen(true);
-          }
-        })
-        .catch(() => {
-          setLoginError('Network error while connecting Google profile.');
-          setIsGoogleAccountModalOpen(true);
-        })
-        .finally(() => setIsLoggingIn(false));
+  const startGoogleLogin = useCallback(() => {
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+      const origin =
+        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          ? window.location.origin
+          : FIXED_OAUTH_ORIGIN;
+      const statePayload = btoa(JSON.stringify({ cid: GOOGLE_CLIENT_ID, origin }));
+      const redirectUri = encodeURIComponent(`${origin}/api/youtube/callback`);
+      const scope = encodeURIComponent(
+        'openid email profile https://www.googleapis.com/auth/youtube.upload'
+      );
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+        GOOGLE_CLIENT_ID
+      )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
+        statePayload
+      )}`;
+      window.location.href = authUrl;
+    } catch {
+      setIsLoggingIn(false);
+      setIsGoogleAccountModalOpen(true);
     }
-  }
-}, [applyConnectedGoogleProfile]);
-
-const startGoogleLogin = useCallback(() => {
-  setLoginError('');
-  setIsLoggingIn(true);
-  try {
-    const fixedOrigin = 'https://www.shortspilot.in';
-    const statePayload = btoa(JSON.stringify({ cid: GOOGLE_CLIENT_ID, origin: fixedOrigin }));
-    const redirectUri = encodeURIComponent(`${fixedOrigin}/api/youtube/callback`);
-    const scope = encodeURIComponent(
-      'openid email profile https://www.googleapis.com/auth/youtube.upload'
-    );
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
-      GOOGLE_CLIENT_ID
-    )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
-      statePayload
-    )}`;
-    window.location.href = authUrl;
-  } catch {
-    setIsLoggingIn(false);
-    setIsGoogleAccountModalOpen(true);
-  }
-}, []);
+  }, []);
 
   const logoutGoogle = useCallback(() => {
     setGoogleUser(null);
+    setYoutubeAccessToken('');
+    setYoutubeRefreshToken('');
     setLoginError('');
     try {
       localStorage.removeItem('sp_google_user');
+      localStorage.removeItem('shortspilot_google_user');
+      localStorage.removeItem('sp_yt_access_token');
+      localStorage.removeItem('shortspilot_yt_access_token');
+      localStorage.removeItem('sp_yt_refresh_token');
+      localStorage.removeItem('shortspilot_yt_refresh_token');
     } catch {}
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    idbGetAllClips().then((clips) => {
+      if (active && clips.length > 0) {
+        setVideoQueue(clips);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthErr = params.get('error');
+    if (oauthErr) {
+      setLoginError(`Google Auth Error: ${decodeURIComponent(oauthErr)}`);
+      setIsLoggingIn(false);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (window.location.hash && window.location.hash.includes('access_token=')) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token') || '';
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      if (accessToken) {
+        setIsLoggingIn(true);
+        Promise.all([
+          fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          }).then((r) => (r.ok ? r.json() : null)),
+          fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        ])
+          .then(([info, ytData]) => {
+            const ytItem = ytData?.items?.[0];
+            const ytChannel = ytItem?.snippet;
+            if (info?.email) {
+              applyConnectedGoogleProfile(
+                {
+                  name: ytChannel?.title || info.name,
+                  email: info.email,
+                  avatar: ytChannel?.thumbnails?.default?.url || info.picture,
+                  channelId: ytItem?.id || ''
+                },
+                { accessToken, refreshToken }
+              );
+            } else {
+              setLoginError('Could not read Google profile. Please try again.');
+              setIsGoogleAccountModalOpen(true);
+            }
+          })
+          .catch(() => {
+            setLoginError('Network error while connecting Google profile.');
+            setIsGoogleAccountModalOpen(true);
+          })
+          .finally(() => setIsLoggingIn(false));
+      }
+    }
+  }, [applyConnectedGoogleProfile]);
 
   const fetchFirebaseData = useCallback(async () => {
     if (!dbBase) return;
@@ -1688,6 +1719,12 @@ const startGoogleLogin = useCallback(() => {
                   Google Status:{' '}
                   <b className={isGoogleConnected ? 'text-emerald-400' : 'text-amber-300'}>
                     {isGoogleConnected ? 'Connected ✅' : 'Not Connected'}
+                  </b>
+                </div>
+                <div>
+                  YouTube Token:{' '}
+                  <b className={youtubeAccessToken ? 'text-emerald-400' : 'text-slate-400'}>
+                    {youtubeAccessToken ? 'Active' : 'Not Issued'}
                   </b>
                 </div>
                 <div>
