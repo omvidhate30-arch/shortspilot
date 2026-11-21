@@ -7,16 +7,14 @@ export default async function handler(req, res) {
 
   if (state) {
     try {
-      const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+      const decoded = JSON.parse(Buffer.from(String(state), 'base64').toString('utf-8'));
       if (decoded.cid) customClientId = String(decoded.cid).trim();
       if (decoded.csec) customClientSecret = String(decoded.csec).trim();
       if (decoded.origin) stateOrigin = String(decoded.origin).trim();
     } catch {}
   }
 
-  const proto = req.headers['x-forwarded-proto'] || 'https';
-  const hostOrigin = req.headers.host ? `${proto}://${req.headers.host}` : '';
-  const baseOrigin = stateOrigin || hostOrigin || 'https://www.shortspilot.in';
+  const baseOrigin = stateOrigin || 'https://www.shortspilot.in';
 
   if (error) {
     return res.redirect(`${baseOrigin}/?error=${encodeURIComponent(String(error))}`);
