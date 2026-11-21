@@ -21,7 +21,9 @@ import {
   Scissors,
   Image as ImageIcon,
   Instagram,
-  LogOut
+  LogOut,
+  ExternalLink,
+  Copy
 } from 'lucide-react';
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
@@ -63,7 +65,10 @@ const detectTopicFromFile = (fileName = '') => {
   const base = String(fileName || '')
     .replace(/\.[^/.]+$/, '')
     .replace(/[_-]+/g, ' ')
-    .replace(/\b(vid|video|screen|recording|record|clip|short|shorts|final|edit|hd|fhd|4k|1080p|720p|60fps|30fps|mp4|mov|mkv)\b/gi, ' ')
+    .replace(
+      /\b(vid|video|screen|recording|record|clip|short|shorts|final|edit|hd|fhd|4k|1080p|720p|60fps|30fps|mp4|mov|mkv)\b/gi,
+      ' '
+    )
     .replace(/\b\d{4,}\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -72,6 +77,63 @@ const detectTopicFromFile = (fileName = '') => {
     return 'Insane Viral Moment';
   }
   return base.replace(/\b\w/g, (ch) => ch.toUpperCase());
+};
+
+const generateThumbnailBlob = async ({
+  hookText = 'WAIT FOR END 😱',
+  subText = 'VIRAL SHORT',
+  watermarkText = 'Developed by shortspilot.in',
+  palette = ['#db2777', '#581c87', '#020617']
+}) => {
+  try {
+    if (typeof document === 'undefined') return { blob: null, dataUrl: '' };
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return { blob: null, dataUrl: '' };
+
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, palette[0] || '#db2777');
+    grad.addColorStop(0.55, palette[1] || '#581c87');
+    grad.addColorStop(1, palette[2] || '#020617');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.font = '900 96px sans-serif';
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.strokeText(String(hookText).toUpperCase(), canvas.width / 2, canvas.height * 0.44);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(String(hookText).toUpperCase(), canvas.width / 2, canvas.height * 0.44);
+
+    ctx.font = '800 58px sans-serif';
+    ctx.lineWidth = 10;
+    ctx.strokeText(
+      String(subText).toUpperCase().slice(0, 24),
+      canvas.width / 2,
+      canvas.height * 0.54
+    );
+    ctx.fillStyle = '#fde047';
+    ctx.fillText(
+      String(subText).toUpperCase().slice(0, 24),
+      canvas.width / 2,
+      canvas.height * 0.54
+    );
+
+    ctx.font = '700 32px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText(watermarkText, canvas.width / 2, canvas.height * 0.92);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    return { blob, dataUrl };
+  } catch {
+    return { blob: null, dataUrl: '' };
+  }
 };
 
 const readLocalRegistry = () => {
@@ -306,7 +368,8 @@ const buildThumbnailConcepts = (topic = 'VIRAL') => {
       subText: clean,
       accentText: 'text-amber-300',
       ctrScore: '9.6 CTR',
-      gradient: 'from-pink-600 via-purple-900 to-slate-950'
+      gradient: 'from-pink-600 via-purple-900 to-slate-950',
+      palette: ['#db2777', '#581c87', '#020617']
     },
     {
       id: 't2',
@@ -315,7 +378,8 @@ const buildThumbnailConcepts = (topic = 'VIRAL') => {
       subText: clean,
       accentText: 'text-cyan-300',
       ctrScore: '9.4 CTR',
-      gradient: 'from-cyan-600 via-blue-950 to-slate-950'
+      gradient: 'from-cyan-600 via-blue-950 to-slate-950',
+      palette: ['#0891b2', '#172554', '#020617']
     },
     {
       id: 't3',
@@ -324,10 +388,53 @@ const buildThumbnailConcepts = (topic = 'VIRAL') => {
       subText: clean,
       accentText: 'text-rose-300',
       ctrScore: '9.2 CTR',
-      gradient: 'from-amber-500 via-rose-900 to-slate-950'
+      gradient: 'from-amber-500 via-rose-900 to-slate-950',
+      palette: ['#f59e0b', '#881337', '#020617']
     }
   ];
 };
+
+const ClipActionShortcuts = React.memo(({ clip, onPreview, onCopyDescription }) => {
+  const youtubeShortUrl = clip?.youtubeVideoId
+    ? `https://www.youtube.com/shorts/${clip.youtubeVideoId}`
+    : 'https://studio.youtube.com/channel/UC/videos/short';
+
+  return (
+    <div className="pt-2 mt-1 border-t border-white/10 flex items-center justify-between gap-2 flex-wrap">
+      <button
+        type="button"
+        onClick={() => onPreview?.(clip)}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 border border-purple-400/40 text-purple-200 text-[10.5px] font-extrabold cursor-pointer transition"
+      >
+        <Play className="w-3 h-3 fill-purple-200" />
+        <span>Watch Clip</span>
+      </button>
+
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onCopyDescription?.(clip)}
+          title="Copy Description & #Tags"
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-cyan-300 text-[10.5px] font-bold cursor-pointer transition"
+        >
+          <Copy className="w-3 h-3" />
+          <span>Copy Desc</span>
+        </button>
+
+        <a
+          href={youtubeShortUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-400/40 text-red-200 text-[10.5px] font-extrabold transition"
+        >
+          <Youtube className="w-3.5 h-3.5 text-red-400" />
+          <span>{clip?.youtubeVideoId ? 'Open Short' : 'YT Shorts'}</span>
+          <ExternalLink className="w-3 h-3 opacity-80" />
+        </a>
+      </div>
+    </div>
+  );
+});
 
 const ChannelAvatarBadge = React.memo(({ googleUser, sizeClass = 'w-10 h-10' }) => {
   const safeAvatar = sanitizeMediaUrl(googleUser?.avatar);
@@ -444,7 +551,7 @@ const DesktopSidebar = React.memo(
           className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-95 transition-all"
         >
           <Plus className="w-4 h-4" />
-          <span>Upload & Publish Short</span>
+          <span>Upload & Auto-Post Short</span>
         </button>
 
         <div className="space-y-1.5 text-xs font-bold">
@@ -527,7 +634,7 @@ const DesktopSidebar = React.memo(
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-cyan-300 hover:bg-cyan-500/15 cursor-pointer transition-all"
           >
             <ImageIcon className="w-4 h-4" />
-            <span>9:16 Thumbnail Gen</span>
+            <span>9:16 Thumbnail Preset</span>
           </button>
         </div>
       </div>
@@ -845,8 +952,8 @@ export default function App() {
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Google Login & Studio Ready ✅',
-      desc: 'Connect Google account or upload/cut Shorts directly.',
+      title: 'Auto Thumbnail + YouTube Upload Ready ✅',
+      desc: 'Dynamic descriptions, 9:16 thumbnails, and shortcuts are active.',
       unread: true
     }
   ]);
@@ -855,7 +962,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! Connect Google par click karein ya video upload/cut karein.'
+      text: 'Namaste! Video upload karte hi 9:16 thumbnail, dynamic description aur YouTube upload run hota hai.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -885,6 +992,12 @@ export default function App() {
   const splitterInputRef = useRef(null);
 
   const dbBase = (liveDbUrl || DEFAULT_FIREBASE_URL).trim().replace(/\/$/, '');
+
+  const handleCopyDescription = useCallback((clip) => {
+    if (clip?.description && navigator.clipboard) {
+      navigator.clipboard.writeText(clip.description).catch(() => {});
+    }
+  }, []);
 
   const applyConnectedGoogleProfile = useCallback((profile, tokens = {}) => {
     const userPayload = {
@@ -969,6 +1082,117 @@ export default function App() {
       localStorage.removeItem('shortspilot_yt_refresh_token');
     } catch {}
   }, []);
+
+  const refreshAccessToken = useCallback(async () => {
+    if (!youtubeRefreshToken) return '';
+    try {
+      const res = await fetch('/api/youtube/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          refresh_token: youtubeRefreshToken,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.access_token) {
+        setYoutubeAccessToken(data.access_token);
+        try {
+          localStorage.setItem('sp_yt_access_token', data.access_token);
+          localStorage.setItem('shortspilot_yt_access_token', data.access_token);
+        } catch {}
+        return data.access_token;
+      }
+    } catch {}
+    return '';
+  }, [youtubeRefreshToken]);
+
+  const uploadClipToYouTube = useCallback(
+    async (clip) => {
+      let token = youtubeAccessToken;
+      if (!token && youtubeRefreshToken) {
+        token = await refreshAccessToken();
+      }
+      if (!token) {
+        return { uploaded: false, reason: 'Connect Google for Auto-Post' };
+      }
+      if (!(clip?.blob instanceof Blob)) {
+        return { uploaded: false, reason: 'No video blob' };
+      }
+
+      const metadata = {
+        snippet: {
+          title: `${clip.title} #Shorts`.slice(0, 100),
+          description: clip.description,
+          categoryId: '22'
+        },
+        status: {
+          privacyStatus: 'public',
+          selfDeclaredMadeForKids: false
+        }
+      };
+
+      const form = new FormData();
+      form.append(
+        'metadata',
+        new Blob([JSON.stringify(metadata)], { type: 'application/json' })
+      );
+      form.append('file', clip.blob, `${clip.title}.mp4`);
+
+      let res = await fetch(
+        'https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=multipart',
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form
+        }
+      );
+
+      if (res.status === 401) {
+        const fresh = await refreshAccessToken();
+        if (fresh) {
+          res = await fetch(
+            'https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=multipart',
+            {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${fresh}` },
+              body: form
+            }
+          );
+        }
+      }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.error?.message || 'YouTube upload failed');
+      }
+
+      const data = await res.json();
+      const videoId = data?.id || '';
+
+      if (videoId && clip.thumbnailBlob instanceof Blob) {
+        try {
+          await fetch(
+            `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(
+              videoId
+            )}`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'image/png'
+              },
+              body: clip.thumbnailBlob
+            }
+          );
+        } catch {}
+      }
+
+      return { uploaded: true, videoId };
+    },
+    [youtubeAccessToken, youtubeRefreshToken, refreshAccessToken]
+  );
 
   useEffect(() => {
     let active = true;
@@ -1098,19 +1322,45 @@ export default function App() {
     e.target.value = '';
     if (files.length === 0) return;
 
-    setAutoPublishStatus('AI Detecting Topic, Title & Viral #Tags...');
+    setLoginError('');
+    setAutoPublishStatus('Generating 9:16 Thumbnail, Description & Auto-Posting...');
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const detectedTopic = detectTopicFromFile(file.name);
       const meta = await readVideoMetadata(file);
-      const aiMeta = buildClipPackage(
-        detectedTopic,
-        i,
-        '',
-        globalConfig.watermarkText || 'Developed by shortspilot.in'
-      );
+      const durLabel = formatClockTime(meta.duration);
+      const hookLabel = selectedThumbConcept?.hookText || 'WAIT FOR END 😱';
+      const watermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
+      const aiMeta = buildClipPackage(detectedTopic, i, '', watermark, durLabel, hookLabel);
+      const thumb = await generateThumbnailBlob({
+        hookText: hookLabel,
+        subText: detectedTopic,
+        watermarkText: watermark,
+        palette: selectedThumbConcept?.palette
+      });
       const objectUrl = URL.createObjectURL(file);
+
+      let clipStatus = manualPostMode ? 'Manual Ready' : 'Queued for Auto-Post';
+      let youtubeVideoId = '';
+
+      if (!manualPostMode) {
+        try {
+          const ytRes = await uploadClipToYouTube({
+            ...aiMeta,
+            blob: file,
+            thumbnailBlob: thumb.blob
+          });
+          if (ytRes.uploaded) {
+            youtubeVideoId = ytRes.videoId || '';
+            clipStatus = `Uploaded to YT (${youtubeVideoId || 'Done'}) ✅`;
+          } else {
+            clipStatus = 'Queued (Connect Google for Auto-Post)';
+          }
+        } catch (err) {
+          clipStatus = `Queued (${err.message})`;
+        }
+      }
 
       const readyClip = {
         id: `${Date.now()}-${Math.random()}`,
@@ -1118,11 +1368,15 @@ export default function App() {
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
-        thumbnailHook: selectedThumbConcept?.hookText || 'WAIT FOR END 😱',
-        thumbnailGradient: selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
-        status: manualPostMode ? 'Manual Ready' : 'Published to Queue',
+        thumbnailHook: hookLabel,
+        thumbnailGradient:
+          selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
+        thumbnailDataUrl: thumb.dataUrl,
+        thumbnailBlob: thumb.blob,
+        youtubeVideoId,
+        status: clipStatus,
         hookScore: aiMeta.hookScore,
-        duration: formatClockTime(meta.duration),
+        duration: durLabel,
         croppedUrl: objectUrl,
         blob: file
       };
@@ -1139,14 +1393,17 @@ export default function App() {
     if (!file) return;
 
     setIsSplitterModalOpen(false);
+    setLoginError('');
     const count = Number(clipSplitCount) || 3;
-    setAutoPublishStatus(`AI Detecting Topic & Cutting ${count} Clips...`);
+    setAutoPublishStatus(`Generating 9:16 Thumbnails & Cutting ${count} Clips...`);
 
     const detectedTopic = detectTopicFromFile(file.name);
     const meta = await readVideoMetadata(file);
     const totalDur = Math.max(15, meta.duration || 60);
     const segDur = Math.max(5, Math.floor(totalDur / count));
     const baseObjectUrl = URL.createObjectURL(file);
+    const watermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
+    const hookLabel = selectedThumbConcept?.hookText || 'WAIT FOR END 😱';
     const generated = [];
 
     for (let i = 0; i < count; i++) {
@@ -1154,14 +1411,46 @@ export default function App() {
       const endSec =
         i === count - 1 ? Math.floor(totalDur) : Math.min(Math.floor(totalDur), startSec + segDur);
       const clipLength = Math.max(1, endSec - startSec);
+      const durLabel = formatClockTime(clipLength);
       const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
       const partLabel = count > 1 ? `Part ${i + 1}/${count}` : '';
       const aiMeta = buildClipPackage(
         detectedTopic,
         i,
         partLabel,
-        globalConfig.watermarkText || 'Developed by shortspilot.in'
+        watermark,
+        durLabel,
+        hookLabel
       );
+      const thumb = await generateThumbnailBlob({
+        hookText: hookLabel,
+        subText: `${detectedTopic} ${partLabel}`.trim(),
+        watermarkText: watermark,
+        palette: selectedThumbConcept?.palette
+      });
+
+      let clipStatus = manualPostMode
+        ? `Cut Ready (${timeRangeLabel})`
+        : `Cut Clip (${timeRangeLabel})`;
+      let youtubeVideoId = '';
+
+      if (!manualPostMode) {
+        try {
+          const ytRes = await uploadClipToYouTube({
+            ...aiMeta,
+            blob: file,
+            thumbnailBlob: thumb.blob
+          });
+          if (ytRes.uploaded) {
+            youtubeVideoId = ytRes.videoId || '';
+            clipStatus = `Uploaded (${youtubeVideoId || timeRangeLabel}) ✅`;
+          } else {
+            clipStatus = `Cut Ready • Connect Google (${timeRangeLabel})`;
+          }
+        } catch (err) {
+          clipStatus = `Cut Ready • ${err.message}`;
+        }
+      }
 
       const clipItem = {
         id: `${Date.now()}-${Math.random()}-${i}`,
@@ -1169,11 +1458,15 @@ export default function App() {
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
-        thumbnailHook: selectedThumbConcept?.hookText || 'WAIT FOR END 😱',
-        thumbnailGradient: selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
-        status: manualPostMode ? `Cut Ready (${timeRangeLabel})` : `Cut Clip (${timeRangeLabel})`,
+        thumbnailHook: hookLabel,
+        thumbnailGradient:
+          selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
+        thumbnailDataUrl: thumb.dataUrl,
+        thumbnailBlob: thumb.blob,
+        youtubeVideoId,
+        status: clipStatus,
         hookScore: aiMeta.hookScore,
-        duration: formatClockTime(clipLength),
+        duration: durLabel,
         croppedUrl: `${baseObjectUrl}#t=${startSec},${endSec}`,
         blob: file,
         startSec,
@@ -1264,7 +1557,7 @@ export default function App() {
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'Connect Google par click karein ya video upload/cut karein.'
+        text: 'Video upload karte hi 9:16 thumbnail, dynamic description aur YouTube upload auto run hota hai.'
       }
     ]);
     setSupportInput('');
@@ -1342,10 +1635,10 @@ export default function App() {
                     <Crown className="w-6 h-6 text-amber-400 fill-amber-400 shrink-0" />
                     <div className="min-w-0">
                       <div className="text-xs lg:text-sm font-extrabold text-amber-300 truncate">
-                        Shorts Feed Engine Active
+                        Auto-Post + Thumbnail Active
                       </div>
                       <div className="text-[10px] lg:text-xs text-slate-200">
-                        Auto AI Titles • Smart #Tags • shortspilot.in
+                        Dynamic Desc • 9:16 Thumb • shortspilot.in
                       </div>
                     </div>
                   </div>
@@ -1491,7 +1784,7 @@ export default function App() {
                   >
                     <Play className="w-4 h-4 fill-white" />
                     <span>
-                      {manualPostMode ? 'Upload to Manual Vault' : 'Upload & Publish to Shorts Feed'}
+                      {manualPostMode ? 'Upload to Manual Vault' : 'Upload & Auto-Post to Shorts Feed'}
                     </span>
                   </button>
                 </div>
@@ -1562,7 +1855,7 @@ export default function App() {
                       <ImageIcon className="w-5 h-5 text-cyan-300" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-extrabold text-white">9:16 Shorts Thumbnail</h3>
+                      <h3 className="text-sm font-extrabold text-white">9:16 Auto Thumbnail</h3>
                       <p className="text-[10.5px] text-slate-300">
                         Active Hook:{' '}
                         <span className="text-amber-300 font-bold">
@@ -1576,7 +1869,7 @@ export default function App() {
                     onClick={() => setIsThumbnailModalOpen(true)}
                     className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-[11px] font-extrabold cursor-pointer shadow-md"
                   >
-                    Create 9:16
+                    Choose Style
                   </button>
                 </div>
 
@@ -1587,9 +1880,7 @@ export default function App() {
                     </div>
                     <div>
                       <h3 className="text-sm font-extrabold text-white">Posting Control</h3>
-                      <p className="text-[10.5px] text-slate-300">
-                        Choose auto or manual upload mode
-                      </p>
+                      <p className="text-[10.5px] text-slate-300">Auto-Post is ON by default</p>
                     </div>
                   </div>
 
@@ -1602,7 +1893,7 @@ export default function App() {
                         : 'bg-emerald-500/25 border-emerald-400 text-emerald-300'
                     }`}
                   >
-                    {manualPostMode ? '⚡ Manual Post Active' : '🤖 Nearest Slot Auto'}
+                    {manualPostMode ? '⚡ Manual Post Active' : '🤖 Auto-Post ON'}
                   </button>
                 </div>
               </div>
@@ -1720,12 +2011,22 @@ export default function App() {
                             onClick={() => setPreviewClip(clip)}
                             className={`w-12 h-16 rounded-xl bg-gradient-to-b ${
                               clip.thumbnailGradient || 'from-pink-600 to-slate-950'
-                            } border border-purple-400/40 flex flex-col items-center justify-center shrink-0 cursor-pointer p-1 text-center`}
+                            } border border-purple-400/40 flex flex-col items-center justify-center shrink-0 cursor-pointer p-1 text-center overflow-hidden`}
                           >
-                            <span className="text-[6.5px] font-black text-white leading-tight uppercase">
-                              {clip.thumbnailHook || 'SHORT'}
-                            </span>
-                            <Play className="w-3.5 h-3.5 text-white fill-white mt-0.5" />
+                            {clip.thumbnailDataUrl ? (
+                              <img
+                                src={sanitizeMediaUrl(clip.thumbnailDataUrl)}
+                                alt={clip.title}
+                                className="w-full h-full object-cover rounded-lg"
+                              />
+                            ) : (
+                              <>
+                                <span className="text-[6.5px] font-black text-white leading-tight uppercase">
+                                  {clip.thumbnailHook || 'SHORT'}
+                                </span>
+                                <Play className="w-3.5 h-3.5 text-white fill-white mt-0.5" />
+                              </>
+                            )}
                           </div>
                           <div className="min-w-0">
                             <h4
@@ -1755,6 +2056,11 @@ export default function App() {
                       <div className="text-[9.5px] text-cyan-300/90 font-mono truncate bg-[#080512] px-2.5 py-1.5 rounded-lg border border-slate-800">
                         {clip.hashtags}
                       </div>
+                      <ClipActionShortcuts
+                        clip={clip}
+                        onPreview={setPreviewClip}
+                        onCopyDescription={handleCopyDescription}
+                      />
                     </div>
                   ))}
                 </div>
@@ -1835,12 +2141,22 @@ export default function App() {
                             onClick={() => setPreviewClip(clip)}
                             className={`w-11 h-14 rounded-lg bg-gradient-to-b ${
                               clip.thumbnailGradient || 'from-pink-600 to-slate-950'
-                            } border border-purple-400/30 flex flex-col items-center justify-center shrink-0 cursor-pointer p-1 text-center`}
+                            } border border-purple-400/30 flex flex-col items-center justify-center shrink-0 cursor-pointer p-1 text-center overflow-hidden`}
                           >
-                            <span className="text-[6px] font-black text-white leading-tight uppercase">
-                              {clip.thumbnailHook || 'SHORT'}
-                            </span>
-                            <Play className="w-3 h-3 text-white fill-white mt-0.5" />
+                            {clip.thumbnailDataUrl ? (
+                              <img
+                                src={sanitizeMediaUrl(clip.thumbnailDataUrl)}
+                                alt={clip.title}
+                                className="w-full h-full object-cover rounded-md"
+                              />
+                            ) : (
+                              <>
+                                <span className="text-[6px] font-black text-white leading-tight uppercase">
+                                  {clip.thumbnailHook || 'SHORT'}
+                                </span>
+                                <Play className="w-3 h-3 text-white fill-white mt-0.5" />
+                              </>
+                            )}
                           </div>
                           <div className="min-w-0">
                             <div
@@ -1865,6 +2181,11 @@ export default function App() {
                       <pre className="text-[10px] text-slate-300 whitespace-pre-wrap font-sans bg-[#070412] p-2.5 rounded-xl border border-slate-800 max-h-28 overflow-y-auto">
                         {clip.description}
                       </pre>
+                      <ClipActionShortcuts
+                        clip={clip}
+                        onPreview={setPreviewClip}
+                        onCopyDescription={handleCopyDescription}
+                      />
                     </div>
                   ))}
                 </div>
@@ -2073,7 +2394,7 @@ export default function App() {
             </button>
             <div className="flex items-center gap-2">
               <ImageIcon className="w-5 h-5 text-cyan-300" />
-              <h3 className="text-base font-extrabold text-white">9:16 Shorts Thumbnail Generator</h3>
+              <h3 className="text-base font-extrabold text-white">9:16 Shorts Thumbnail Preset</h3>
             </div>
 
             <form onSubmit={handleGenerateThumbnails} className="flex gap-2">
@@ -2150,7 +2471,7 @@ export default function App() {
               <h3 className="text-base font-extrabold text-white">AI Engaging Clips Auto-Splitter</h3>
             </div>
             <p className="text-xs text-slate-300">
-              Select how many viral clips you want AI to cut from your full-length video (topic & #tags auto-detected):
+              Select how many viral clips you want AI to cut from your full-length video:
             </p>
             <div className="grid grid-cols-3 gap-2.5">
               {[1, 3, 5].map((count) => (
@@ -2354,7 +2675,7 @@ export default function App() {
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
                 >
-                  🎨 9:16 Shorts Thumbnail Gen
+                  🎨 9:16 Shorts Thumbnail Preset
                 </button>
                 <button
                   type="button"
@@ -2508,6 +2829,12 @@ export default function App() {
                 {previewClip.description}
               </pre>
             </div>
+
+            <ClipActionShortcuts
+              clip={previewClip}
+              onPreview={setPreviewClip}
+              onCopyDescription={handleCopyDescription}
+            />
           </div>
         </div>
       )}
