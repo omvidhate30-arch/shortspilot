@@ -20,10 +20,7 @@ export default async function handler(req, res) {
     process.env.VITE_GOOGLE_CLIENT_ID ||
     '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
 
-  const activeClientSecret =
-    (client_secret || '').trim() ||
-    process.env.GOOGLE_CLIENT_SECRET ||
-    ['GOCSPX', 'xJP5sCGs0mbT4j8uXhIwumRmJlU9'].join('-');
+  const activeClientSecret = (client_secret || '').trim() || process.env.GOOGLE_CLIENT_SECRET || '';
 
   try {
     const response = await fetch('https://oauth2.googleapis.com/token', {
