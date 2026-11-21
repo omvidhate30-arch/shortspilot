@@ -1269,17 +1269,25 @@ export default function App() {
     return '';
   }, [youtubeRefreshToken]);
 
-  const uploadClipToYouTube = useCallback(
+const uploadClipToYouTube = useCallback(
     async (clip) => {
       let token = youtubeAccessToken;
       if (!token && youtubeRefreshToken) {
         token = await refreshAccessToken();
       }
       if (!token) {
-        return { uploaded: false, reason: 'Connect Google for Auto-Post' };
+        return {
+          uploaded: false,
+          videoId: '',
+          error: 'No YouTube access token — Google login complete karein'
+        };
       }
-      if (!(clip?.blob instanceof Blob)) {
-        return { uploaded: false, reason: 'No video blob' };
+      if (!(clip?.blob instanceof Blob) || clip.blob.size === 0) {
+        return {
+          uploaded: false,
+          videoId: '',
+          error: 'Video file empty ya missing hai'
+        };
       }
 
       const metadata = {
@@ -1294,43 +1302,48 @@ export default function App() {
         }
       };
 
-      const form = new FormData();
-      form.append(
-        'metadata',
-        new Blob([JSON.stringify(metadata)], { type: 'application/json' })
-      );
-      form.append('file', clip.blob, `${clip.title}.mp4`);
+      const sendUpload = async (bearerToken) => {
+        const form = new FormData();
+        form.append(
+          'metadata',
+          new Blob([JSON.stringify(metadata)], { type: 'application/json; charset=UTF-8' })
+        );
+        form.append(
+          'file',
+          clip.blob,
+          `${String(clip.title || 'short').replace(/[^\w.-]+/g, '_')}.mp4`
+        );
 
-      let res = await fetch(
-        'https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=multipart',
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: form
-        }
-      );
+        return fetch(
+          'https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=multipart',
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${bearerToken}` },
+            body: form
+          }
+        );
+      };
+
+      let res = await sendUpload(token);
 
       if (res.status === 401) {
         const fresh = await refreshAccessToken();
         if (fresh) {
-          res = await fetch(
-            'https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=multipart',
-            {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${fresh}` },
-              body: form
-            }
-          );
+          res = await sendUpload(fresh);
         }
       }
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData?.error?.message || 'YouTube upload failed');
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data?.id) {
+        return {
+          uploaded: false,
+          videoId: '',
+          error: data?.error?.message || `HTTP ${res.status}: Upload incomplete`
+        };
       }
 
-      const data = await res.json();
-      const videoId = data?.id || '';
+      const videoId = String(data.id);
 
       if (videoId && clip.thumbnailBlob instanceof Blob) {
         try {
@@ -1350,11 +1363,11 @@ export default function App() {
         } catch {}
       }
 
-      return { uploaded: true, videoId };
+      return { uploaded: true, videoId, error: '' };
     },
     [youtubeAccessToken, youtubeRefreshToken, refreshAccessToken]
   );
-
+  
   useEffect(() => {
     let active = true;
     idbGetAllClips().then((clips) => {
