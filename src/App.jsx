@@ -878,26 +878,26 @@ export default function App() {
     }
   }, [applyConnectedGoogleProfile]);
 
-  const startGoogleLogin = useCallback(() => {
-    setLoginError('');
-    setIsLoggingIn(true);
-    try {
-      const statePayload = btoa(JSON.stringify({ cid: GOOGLE_CLIENT_ID }));
-      const redirectUri = encodeURIComponent(`${window.location.origin}/api/youtube/callback`);
-      const scope = encodeURIComponent(
-        'openid email profile https://www.googleapis.com/auth/youtube.upload'
-      );
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
-        GOOGLE_CLIENT_ID
-      )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
-        statePayload
-      )}`;
-      window.location.href = authUrl;
-    } catch {
-      setIsLoggingIn(false);
-      setIsGoogleAccountModalOpen(true);
-    }
-  }, []);
+const startGoogleLogin = useCallback(() => {
+  setLoginError('');
+  setIsLoggingIn(true);
+  try {
+    const statePayload = btoa(JSON.stringify({ cid: GOOGLE_CLIENT_ID }));
+    const redirectUri = encodeURIComponent('https://www.shortspilot.in/api/youtube/callback');
+    const scope = encodeURIComponent(
+      'openid email profile https://www.googleapis.com/auth/youtube.upload'
+    );
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+      GOOGLE_CLIENT_ID
+    )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
+      statePayload
+    )}`;
+    window.location.href = authUrl;
+  } catch {
+    setIsLoggingIn(false);
+    setIsGoogleAccountModalOpen(true);
+  }
+}, []);
 
   const logoutGoogle = useCallback(() => {
     setGoogleUser(null);
