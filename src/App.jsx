@@ -23,22 +23,247 @@ import {
   Instagram,
   LogOut
 } from 'lucide-react';
-import {
-  DEFAULT_FIREBASE_URL,
-  GOOGLE_CLIENT_ID,
-  emailToKey,
-  sanitizeMediaUrl,
-  formatClockTime,
-  readGmailApiRegistry,
-  saveGmailApiRecord,
-  idbSaveClip,
-  idbGetAllClips,
-  idbDeleteClip,
-  idbClearAllClips,
-  analyzeVideoDeeply,
-  buildDeepAiVideoPackage,
-  buildShortsThumbnailConcepts
-} from './utils/helpers';
+
+const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
+const GOOGLE_CLIENT_ID = '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
+const IDB_NAME = 'ShortsPilotClipsDB';
+const IDB_STORE = 'clips';
+
+const emailToKey = (email = '') =>
+  String(email || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[.#$[\]@]/g, '_');
+
+const sanitizeMediaUrl = (url = '') => {
+  if (!url || typeof url !== 'string') return '';
+  if (
+    url.startsWith('blob:') ||
+    url.startsWith('https://') ||
+    url.startsWith('http://') ||
+    url.startsWith('data:image/')
+  ) {
+    return url;
+  }
+  return '';
+};
+
+const formatClockTime = (seconds = 0) => {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
+
+const readLocalRegistry = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem('sp_user_registry') || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveLocalRegistry = (email, record) => {
+  try {
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    if (!cleanEmail) return;
+    const current = readLocalRegistry();
+    current[cleanEmail] = {
+      ...(current[cleanEmail] || {}),
+      ...record,
+      email: cleanEmail,
+      updatedAt: Date.now()
+    };
+    localStorage.setItem('sp_user_registry', JSON.stringify(current));
+  } catch {}
+};
+
+let cachedDbPromise = null;
+const openClipsDB = () => {
+  if (cachedDbPromise) return cachedDbPromise;
+  cachedDbPromise = new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      return reject(new Error('IndexedDB not supported'));
+    }
+    const req = window.indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => {
+      cachedDbPromise = null;
+      reject(req.error);
+    };
+  });
+  return cachedDbPromise;
+};
+
+const idbSaveClip = async (clipObj) => {
+  try {
+    const db = await openClipsDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      const { croppedUrl, ...persistable } = clipObj;
+      tx.objectStore(IDB_STORE).put({
+        ...persistable,
+        savedAt: Date.now()
+      });
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+  } catch {
+    return false;
+  }
+};
+
+const idbGetAllClips = async () => {
+  try {
+    const db = await openClipsDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).getAll();
+      req.onsuccess = () => {
+        const items = (req.result || []).sort(
+          (a, b) => (b.savedAt || 0) - (a.savedAt || 0)
+        );
+        resolve(
+          items.map((item) => {
+            const baseUrl = item.blob instanceof Blob ? URL.createObjectURL(item.blob) : '';
+            const trimHash =
+              baseUrl && typeof item.startSec === 'number' && typeof item.endSec === 'number'
+                ? `#t=${Math.floor(item.startSec)},${Math.floor(item.endSec)}`
+                : '';
+            return {
+              ...item,
+              croppedUrl: baseUrl ? `${baseUrl}${trimHash}` : ''
+            };
+          })
+        );
+      };
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+};
+
+const idbDeleteClip = async (clipId) => {
+  try {
+    const db = await openClipsDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(clipId);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+  } catch {
+    return false;
+  }
+};
+
+const idbClearAllClips = async () => {
+  try {
+    const db = await openClipsDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).clear();
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+  } catch {
+    return false;
+  }
+};
+
+const readVideoMetadata = (file) =>
+  new Promise((resolve) => {
+    try {
+      if (!(file instanceof Blob)) return resolve({ duration: 30 });
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 30;
+        URL.revokeObjectURL(url);
+        resolve({ duration: dur });
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve({ duration: 30 });
+      };
+      video.src = url;
+    } catch {
+      resolve({ duration: 30 });
+    }
+  });
+
+const buildClipPackage = (
+  rawTopic,
+  index = 0,
+  partLabel = '',
+  watermarkText = 'Developed by shortspilot.in'
+) => {
+  const cleanTopic = (rawTopic || 'Viral Short').trim();
+  const title = partLabel ? `${cleanTopic} (${partLabel})` : cleanTopic;
+  const tagBase = cleanTopic
+    .replace(/[^a-zA-Z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((w) => `#${w}`)
+    .join(' ');
+  const hashtags = `${tagBase || '#Shorts'} #ShortsPilot #ViralShorts #Trending`;
+  const description = `${title}\n\n${hashtags}\n\n${watermarkText}`;
+  const hookScore = `${Math.min(99, 88 + ((index * 3) % 10))}/100`;
+
+  return {
+    title,
+    category: 'Shorts',
+    hashtags,
+    description,
+    watermarkText,
+    websiteUrl: 'https://shortspilot.in',
+    hookScore
+  };
+};
+
+const buildThumbnailConcepts = (topic = 'GTA 6') => {
+  const clean = (topic || 'VIRAL').trim().toUpperCase().slice(0, 18);
+  return [
+    {
+      id: 't1',
+      badge: 'HIGH CTR',
+      hookText: 'WAIT FOR END 😱',
+      subText: clean,
+      accentText: 'text-amber-300',
+      ctrScore: '9.6 CTR',
+      gradient: 'from-pink-600 via-purple-900 to-slate-950'
+    },
+    {
+      id: 't2',
+      badge: 'TRENDING',
+      hookText: 'INSANE CLUTCH 🔥',
+      subText: clean,
+      accentText: 'text-cyan-300',
+      ctrScore: '9.4 CTR',
+      gradient: 'from-cyan-600 via-blue-950 to-slate-950'
+    },
+    {
+      id: 't3',
+      badge: 'VIRAL',
+      hookText: 'NO WAY!! 🤯',
+      subText: clean,
+      accentText: 'text-rose-300',
+      ctrScore: '9.2 CTR',
+      gradient: 'from-amber-500 via-rose-900 to-slate-950'
+    }
+  ];
+};
 
 const ChannelAvatarBadge = React.memo(({ googleUser, sizeClass = 'w-10 h-10' }) => {
   const safeAvatar = sanitizeMediaUrl(googleUser?.avatar);
@@ -494,7 +719,7 @@ export default function App() {
 
   const [igData, setIgData] = useState(() => {
     try {
-      const reg = readGmailApiRegistry()['creator@shortspilot.in'];
+      const reg = readLocalRegistry()['creator@shortspilot.in'];
       if (reg?.igToken) {
         return {
           username: reg.igUsername || '@instagram_user',
@@ -520,10 +745,10 @@ export default function App() {
 
   const [isThumbnailModalOpen, setIsThumbnailModalOpen] = useState(false);
   const [thumbTopicInput, setThumbTopicInput] = useState('');
-  const [thumbConcepts, setThumbConcepts] = useState(() => buildShortsThumbnailConcepts('GTA 6'));
   const [selectedThumbConcept, setSelectedThumbConcept] = useState(
-    () => buildShortsThumbnailConcepts('GTA 6')[0]
+    () => buildThumbnailConcepts('GTA 6')[0]
   );
+  const [thumbConcepts, setThumbConcepts] = useState(() => buildThumbnailConcepts('GTA 6'));
 
   const [selectedTimeSlot] = useState(() => {
     const h = new Date().getHours();
@@ -597,7 +822,7 @@ export default function App() {
     try {
       localStorage.setItem('sp_google_user', JSON.stringify(formattedProfile));
     } catch {}
-    saveGmailApiRecord(cleanEmail, {
+    saveLocalRegistry(cleanEmail, {
       email: cleanEmail,
       name: formattedProfile.name,
       ...(tokens.accessToken ? { accessToken: tokens.accessToken } : {}),
@@ -720,7 +945,7 @@ export default function App() {
     e?.preventDefault();
     setIgError('');
     const cleanToken = (igTokenDraft || '').trim();
-    const rawUser = (igUsernameDraft || '').trim() || '@instagram_user';
+    const rawUser = (igUsernameDraft || '').trim() || '@instagram_creator';
     const formattedUser = rawUser.startsWith('@') ? rawUser : `@${rawUser}`;
 
     if (!cleanToken || cleanToken.length < 6) {
@@ -732,7 +957,7 @@ export default function App() {
       token: cleanToken,
       connected: true
     });
-    saveGmailApiRecord((googleUser?.email || 'creator@shortspilot.in').toLowerCase(), {
+    saveLocalRegistry((googleUser?.email || 'creator@shortspilot.in').toLowerCase(), {
       igUsername: formattedUser,
       igToken: cleanToken
     });
@@ -748,11 +973,10 @@ export default function App() {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const rawName = customVideoTopic.trim() || file.name;
-      const meta = await analyzeVideoDeeply(file);
-      const aiMeta = buildDeepAiVideoPackage(
+      const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
+      const meta = await readVideoMetadata(file);
+      const aiMeta = buildClipPackage(
         rawName,
-        meta,
         i,
         '',
         globalConfig.watermarkText || 'Developed by shortspilot.in'
@@ -789,8 +1013,8 @@ export default function App() {
     const count = Number(clipSplitCount) || 3;
     setAutoPublishStatus(`Cutting ${count} Clips...`);
 
-    const rawName = customVideoTopic.trim() || file.name;
-    const meta = await analyzeVideoDeeply(file);
+    const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
+    const meta = await readVideoMetadata(file);
     const totalDur = Math.max(15, meta.duration || 60);
     const segDur = Math.max(5, Math.floor(totalDur / count));
     const baseObjectUrl = URL.createObjectURL(file);
@@ -803,9 +1027,8 @@ export default function App() {
       const clipLength = Math.max(1, endSec - startSec);
       const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
       const partLabel = count > 1 ? `Part ${i + 1}/${count}` : '';
-      const aiMeta = buildDeepAiVideoPackage(
+      const aiMeta = buildClipPackage(
         rawName,
-        meta,
         i,
         partLabel,
         globalConfig.watermarkText || 'Developed by shortspilot.in'
@@ -838,7 +1061,7 @@ export default function App() {
 
   const handleGenerateThumbnails = (e) => {
     e.preventDefault();
-    const updated = buildShortsThumbnailConcepts(thumbTopicInput || customVideoTopic || 'GTA 6');
+    const updated = buildThumbnailConcepts(thumbTopicInput || customVideoTopic || 'GTA 6');
     setThumbConcepts(updated);
     setSelectedThumbConcept(updated[0]);
   };
