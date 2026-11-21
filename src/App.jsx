@@ -21,237 +21,345 @@ import {
   Image as ImageIcon,
   Instagram
 } from 'lucide-react';
-import {
-  FIREBASE_DB_URL,
-  emailToKey,
-  sanitizeMediaUrl,
-  formatClockTime,
-  readGmailApiRegistry,
-  saveGmailApiRecord,
-  removeGmailApiRecord,
-  idbSaveClip,
-  idbGetAllClips,
-  idbDeleteClip,
-  idbClearAllClips,
-  analyzeVideoDeeply,
-  buildDeepAiVideoPackage,
-  buildShortsThumbnailConcepts
-} from './videoUtils';
-import AdminConsoleModal from './AdminConsoleModal';
 
-const DesktopSidebar = React.memo(({
-  activeTab,
-  setActiveTab,
-  onTriggerUpload,
-  onOpenSplitter,
-  onOpenThumbnail,
-  onOpenPricing,
-  onOpenAdmin,
-  monthlyPrice,
-  yearlyPrice,
-  videoCount
-}) => (
-  <aside className="hidden lg:flex flex-col justify-between w-64 shrink-0 bg-[#090614] border-r border-purple-500/20 p-5 sticky top-0 h-screen z-30">
-    <div className="space-y-5">
-      <div onClick={() => setActiveTab('home')} className="flex items-center gap-2.5 cursor-pointer">
-        <div className="w-10 h-10 rounded-2xl bg-[#140d2a] border border-pink-500/40 flex items-center justify-center shadow-lg">
-          <Sparkles className="w-5 h-5 text-pink-400" />
-        </div>
-        <div>
-          <div className="flex items-center text-lg font-extrabold tracking-tight leading-none">
-            <span className="text-white">Shorts</span>
-            <span className="text-pink-400">Pilot AI</span>
+const DEFAULT_FIREBASE_URL = 'https://shortspilot-default-rtdb.firebaseio.com';
+
+const emailToKey = (email = '') =>
+  String(email || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[.#$[\]@]/g, '_');
+
+const sanitizeMediaUrl = (url = '') => {
+  if (!url || typeof url !== 'string') return '';
+  if (url.startsWith('blob:') || url.startsWith('https://') || url.startsWith('http://')) {
+    return url;
+  }
+  return '';
+};
+
+const formatClockTime = (seconds = 0) => {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
+
+const readLocalRegistry = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem('sp_user_registry') || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveLocalRegistry = (email, record) => {
+  try {
+    const current = readLocalRegistry();
+    current[email] = { ...(current[email] || {}), ...record };
+    localStorage.setItem('sp_user_registry', JSON.stringify(current));
+  } catch {}
+};
+
+const removeLocalRegistry = (email) => {
+  try {
+    const current = readLocalRegistry();
+    delete current[email];
+    localStorage.setItem('sp_user_registry', JSON.stringify(current));
+  } catch {}
+};
+
+const readVideoMetadata = (file) =>
+  new Promise((resolve) => {
+    try {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 30;
+        URL.revokeObjectURL(url);
+        resolve({ duration: dur });
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve({ duration: 30 });
+      };
+      video.src = url;
+    } catch {
+      resolve({ duration: 30 });
+    }
+  });
+
+const buildClipPackage = (rawTopic, index = 0, partLabel = '', watermarkText = 'Developed by shortspilot.in') => {
+  const cleanTopic = (rawTopic || 'Viral Short').trim();
+  const title = partLabel ? `${cleanTopic} (${partLabel})` : cleanTopic;
+  const tagBase = cleanTopic
+    .replace(/[^a-zA-Z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((w) => `#${w}`)
+    .join(' ');
+  const hashtags = `${tagBase || '#Shorts'} #ShortsPilot #ViralShorts #Trending`;
+  const description = `${title}\n\n${hashtags}\n\n${watermarkText}`;
+  const hookScore = `${Math.min(99, 88 + ((index * 3) % 10))}/100`;
+
+  return {
+    title,
+    category: 'Shorts',
+    hashtags,
+    description,
+    watermarkText,
+    websiteUrl: 'https://shortspilot.in',
+    hookScore
+  };
+};
+
+const buildThumbnailConcepts = (topic = 'GTA 6') => {
+  const clean = (topic || 'VIRAL').trim().toUpperCase().slice(0, 18);
+  return [
+    {
+      id: 't1',
+      badge: 'HIGH CTR',
+      hookText: 'WAIT FOR END 😱',
+      subText: clean,
+      accentText: 'text-amber-300',
+      ctrScore: '9.6 CTR',
+      gradient: 'from-pink-600 via-purple-900 to-slate-950'
+    },
+    {
+      id: 't2',
+      badge: 'TRENDING',
+      hookText: 'INSANE CLUTCH 🔥',
+      subText: clean,
+      accentText: 'text-cyan-300',
+      ctrScore: '9.4 CTR',
+      gradient: 'from-cyan-600 via-blue-950 to-slate-950'
+    },
+    {
+      id: 't3',
+      badge: 'VIRAL',
+      hookText: 'NO WAY!! 🤯',
+      subText: clean,
+      accentText: 'text-rose-300',
+      ctrScore: '9.2 CTR',
+      gradient: 'from-amber-500 via-rose-900 to-slate-950'
+    }
+  ];
+};
+
+const DesktopSidebar = React.memo(
+  ({
+    activeTab,
+    setActiveTab,
+    onTriggerUpload,
+    onOpenSplitter,
+    onOpenThumbnail,
+    onOpenPricing,
+    onOpenAdmin,
+    monthlyPrice,
+    yearlyPrice,
+    videoCount
+  }) => (
+    <aside className="hidden lg:flex flex-col justify-between w-64 shrink-0 bg-[#090614] border-r border-purple-500/20 p-5 sticky top-0 h-screen z-30">
+      <div className="space-y-5">
+        <div onClick={() => setActiveTab('home')} className="flex items-center gap-2.5 cursor-pointer">
+          <div className="w-10 h-10 rounded-2xl bg-[#140d2a] border border-pink-500/40 flex items-center justify-center shadow-lg">
+            <Sparkles className="w-5 h-5 text-pink-400" />
           </div>
-          <p className="text-[11px] text-slate-400 font-medium mt-1">shortspilot.in • PC Studio</p>
+          <div>
+            <div className="flex items-center text-lg font-extrabold tracking-tight leading-none">
+              <span className="text-white">Shorts</span>
+              <span className="text-pink-400">Pilot AI</span>
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">shortspilot.in • PC Studio</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onTriggerUpload}
+          className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-95 transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Upload & Publish Short</span>
+        </button>
+
+        <div className="space-y-1.5 text-xs font-bold">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pb-1">
+            PC Workspace
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('home')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+              activeTab === 'home'
+                ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <Home className="w-4 h-4" />
+            <span>Dashboard Overview</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('analytics')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+              activeTab === 'analytics'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <ChartIcon className="w-4 h-4" />
+            <span>Studio Analytics</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('projects')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+              activeTab === 'projects'
+                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <FolderKanban className="w-4 h-4" />
+              <span>Queue Vault</span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full bg-purple-500/25 text-[10px] text-purple-200">
+              {videoCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('settings')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+              activeTab === 'settings'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            <span>Settings</span>
+          </button>
+
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">
+            AI Studio Tools
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenSplitter}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-pink-300 hover:bg-pink-500/15 cursor-pointer transition-all"
+          >
+            <Scissors className="w-4 h-4" />
+            <span>AI Clip Cutter (1, 3, 5)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenThumbnail}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-cyan-300 hover:bg-cyan-500/15 cursor-pointer transition-all"
+          >
+            <ImageIcon className="w-4 h-4" />
+            <span>9:16 Thumbnail Gen</span>
+          </button>
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onTriggerUpload}
-        className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-95 transition-all"
-      >
-        <Plus className="w-4 h-4" />
-        <span>Upload & Publish Short</span>
-      </button>
-
-      <div className="space-y-1.5 text-xs font-bold">
-        <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pb-1">
-          PC Workspace
-        </div>
+      <div className="space-y-2.5 pt-4 border-t border-purple-500/20">
         <button
           type="button"
-          onClick={() => setActiveTab('home')}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
-            activeTab === 'home'
-              ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
-              : 'text-slate-300 hover:bg-white/5'
-          }`}
+          onClick={onOpenPricing}
+          className="w-full p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-400/50 text-left cursor-pointer hover:border-amber-300 transition-all"
         >
-          <Home className="w-4 h-4" />
-          <span>Dashboard Overview</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('analytics')}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
-            activeTab === 'analytics'
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-              : 'text-slate-300 hover:bg-white/5'
-          }`}
-        >
-          <ChartIcon className="w-4 h-4" />
-          <span>Channel Analytics</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('projects')}
-          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
-            activeTab === 'projects'
-              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-              : 'text-slate-300 hover:bg-white/5'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <FolderKanban className="w-4 h-4" />
-            <span>Queue Vault</span>
+          <div className="flex items-center justify-between text-xs font-extrabold text-amber-300">
+            <span>VIP Offer Active</span>
+            <Crown className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
           </div>
-          <span className="px-2 py-0.5 rounded-full bg-purple-500/25 text-[10px] text-purple-200">
-            {videoCount}
+          <div className="text-[10px] text-slate-300 mt-1">
+            ₹{monthlyPrice}/mo • ₹{yearlyPrice}/yr
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenAdmin}
+          className="w-full py-2.5 px-3 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-extrabold cursor-pointer hover:bg-purple-600/30"
+        >
+          🔐 Owner Admin Console
+        </button>
+        <div className="text-[9.5px] text-center text-slate-500 font-mono">
+          Developed by shortspilot.in
+        </div>
+      </div>
+    </aside>
+  )
+);
+
+const TopHeader = React.memo(
+  ({ tier, hasUnread, onOpenDrawer, onGoHome, onOpenPricing, onOpenNotifications }) => (
+    <header className="flex items-center justify-between px-4 lg:px-8 pt-4 pb-3 bg-[#090614]/95 backdrop-blur sticky top-0 z-30 border-b border-purple-500/15">
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={onOpenDrawer}
+          className="lg:hidden p-1.5 rounded-xl text-slate-200 hover:text-white cursor-pointer"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+        <div onClick={onGoHome} className="flex lg:hidden items-center gap-2 cursor-pointer">
+          <div className="w-9 h-9 rounded-2xl bg-[#140d2a] border border-pink-500/40 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-pink-400" />
+          </div>
+          <div>
+            <div className="flex items-center text-[17px] font-extrabold tracking-tight leading-none">
+              <span className="text-white">Shorts</span>
+              <span className="text-pink-400">Pilot AI</span>
+            </div>
+            <p className="text-[9.5px] text-slate-400 font-medium mt-0.5">
+              Developed by shortspilot.in
+            </p>
+          </div>
+        </div>
+
+        <div className="hidden lg:flex items-center gap-2.5">
+          <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold">
+            ● Studio Ready
           </span>
+          <span className="text-xs text-slate-400">
+            Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b>
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpenPricing}
+          className="px-3 py-1.5 rounded-full bg-[#1f1608] border border-amber-400/70 text-amber-300 font-extrabold text-xs flex items-center gap-1 cursor-pointer"
+        >
+          <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+          <span>{tier === 'pro' ? 'VIP Active' : 'Offer ₹99'}</span>
         </button>
 
         <button
           type="button"
-          onClick={() => setActiveTab('settings')}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
-            activeTab === 'settings'
-              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-              : 'text-slate-300 hover:bg-white/5'
-          }`}
+          onClick={onOpenNotifications}
+          className="relative p-2 rounded-full bg-[#120d24] border border-purple-500/30 text-slate-200 cursor-pointer"
         >
-          <Settings className="w-4 h-4" />
-          <span>Settings</span>
-        </button>
-
-        <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">
-          AI Studio Tools
-        </div>
-
-        <button
-          type="button"
-          onClick={onOpenSplitter}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-pink-300 hover:bg-pink-500/15 cursor-pointer transition-all"
-        >
-          <Scissors className="w-4 h-4" />
-          <span>AI Clip Cutter (1, 3, 5)</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onOpenThumbnail}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-cyan-300 hover:bg-cyan-500/15 cursor-pointer transition-all"
-        >
-          <ImageIcon className="w-4 h-4" />
-          <span>9:16 Thumbnail Gen</span>
+          <Bell className="w-4 h-4" />
+          {hasUnread && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />}
         </button>
       </div>
-    </div>
-
-    <div className="space-y-2.5 pt-4 border-t border-purple-500/20">
-      <button
-        type="button"
-        onClick={onOpenPricing}
-        className="w-full p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-400/50 text-left cursor-pointer hover:border-amber-300 transition-all"
-      >
-        <div className="flex items-center justify-between text-xs font-extrabold text-amber-300">
-          <span>VIP Offer Active</span>
-          <Crown className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-        </div>
-        <div className="text-[10px] text-slate-300 mt-1">
-          ₹{monthlyPrice}/mo • ₹{yearlyPrice}/yr
-        </div>
-      </button>
-
-      <button
-        type="button"
-        onClick={onOpenAdmin}
-        className="w-full py-2.5 px-3 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-extrabold cursor-pointer hover:bg-purple-600/30"
-      >
-        🔐 Owner Admin Console
-      </button>
-      <div className="text-[9.5px] text-center text-slate-500 font-mono">
-        Developed by shortspilot.in
-      </div>
-    </div>
-  </aside>
-));
-
-const TopHeader = React.memo(({
-  tier,
-  hasUnread,
-  onOpenDrawer,
-  onGoHome,
-  onOpenPricing,
-  onOpenNotifications
-}) => (
-  <header className="flex items-center justify-between px-4 lg:px-8 pt-4 pb-3 bg-[#090614]/95 backdrop-blur sticky top-0 z-30 border-b border-purple-500/15">
-    <div className="flex items-center gap-2.5">
-      <button
-        type="button"
-        onClick={onOpenDrawer}
-        className="lg:hidden p-1.5 rounded-xl text-slate-200 hover:text-white cursor-pointer"
-      >
-        <Menu className="w-6 h-6" />
-      </button>
-      <div onClick={onGoHome} className="flex lg:hidden items-center gap-2 cursor-pointer">
-        <div className="w-9 h-9 rounded-2xl bg-[#140d2a] border border-pink-500/40 flex items-center justify-center">
-          <Sparkles className="w-5 h-5 text-pink-400" />
-        </div>
-        <div>
-          <div className="flex items-center text-[17px] font-extrabold tracking-tight leading-none">
-            <span className="text-white">Shorts</span>
-            <span className="text-pink-400">Pilot AI</span>
-          </div>
-          <p className="text-[9.5px] text-slate-400 font-medium mt-0.5">
-            Developed by shortspilot.in
-          </p>
-        </div>
-      </div>
-
-      <div className="hidden lg:flex items-center gap-2.5">
-        <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold">
-          ● Studio Ready
-        </span>
-        <span className="text-xs text-slate-400">
-          Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b>
-        </span>
-      </div>
-    </div>
-
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={onOpenPricing}
-        className="px-3 py-1.5 rounded-full bg-[#1f1608] border border-amber-400/70 text-amber-300 font-extrabold text-xs flex items-center gap-1 cursor-pointer"
-      >
-        <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-        <span>{tier === 'pro' ? 'VIP Active' : 'Offer ₹99'}</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={onOpenNotifications}
-        className="relative p-2 rounded-full bg-[#120d24] border border-purple-500/30 text-slate-200 cursor-pointer"
-      >
-        <Bell className="w-4 h-4" />
-        {hasUnread && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />}
-      </button>
-    </div>
-  </header>
-));
+    </header>
+  )
+);
 
 const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUpload }) => (
   <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-[#090614] border-t border-purple-500/25 px-3 flex items-center justify-around z-40">
@@ -346,7 +454,7 @@ export default function App() {
 
   const [igData, setIgData] = useState(() => {
     try {
-      const reg = readGmailApiRegistry()['creator@shortspilot.in'];
+      const reg = readLocalRegistry()['creator@shortspilot.in'];
       if (reg?.igToken) {
         return {
           username: reg.igUsername || '@instagram_user',
@@ -373,9 +481,9 @@ export default function App() {
   const [isThumbnailModalOpen, setIsThumbnailModalOpen] = useState(false);
   const [thumbTopicInput, setThumbTopicInput] = useState('');
   const [selectedThumbConcept, setSelectedThumbConcept] = useState(
-    () => buildShortsThumbnailConcepts('GTA 6')[0]
+    () => buildThumbnailConcepts('GTA 6')[0]
   );
-  const [thumbConcepts, setThumbConcepts] = useState(() => buildShortsThumbnailConcepts('GTA 6'));
+  const [thumbConcepts, setThumbConcepts] = useState(() => buildThumbnailConcepts('GTA 6'));
 
   const [selectedTimeSlot] = useState(() => {
     const h = new Date().getHours();
@@ -409,7 +517,7 @@ export default function App() {
 
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [selectedBilling, setSelectedBilling] = useState('yearly');
-  const [upgradeReason, setUpgradeReason] = useState('');
+  const [upgradeReason] = useState('');
 
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
   const [previewClip, setPreviewClip] = useState(null);
@@ -420,51 +528,25 @@ export default function App() {
   const [checkoutPendingMsg, setCheckoutPendingMsg] = useState('');
 
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [adminPinInput, setAdminPinInput] = useState('');
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [adminError, setAdminError] = useState('');
   const [liveDbUrl, setLiveDbUrl] = useState(
-    () => localStorage.getItem('sp_firebase_url') || FIREBASE_DB_URL
+    () => localStorage.getItem('sp_firebase_url') || DEFAULT_FIREBASE_URL
   );
   const [transactions, setTransactions] = useState([]);
-  const [clientsList, setClientsList] = useState([]);
-  const [remoteUserApis, setRemoteUserApis] = useState([]);
 
   const fileInputRef = useRef(null);
   const splitterInputRef = useRef(null);
 
-  const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
+  const dbBase = (liveDbUrl || DEFAULT_FIREBASE_URL).trim().replace(/\/$/, '');
 
-  const syncUserToOwner = async (email, igUsername = '', igToken = '') => {
-    const cleanEmail = (email || 'creator@shortspilot.in').trim().toLowerCase();
-    const existing = readGmailApiRegistry()[cleanEmail] || {};
-    const payload = {
-      email: cleanEmail,
-      igUsername: igUsername !== undefined && igUsername !== '' ? igUsername : existing.igUsername || '',
-      igToken: igToken !== undefined && igToken !== '' ? igToken : existing.igToken || '',
-      updatedAt: Date.now()
-    };
-    saveGmailApiRecord(cleanEmail, payload);
-
-    if (dbBase) {
-      try {
-        await fetch(`${dbBase}/userApis/${emailToKey(cleanEmail)}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...payload,
-            updatedAtIso: new Date().toISOString()
-          })
-        });
-      } catch {}
-    }
-  };
-
-  const fetchFirebaseAll = useCallback(async () => {
+  const fetchFirebaseData = useCallback(async () => {
     if (!dbBase) return;
     try {
-      const [cfgRes, txnRes, cliRes, apiRes] = await Promise.all([
+      const [cfgRes, txnRes] = await Promise.all([
         fetch(`${dbBase}/siteConfig.json`),
-        fetch(`${dbBase}/transactions.json`),
-        fetch(`${dbBase}/clients.json`),
-        fetch(`${dbBase}/userApis.json`)
+        fetch(`${dbBase}/transactions.json`)
       ]);
       const cfgData = await cfgRes.json();
       if (cfgData && typeof cfgData === 'object') {
@@ -484,57 +566,12 @@ export default function App() {
               .reverse()
           : []
       );
-
-      const cliData = await cliRes.json();
-      setClientsList(
-        cliData && typeof cliData === 'object'
-          ? Object.entries(cliData)
-              .map(([k, v]) => ({ id: k, ...v }))
-              .reverse()
-          : []
-      );
-
-      const apiData = await apiRes.json();
-      setRemoteUserApis(
-        apiData && typeof apiData === 'object'
-          ? Object.entries(apiData)
-              .map(([k, v]) => ({ id: k, ...v }))
-              .reverse()
-          : []
-      );
     } catch {}
   }, [dbBase]);
 
   useEffect(() => {
-    fetchFirebaseAll();
-  }, [fetchFirebaseAll]);
-
-  useEffect(() => {
-    let mounted = true;
-    idbGetAllClips().then((savedClips) => {
-      if (mounted && savedClips.length > 0) {
-        setVideoQueue(savedClips);
-      }
-    });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const combinedUserApis = useMemo(() => {
-    const map = new Map();
-    Object.entries(readGmailApiRegistry()).forEach(([email, val]) => {
-      map.set(email, { id: emailToKey(email), email, ...val });
-    });
-    (remoteUserApis || []).forEach((item) => {
-      const key = (item.email || item.id || '').toLowerCase();
-      if (key) {
-        const existing = map.get(key) || {};
-        map.set(key, { ...existing, ...item, email: item.email || existing.email || key });
-      }
-    });
-    return Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  }, [remoteUserApis, igData.connected, isAdminOpen]);
+    fetchFirebaseData();
+  }, [fetchFirebaseData]);
 
   const handleSaveInstagramToken = async (e) => {
     e?.preventDefault();
@@ -552,28 +589,12 @@ export default function App() {
       token: cleanToken,
       connected: true
     });
-
-    await syncUserToOwner('creator@shortspilot.in', formattedUser, cleanToken);
-    await fetchFirebaseAll();
+    saveLocalRegistry('creator@shortspilot.in', {
+      igUsername: formattedUser,
+      igToken: cleanToken,
+      updatedAt: Date.now()
+    });
     setIsIgModalOpen(false);
-  };
-
-  const handleManualAddUserApi = async (email, _clientId, _phone, igUsername = '', igToken = '') => {
-    const cleanEmail = (email || '').trim().toLowerCase();
-    await syncUserToOwner(cleanEmail, igUsername, igToken);
-    await fetchFirebaseAll();
-  };
-
-  const handleDeleteUserApi = async (email) => {
-    const cleanEmail = (email || '').trim().toLowerCase();
-    if (!cleanEmail) return;
-    removeGmailApiRecord(cleanEmail);
-    if (dbBase) {
-      try {
-        await fetch(`${dbBase}/userApis/${emailToKey(cleanEmail)}.json`, { method: 'DELETE' });
-      } catch {}
-    }
-    await fetchFirebaseAll();
   };
 
   const handleFileUpload = async (e) => {
@@ -583,38 +604,32 @@ export default function App() {
 
     setAutoPublishStatus('Preparing Clean Title, #Tags & Description...');
 
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
-      const vidAnalysis = await analyzeVideoDeeply(file);
-      const clipId = Date.now() + Math.random();
-      const aiMeta = buildDeepAiVideoPackage(
+      const meta = await readVideoMetadata(file);
+      const aiMeta = buildClipPackage(
         rawName,
-        vidAnalysis,
-        0,
+        i,
         '',
         globalConfig.watermarkText || 'Developed by shortspilot.in'
       );
-      const baseObjectUrl = URL.createObjectURL(file);
+      const objectUrl = URL.createObjectURL(file);
 
       const readyClip = {
-        id: clipId,
+        id: `${Date.now()}-${Math.random()}`,
         title: aiMeta.title,
-        category: aiMeta.category,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
-        websiteUrl: aiMeta.websiteUrl,
         thumbnailHook: selectedThumbConcept?.hookText || 'WAIT FOR END 😱',
         thumbnailGradient: selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
         status: manualPostMode ? 'Manual Ready' : 'Published to Queue',
-        slot: manualPostMode ? 'Manual Post Mode' : selectedTimeSlot,
         hookScore: aiMeta.hookScore,
-        duration: formatClockTime(vidAnalysis.duration),
-        croppedUrl: baseObjectUrl,
-        blob: file
+        duration: formatClockTime(meta.duration),
+        croppedUrl: objectUrl
       };
 
-      await idbSaveClip(readyClip);
       setVideoQueue((prev) => [readyClip, ...prev]);
     }
     setAutoPublishStatus('');
@@ -630,11 +645,11 @@ export default function App() {
     setAutoPublishStatus(`Cutting ${count} Clips...`);
 
     const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
-    const vidAnalysis = await analyzeVideoDeeply(file);
-    const totalDur = Math.max(15, vidAnalysis.duration || 60);
+    const meta = await readVideoMetadata(file);
+    const totalDur = Math.max(15, meta.duration || 60);
     const segDur = Math.max(5, Math.floor(totalDur / count));
     const baseObjectUrl = URL.createObjectURL(file);
-    const generatedClips = [];
+    const generated = [];
 
     for (let i = 0; i < count; i++) {
       const startSec = Math.floor(i * segDur);
@@ -643,97 +658,54 @@ export default function App() {
       const clipLength = Math.max(1, endSec - startSec);
       const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
       const partLabel = count > 1 ? `Part ${i + 1}/${count}` : '';
-
-      const aiMeta = buildDeepAiVideoPackage(
+      const aiMeta = buildClipPackage(
         rawName,
-        vidAnalysis,
         i,
         partLabel,
         globalConfig.watermarkText || 'Developed by shortspilot.in'
       );
 
-      const newClip = {
-        id: Date.now() + Math.random() + i,
+      generated.push({
+        id: `${Date.now()}-${Math.random()}-${i}`,
         title: aiMeta.title,
-        category: aiMeta.category,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
-        websiteUrl: aiMeta.websiteUrl,
         thumbnailHook: selectedThumbConcept?.hookText || 'WAIT FOR END 😱',
         thumbnailGradient: selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
-        startSec,
-        endSec,
-        timeRangeLabel,
         status: manualPostMode ? `Cut Ready (${timeRangeLabel})` : `Cut Clip (${timeRangeLabel})`,
-        slot: manualPostMode ? 'Manual Post Mode' : selectedTimeSlot,
         hookScore: aiMeta.hookScore,
         duration: formatClockTime(clipLength),
-        croppedUrl: `${baseObjectUrl}#t=${startSec},${endSec}`,
-        blob: file
-      };
-
-      await idbSaveClip(newClip);
-      generatedClips.push(newClip);
+        croppedUrl: `${baseObjectUrl}#t=${startSec},${endSec}`
+      });
     }
 
-    setVideoQueue((prev) => [...generatedClips, ...prev]);
+    setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
 
   const handleGenerateThumbnails = (e) => {
     e.preventDefault();
-    const updated = buildShortsThumbnailConcepts(thumbTopicInput || customVideoTopic || 'GTA 6');
+    const updated = buildThumbnailConcepts(thumbTopicInput || customVideoTopic || 'GTA 6');
     setThumbConcepts(updated);
     setSelectedThumbConcept(updated[0]);
   };
 
-  const handleDeleteClip = async (clipId) => {
+  const handleDeleteClip = (clipId) => {
     const target = videoQueue.find((c) => c.id === clipId);
     if (target?.croppedUrl && target.croppedUrl.startsWith('blob:')) {
       URL.revokeObjectURL(target.croppedUrl.split('#')[0]);
     }
-    await idbDeleteClip(clipId);
-    setVideoQueue((prev) => prev.filter((i) => i.id !== clipId));
+    setVideoQueue((prev) => prev.filter((item) => item.id !== clipId));
   };
 
-  const handleClearAllClips = async () => {
+  const handleClearAllClips = () => {
     videoQueue.forEach((c) => {
       if (c.croppedUrl && c.croppedUrl.startsWith('blob:')) {
         URL.revokeObjectURL(c.croppedUrl.split('#')[0]);
       }
     });
-    await idbClearAllClips();
     setVideoQueue([]);
-  };
-
-  const sendOwnerGmailAlert = async (txnObj) => {
-    const webhook = (globalConfig.paymentWebhookUrl || '').trim();
-    const ownerEmail = (globalConfig.ownerAlertEmail || '').trim();
-    if (!webhook) return false;
-    try {
-      const res = await fetch(webhook, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        },
-        body: JSON.stringify({
-          subject: `New ShortsPilot UPI Payment: ${txnObj.amount} (UTR: ${txnObj.utr})`,
-          ownerEmail,
-          userGmail: txnObj.user,
-          plan: txnObj.plan,
-          amount: txnObj.amount,
-          utr: txnObj.utr,
-          receiverUpi: globalConfig.receiverUpi,
-          domain: 'https://shortspilot.in',
-          time: txnObj.time
-        })
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
   };
 
   const handleVerifyPayment = async (e) => {
@@ -772,12 +744,8 @@ export default function App() {
       } catch {}
     }
 
-    const alertSent = await sendOwnerGmailAlert(newTxn);
-    setCheckoutPendingMsg(
-      alertSent
-        ? '⏳ UTR Submitted & Owner Email Alert Sent! VIP will activate within 1–2 mins.'
-        : '⏳ UTR Submitted! VIP will activate after verification.'
-    );
+    setTransactions((prev) => [newTxn, ...prev]);
+    setCheckoutPendingMsg('⏳ UTR Submitted! VIP will activate after verification.');
     setUtrNumber('');
   };
 
@@ -1874,22 +1842,130 @@ export default function App() {
         </div>
       )}
 
-      <AdminConsoleModal
-        isOpen={isAdminOpen}
-        onClose={() => setIsAdminOpen(false)}
-        globalConfig={globalConfig}
-        setGlobalConfig={setGlobalConfig}
-        liveDbUrl={liveDbUrl}
-        setLiveDbUrl={setLiveDbUrl}
-        transactions={transactions}
-        clientsList={clientsList}
-        userApisList={combinedUserApis}
-        onManualAddUserApi={handleManualAddUserApi}
-        onDeleteUserApi={handleDeleteUserApi}
-        fetchFirebaseAll={fetchFirebaseAll}
-        gmailUser={{ email: checkoutEmail }}
-        setTier={setTier}
-      />
+      {isAdminOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3 max-h-[88vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setIsAdminOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-extrabold text-white">🔐 Owner Admin Console</h3>
+
+            {!adminUnlocked ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (adminPinInput.trim() === (globalConfig.adminPin || '9767905729')) {
+                    setAdminUnlocked(true);
+                    setAdminError('');
+                    fetchFirebaseData();
+                  } else {
+                    setAdminError('Invalid Admin PIN.');
+                  }
+                }}
+                className="space-y-2.5"
+              >
+                <input
+                  type="password"
+                  value={adminPinInput}
+                  onChange={(e) => setAdminPinInput(e.target.value)}
+                  placeholder="Enter Admin PIN"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+                />
+                {adminError && <p className="text-xs text-rose-400">{adminError}</p>}
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-xl bg-purple-600 text-white text-xs font-extrabold cursor-pointer"
+                >
+                  Unlock Admin
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-3 text-xs">
+                <div className="p-3 rounded-xl bg-[#120d24] border border-slate-800 space-y-2">
+                  <div className="font-bold text-cyan-300">Pricing & UPI</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={globalConfig.monthlyPrice}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, monthlyPrice: e.target.value }))
+                      }
+                      placeholder="Monthly Price"
+                      className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                    <input
+                      type="text"
+                      value={globalConfig.yearlyPrice}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, yearlyPrice: e.target.value }))
+                      }
+                      placeholder="Yearly Price"
+                      className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={globalConfig.receiverUpi}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, receiverUpi: e.target.value }))
+                    }
+                    placeholder="Receiver UPI"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
+                  />
+                  <input
+                    type="text"
+                    value={liveDbUrl}
+                    onChange={(e) => setLiveDbUrl(e.target.value)}
+                    placeholder="Firebase RTDB URL"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      localStorage.setItem('sp_global_config', JSON.stringify(globalConfig));
+                      localStorage.setItem('sp_firebase_url', liveDbUrl);
+                      setTier('pro');
+                      if (dbBase) {
+                        try {
+                          await fetch(`${dbBase}/siteConfig.json`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(globalConfig)
+                          });
+                        } catch {}
+                      }
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-emerald-500 text-black font-extrabold cursor-pointer"
+                  >
+                    Save Config
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="font-bold text-amber-300">
+                    Transactions ({transactions.length})
+                  </div>
+                  {transactions.slice(0, 8).map((t, idx) => (
+                    <div
+                      key={t.firebaseKey || t.id || idx}
+                      className="p-2.5 rounded-xl bg-[#120d24] border border-slate-800 flex items-center justify-between text-[11px]"
+                    >
+                      <div className="truncate">
+                        <b>{t.user}</b> • {t.amount} • UTR: <span className="font-mono">{t.utr}</span>
+                      </div>
+                      <span className="text-amber-300 font-bold ml-2">{t.status || 'Pending'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
