@@ -1561,7 +1561,7 @@ const uploadClipToYouTube = useCallback(
     setAutoPublishStatus('');
   };
 
-  const handleSplitFullVideo = async (e) => {
+const handleSplitFullVideo = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -1605,24 +1605,22 @@ const uploadClipToYouTube = useCallback(
 
       let clipStatus = manualPostMode
         ? `Cut Ready (${timeRangeLabel})`
-        : `Cut Clip (${timeRangeLabel})`;
+        : `Not Uploaded (${timeRangeLabel})`;
       let youtubeVideoId = '';
 
       if (!manualPostMode) {
-        try {
-          const ytRes = await uploadClipToYouTube({
-            ...aiMeta,
-            blob: file,
-            thumbnailBlob: thumb.blob
-          });
-          if (ytRes.uploaded) {
-            youtubeVideoId = ytRes.videoId || '';
-            clipStatus = `Uploaded (${youtubeVideoId || timeRangeLabel}) ✅`;
-          } else {
-            clipStatus = `Cut Ready • Connect Google (${timeRangeLabel})`;
-          }
-        } catch (err) {
-          clipStatus = `Cut Ready • ${err.message}`;
+        const ytRes = await uploadClipToYouTube({
+          ...aiMeta,
+          blob: file,
+          thumbnailBlob: thumb.blob
+        });
+
+        if (ytRes.uploaded && ytRes.videoId) {
+          youtubeVideoId = ytRes.videoId;
+          clipStatus = `Uploaded (${youtubeVideoId}) ✅`;
+        } else {
+          clipStatus = `Not Uploaded (${timeRangeLabel}): ${ytRes.error || 'Token missing'}`;
+          setLoginError(`YouTube Upload Nahi Hua: ${ytRes.error || 'Google token missing'}`);
         }
       }
 
@@ -1654,7 +1652,7 @@ const uploadClipToYouTube = useCallback(
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
-
+  
   const handleGenerateThumbnails = (e) => {
     e.preventDefault();
     const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
