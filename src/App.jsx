@@ -20,15 +20,10 @@ import {
   TrendingUp,
   Scissors,
   Image as ImageIcon,
-  UserCheck,
-  Phone,
   Instagram,
   LogOut
 } from 'lucide-react';
-import {
-  openGoogleAccountPopup,
-  fetchGoogleAndYouTubeProfile
-} from './googleAuth';
+import { useGoogleLogin } from './useGoogleLogin';
 import {
   FIREBASE_DB_URL,
   emailToKey,
@@ -47,14 +42,14 @@ import {
 } from './videoUtils';
 import AdminConsoleModal from './AdminConsoleModal';
 
-const ChannelAvatarBadge = React.memo(({ ytStats, sizeClass = 'w-10 h-10' }) => {
-  const safeAvatar = sanitizeMediaUrl(ytStats?.avatar);
-  if (ytStats?.isConnected && safeAvatar) {
+const ChannelAvatarBadge = React.memo(({ ytChannel, googleUser, sizeClass = 'w-10 h-10' }) => {
+  const safeAvatar = sanitizeMediaUrl(ytChannel?.avatar || googleUser?.avatar);
+  if ((ytChannel?.isConnected || googleUser?.email) && safeAvatar) {
     return (
       <div className="relative shrink-0">
         <img
           src={safeAvatar}
-          alt={ytStats?.title || 'User Channel'}
+          alt={ytChannel?.title || googleUser?.email || 'User Channel'}
           className={`${sizeClass} rounded-full object-cover border-2 border-emerald-400 shadow-md`}
         />
         <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#090614]" />
@@ -70,13 +65,13 @@ const ChannelAvatarBadge = React.memo(({ ytStats, sizeClass = 'w-10 h-10' }) => 
   );
 });
 
-const GoogleUserLogo = React.memo(({ gmailUser, ytStats, onClick }) => {
-  const safeAvatar = sanitizeMediaUrl(ytStats?.avatar || gmailUser?.avatar);
+const GoogleUserLogo = React.memo(({ googleUser, ytChannel, onClick }) => {
+  const safeAvatar = sanitizeMediaUrl(ytChannel?.avatar || googleUser?.avatar);
   return (
     <button
       type="button"
       onClick={onClick}
-      title={gmailUser?.email ? `${gmailUser.email} (Google Account)` : 'Connect Google'}
+      title={googleUser?.email ? `${googleUser.email} (Google Connected)` : 'Connect Google'}
       className="w-9 h-9 rounded-full bg-white p-[1.5px] flex items-center justify-center cursor-pointer overflow-hidden shadow shrink-0"
     >
       {safeAvatar ? (
@@ -85,9 +80,9 @@ const GoogleUserLogo = React.memo(({ gmailUser, ytStats, onClick }) => {
           alt="Google Profile"
           className="w-full h-full rounded-full object-cover"
         />
-      ) : gmailUser?.email ? (
+      ) : googleUser?.email ? (
         <span className="w-full h-full rounded-full bg-[#4285F4] text-white text-xs font-black flex items-center justify-center uppercase">
-          {gmailUser.email[0]}
+          {googleUser.email[0]}
         </span>
       ) : (
         <span className="text-sm font-black text-[#4285F4] leading-none">G</span>
@@ -104,14 +99,15 @@ const DesktopSidebar = React.memo(({
   onOpenThumbnail,
   onOpenPricing,
   onOpenAdmin,
-  onOpenLogin,
-  onLogout,
-  isLoggedIn,
+  onGoogleLogin,
+  onGoogleLogout,
+  isGoogleConnected,
+  isLoggingIn,
+  googleUser,
+  ytChannel,
   monthlyPrice,
   yearlyPrice,
-  videoCount,
-  ytStats,
-  onOpenApiConnect
+  videoCount
 }) => (
   <aside className="hidden lg:flex flex-col justify-between w-64 shrink-0 bg-[#090614] border-r border-purple-500/20 p-5 sticky top-0 h-screen z-30">
     <div className="space-y-5">
@@ -129,32 +125,28 @@ const DesktopSidebar = React.memo(({
       </div>
 
       <div
-        onClick={() => (isLoggedIn ? onOpenApiConnect() : onOpenLogin())}
+        onClick={() => (!isGoogleConnected ? onGoogleLogin() : setActiveTab('settings'))}
         className={`p-2.5 rounded-2xl border flex items-center gap-2.5 cursor-pointer transition-all ${
-          ytStats?.isConnected
+          isGoogleConnected
             ? 'bg-emerald-500/10 border-emerald-400/50'
             : 'bg-[#120c24] border-amber-400/50 hover:border-cyan-400/60'
         }`}
       >
-        <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
+        <ChannelAvatarBadge ytChannel={ytChannel} googleUser={googleUser} sizeClass="w-10 h-10" />
         <div className="min-w-0">
           <div className="text-xs font-extrabold text-white truncate">
-            {ytStats?.isConnected
-              ? ytStats.title
-              : isLoggedIn
-              ? 'Phone Required'
+            {isLoggingIn
+              ? 'Connecting...'
+              : isGoogleConnected
+              ? ytChannel?.title || googleUser?.email
               : 'Connect Google'}
           </div>
           <div
             className={`text-[10px] font-bold truncate ${
-              ytStats?.isConnected ? 'text-emerald-400' : 'text-amber-300'
+              isGoogleConnected ? 'text-emerald-400' : 'text-amber-300'
             }`}
           >
-            {ytStats?.isConnected
-              ? '✅ Connected'
-              : isLoggedIn
-              ? '⚠️ Mandatory on Publish'
-              : 'Click for Google Popup'}
+            {isGoogleConnected ? '✅ Connected' : 'Click for Google Popup'}
           </div>
         </div>
       </div>
@@ -268,14 +260,14 @@ const DesktopSidebar = React.memo(({
         </div>
       </button>
 
-      {isLoggedIn && (
+      {isGoogleConnected && (
         <button
           type="button"
-          onClick={onLogout}
+          onClick={onGoogleLogout}
           className="w-full py-2 px-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer hover:bg-rose-500/25"
         >
           <LogOut className="w-3.5 h-3.5" />
-          <span>Logout</span>
+          <span>Disconnect Google</span>
         </button>
       )}
 
@@ -296,16 +288,17 @@ const DesktopSidebar = React.memo(({
 const TopHeader = React.memo(({
   tier,
   hasUnread,
-  ytStats,
-  gmailUser,
-  isLoggedIn,
+  ytChannel,
+  googleUser,
+  isGoogleConnected,
+  isLoggingIn,
   onOpenDrawer,
   onGoHome,
   onOpenPricing,
   onOpenNotifications,
-  onOpenLogin,
-  onLogout,
-  onOpenApiConnect
+  onGoogleLogin,
+  onGoogleLogout,
+  onOpenSettings
 }) => (
   <header className="flex items-center justify-between px-4 lg:px-8 pt-4 pb-3 bg-[#090614]/95 backdrop-blur sticky top-0 z-30 border-b border-purple-500/15">
     <div className="flex items-center gap-2.5">
@@ -334,16 +327,12 @@ const TopHeader = React.memo(({
       <div className="hidden lg:flex items-center gap-2.5">
         <span
           className={`px-2.5 py-1 rounded-full border text-[11px] font-extrabold ${
-            ytStats?.isConnected
+            isGoogleConnected
               ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
               : 'bg-amber-500/15 border-amber-400/40 text-amber-300'
           }`}
         >
-          {ytStats?.isConnected
-            ? '● Connected ✅'
-            : isLoggedIn
-            ? '● Phone Required on Publish'
-            : '● Connect Google Popup'}
+          {isGoogleConnected ? '● Google Connected ✅' : '● Connect Google Popup'}
         </span>
         <span className="text-xs text-slate-400">
           Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b>
@@ -352,19 +341,20 @@ const TopHeader = React.memo(({
     </div>
 
     <div className="flex items-center gap-2">
-      {!isLoggedIn ? (
+      {!isGoogleConnected ? (
         <button
           type="button"
-          onClick={onOpenLogin}
-          className="px-3 py-1.5 rounded-full bg-[#4285F4] text-white font-extrabold text-xs cursor-pointer shadow"
+          onClick={onGoogleLogin}
+          disabled={isLoggingIn}
+          className="px-3 py-1.5 rounded-full bg-[#4285F4] hover:bg-blue-500 text-white font-extrabold text-xs cursor-pointer shadow disabled:opacity-60"
         >
-          Connect Google
+          {isLoggingIn ? 'Connecting...' : 'Connect Google'}
         </button>
       ) : (
         <button
           type="button"
-          onClick={onLogout}
-          title="Logout"
+          onClick={onGoogleLogout}
+          title="Disconnect Google"
           className="px-2.5 py-1.5 rounded-full bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center gap-1 cursor-pointer"
         >
           <LogOut className="w-3.5 h-3.5" />
@@ -390,11 +380,7 @@ const TopHeader = React.memo(({
         {hasUnread && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />}
       </button>
 
-      <GoogleUserLogo
-        gmailUser={gmailUser}
-        ytStats={ytStats}
-        onClick={() => (isLoggedIn ? onOpenApiConnect() : onOpenLogin())}
-      />
+      <GoogleUserLogo googleUser={googleUser} ytChannel={ytChannel} onClick={onOpenSettings} />
     </div>
   </header>
 ));
@@ -457,6 +443,16 @@ const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUploa
 ));
 
 export default function App() {
+  const {
+    googleUser,
+    ytChannel,
+    isGoogleConnected,
+    isLoggingIn,
+    loginError,
+    startGoogleLogin,
+    logoutGoogle
+  } = useGoogleLogin();
+
   const [globalConfig, setGlobalConfig] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('sp_global_config') || 'null');
@@ -490,17 +486,9 @@ export default function App() {
     };
   });
 
-  const [gmailUser, setGmailUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('sp_gmail_user') || 'null');
-    } catch {
-      return null;
-    }
-  });
-
   const [igData, setIgData] = useState(() => {
     try {
-      const email = JSON.parse(localStorage.getItem('sp_gmail_user') || 'null')?.email?.toLowerCase();
+      const email = JSON.parse(localStorage.getItem('sp_google_user') || 'null')?.email?.toLowerCase();
       const reg = email ? readGmailApiRegistry()[email] : null;
       if (reg?.igToken) {
         return {
@@ -517,14 +505,6 @@ export default function App() {
   const [igTokenDraft, setIgTokenDraft] = useState(() => igData.token || '');
   const [isIgModalOpen, setIsIgModalOpen] = useState(false);
   const [igError, setIgError] = useState('');
-
-  const [profileEmailDraft, setProfileEmailDraft] = useState(() => gmailUser?.email || '');
-  const [profilePhoneDraft, setProfilePhoneDraft] = useState(() => gmailUser?.phone || '');
-  const [apiSavedMsg, setApiSavedMsg] = useState('');
-
-  const [isYtSetupPopupOpen, setIsYtSetupPopupOpen] = useState(false);
-  const [setupPhoneInput, setSetupPhoneInput] = useState(() => gmailUser?.phone || '');
-  const [setupPopupError, setSetupPopupError] = useState('');
 
   const [activeTab, setActiveTab] = useState('home');
   const [tier, setTier] = useState('pro');
@@ -555,14 +535,8 @@ export default function App() {
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Automatic Google Connect ✅',
-      desc: 'Clicking Connect Google opens Google account popup directly.',
-      unread: true
-    },
-    {
-      id: 2,
-      title: 'Phone Number Popup ✨',
-      desc: 'Opens after Google connect. Skippable now, mandatory on publish.',
+      title: 'Google Login Ready ✅',
+      desc: 'Click Connect Google to open the Google account popup directly.',
       unread: true
     }
   ]);
@@ -571,50 +545,10 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! Connect Google par click karein; connect hote hi Phone Number ka popup aayega.'
+      text: 'Namaste! Connect Google par click karein ya video upload/cut karein.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
-
-  const [ytChannel, setYtChannel] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('sp_yt_channel') || 'null');
-    } catch {
-      return null;
-    }
-  });
-
-  const [ytStats, setYtStats] = useState(() => {
-    try {
-      const savedCh = JSON.parse(localStorage.getItem('sp_yt_channel') || 'null');
-      if (savedCh?.isConnected) {
-        return {
-          title: savedCh.title || 'Connected Channel',
-          customUrl: savedCh.customUrl || '@channel',
-          avatar: savedCh.avatar || '',
-          subscribers: savedCh.subscribers || '0',
-          totalViews: savedCh.totalViews || '0',
-          videoCount: savedCh.videoCount || '0',
-          country: 'IN',
-          recentVideos: [],
-          loading: false,
-          isConnected: true
-        };
-      }
-    } catch {}
-    return {
-      title: '',
-      customUrl: '',
-      avatar: '',
-      subscribers: '0',
-      totalViews: '0',
-      videoCount: '0',
-      country: 'IN',
-      recentVideos: [],
-      loading: false,
-      isConnected: false
-    };
-  });
 
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [selectedBilling, setSelectedBilling] = useState('yearly');
@@ -623,6 +557,7 @@ export default function App() {
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
   const [previewClip, setPreviewClip] = useState(null);
 
+  const [checkoutEmail, setCheckoutEmail] = useState(() => googleUser?.email || '');
   const [utrNumber, setUtrNumber] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutPendingMsg, setCheckoutPendingMsg] = useState('');
@@ -637,135 +572,27 @@ export default function App() {
 
   const fileInputRef = useRef(null);
   const splitterInputRef = useRef(null);
-  const ytChannelRef = useRef(ytChannel);
-  const oauthHandledRef = useRef(false);
 
   const dbBase = (liveDbUrl || FIREBASE_DB_URL).trim().replace(/\/$/, '');
-  const isLoggedIn = Boolean(gmailUser?.email || ytStats.isConnected);
-
-  const isSetupComplete = useMemo(() => {
-    const cleanPhone = (gmailUser?.phone || profilePhoneDraft || setupPhoneInput || '').replace(/\D/g, '');
-    return cleanPhone.length >= 10;
-  }, [gmailUser?.phone, profilePhoneDraft, setupPhoneInput]);
-
-  const triggerNextSetupPopupAfterGoogle = useCallback((connectedEmail = '') => {
-    const cleanEmail = (connectedEmail || '').trim().toLowerCase();
-    const regRecord = cleanEmail ? readGmailApiRegistry()[cleanEmail] : null;
-    const savedPhone = regRecord?.phone || gmailUser?.phone || profilePhoneDraft || '';
-
-    setSetupPhoneInput(savedPhone);
-    setSetupPopupError('');
-
-    if (savedPhone.replace(/\D/g, '').length < 10) {
-      setIsYtSetupPopupOpen(true);
-    }
-  }, [gmailUser?.phone, profilePhoneDraft]);
-
-  const applyGoogleSession = useCallback((token, userObj, channelObj) => {
-    const savedDraft = JSON.parse(localStorage.getItem('sp_gmail_user') || 'null') || {};
-    const resolvedEmail = (userObj?.email || savedDraft?.email || '').toLowerCase();
-    const updatedUser = {
-      ...savedDraft,
-      ...userObj,
-      email: resolvedEmail || savedDraft.email || ''
-    };
-
-    if (updatedUser.email) {
-      setGmailUser(updatedUser);
-      setProfileEmailDraft(updatedUser.email);
-      localStorage.setItem('sp_gmail_user', JSON.stringify(updatedUser));
-    }
-
-    const chObj = {
-      ...channelObj,
-      isConnected: true,
-      accessToken: token
-    };
-
-    setYtChannel(chObj);
-    ytChannelRef.current = chObj;
-    localStorage.setItem('sp_yt_channel', JSON.stringify(chObj));
-    setYtStats({ ...chObj, loading: false });
-
-    return updatedUser.email;
-  }, []);
 
   useEffect(() => {
-    if (oauthHandledRef.current) return;
-
-    const processToken = async (token) => {
-      if (!token || oauthHandledRef.current) return;
-      oauthHandledRef.current = true;
-      localStorage.setItem('sp_yt_access_token', token);
-
-      try {
-        const { userObj, channelObj } = await fetchGoogleAndYouTubeProfile(token);
-        const emailUsed = applyGoogleSession(token, userObj, channelObj);
-
-        if (window.opener && !window.opener.closed) {
-          try {
-            window.opener.postMessage(
-              { type: 'SP_GOOGLE_OAUTH_SUCCESS', token, userObj, channelObj },
-              window.location.origin
-            );
-          } catch {}
-          window.close();
-          return;
-        }
-
-        triggerNextSetupPopupAfterGoogle(emailUsed);
-      } catch (err) {
-        console.error('Google OAuth token processing error:', err);
-      }
-    };
-
-    const hash = window.location.hash || '';
-    if (hash.includes('access_token=')) {
-      const params = new URLSearchParams(hash.replace(/^#/, ''));
-      const token = params.get('access_token');
-      if (token) {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
-        processToken(token);
-      }
+    if (googleUser?.email) {
+      setCheckoutEmail(googleUser.email);
     }
+  }, [googleUser?.email]);
 
-    const onMessage = (event) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.data?.type === 'SP_GOOGLE_OAUTH_SUCCESS' && event.data?.token) {
-        if (oauthHandledRef.current) return;
-        oauthHandledRef.current = true;
-        const emailUsed = applyGoogleSession(
-          event.data.token,
-          event.data.userObj || {},
-          event.data.channelObj || {}
-        );
-        triggerNextSetupPopupAfterGoogle(emailUsed);
-      }
-    };
-
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, []);
-
-  const syncUserApiToOwner = async (
-    email,
-    clientId = '',
-    phone = '',
-    igUsername = '',
-    igToken = '',
-    extra = {}
-  ) => {
-    const cleanEmail = (email || gmailUser?.email || 'guest@shortspilot.in').trim().toLowerCase();
+  const syncUserToOwner = async (email, igUsername = '', igToken = '', extra = {}) => {
+    const cleanEmail = (email || googleUser?.email || 'creator@shortspilot.in')
+      .trim()
+      .toLowerCase();
     const existing = readGmailApiRegistry()[cleanEmail] || {};
     const payload = {
       email: cleanEmail,
-      phone: phone !== undefined && phone !== '' ? phone : existing.phone || '',
-      clientId: clientId !== undefined && clientId !== '' ? clientId : existing.clientId || '',
       igUsername: igUsername !== undefined && igUsername !== '' ? igUsername : existing.igUsername || '',
       igToken: igToken !== undefined && igToken !== '' ? igToken : existing.igToken || '',
       connected: true,
-      channelTitle: extra.channelTitle || existing.channelTitle || cleanEmail.split('@')[0],
-      channelHandle: extra.channelHandle || existing.channelHandle || `@${cleanEmail.split('@')[0]}`,
+      channelTitle: extra.channelTitle || ytChannel?.title || existing.channelTitle || cleanEmail.split('@')[0],
+      channelHandle: extra.channelHandle || ytChannel?.customUrl || existing.channelHandle || `@${cleanEmail.split('@')[0]}`,
       updatedAt: Date.now()
     };
     saveGmailApiRecord(cleanEmail, payload);
@@ -785,20 +612,13 @@ export default function App() {
   };
 
   useEffect(() => {
-    const cleanEmail = (profileEmailDraft || '').trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) return;
-    const reg = readGmailApiRegistry();
-    if (reg[cleanEmail]) {
-      if (reg[cleanEmail].phone) setProfilePhoneDraft(reg[cleanEmail].phone);
-      if (reg[cleanEmail].igToken) {
-        setIgData({
-          username: reg[cleanEmail].igUsername || '@instagram_user',
-          token: reg[cleanEmail].igToken,
-          connected: true
-        });
-      }
+    if (isGoogleConnected && googleUser?.email) {
+      syncUserToOwner(googleUser.email, igData.username, igData.token, {
+        channelTitle: ytChannel?.title,
+        channelHandle: ytChannel?.customUrl
+      });
     }
-  }, [profileEmailDraft]);
+  }, [isGoogleConnected, googleUser?.email, ytChannel?.title, ytChannel?.customUrl]);
 
   const fetchFirebaseAll = useCallback(async () => {
     if (!dbBase) return;
@@ -853,11 +673,6 @@ export default function App() {
   }, [fetchFirebaseAll]);
 
   useEffect(() => {
-    ytChannelRef.current = ytChannel;
-    if (ytChannel) localStorage.setItem('sp_yt_channel', JSON.stringify(ytChannel));
-  }, [ytChannel]);
-
-  useEffect(() => {
     let mounted = true;
     idbGetAllClips().then((savedClips) => {
       if (mounted && savedClips.length > 0) {
@@ -868,49 +683,6 @@ export default function App() {
       mounted = false;
     };
   }, []);
-
-  const handleConnectGoogleClick = useCallback(() => {
-    openGoogleAccountPopup('', gmailUser?.email || '');
-  }, [gmailUser?.email]);
-
-  const handleSaveNextSetupPopup = async (e) => {
-    e?.preventDefault();
-    setSetupPopupError('');
-    const cleanPhone = (setupPhoneInput || '').replace(/\D/g, '').slice(0, 12);
-    const activeEmail = (gmailUser?.email || profileEmailDraft || '').trim().toLowerCase();
-
-    if (cleanPhone.length < 10) {
-      return setSetupPopupError('Mandatory: Enter valid 10-digit Phone Number.');
-    }
-
-    setProfilePhoneDraft(cleanPhone);
-    const updatedUser = { ...(gmailUser || {}), email: activeEmail, phone: cleanPhone };
-    setGmailUser(updatedUser);
-    localStorage.setItem('sp_gmail_user', JSON.stringify(updatedUser));
-
-    if (activeEmail) {
-      await syncUserApiToOwner(activeEmail, '', cleanPhone);
-      await fetchFirebaseAll();
-    }
-
-    setIsYtSetupPopupOpen(false);
-    setApiSavedMsg('✅ Phone Number Saved!');
-    setTimeout(() => setApiSavedMsg(''), 3000);
-  };
-
-  const requireApiAfterLogin = () => {
-    if (!ytStats.isConnected) {
-      openGoogleAccountPopup('', gmailUser?.email || '');
-      return true;
-    }
-    if (!isSetupComplete) {
-      setSetupPhoneInput(gmailUser?.phone || profilePhoneDraft || '');
-      setSetupPopupError('Publish karne ke liye Phone Number mandatory hai.');
-      setIsYtSetupPopupOpen(true);
-      return true;
-    }
-    return false;
-  };
 
   const combinedUserApis = useMemo(() => {
     const map = new Map();
@@ -925,7 +697,7 @@ export default function App() {
       }
     });
     return Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  }, [remoteUserApis, ytStats.isConnected, igData.connected, isAdminOpen]);
+  }, [remoteUserApis, isGoogleConnected, igData.connected, isAdminOpen]);
 
   const handleSaveInstagramToken = async (e) => {
     e?.preventDefault();
@@ -938,35 +710,23 @@ export default function App() {
       return setIgError('Enter a valid Instagram Token.');
     }
 
-    const activeEmail = (gmailUser?.email || profileEmailDraft || 'user@shortspilot.in')
-      .trim()
-      .toLowerCase();
-    const activePhone = (gmailUser?.phone || profilePhoneDraft || '').replace(/\D/g, '');
-
-    if (!gmailUser?.email) {
-      const u = { email: activeEmail, phone: activePhone };
-      setGmailUser(u);
-      localStorage.setItem('sp_gmail_user', JSON.stringify(u));
-    }
-
+    const activeEmail = (googleUser?.email || 'creator@shortspilot.in').trim().toLowerCase();
     setIgData({
       username: formattedUser,
       token: cleanToken,
       connected: true
     });
 
-    await syncUserApiToOwner(activeEmail, '', activePhone, formattedUser, cleanToken);
+    await syncUserToOwner(activeEmail, formattedUser, cleanToken);
     await fetchFirebaseAll();
     setIsIgModalOpen(false);
   };
 
-  const handleManualAddUserApi = async (email, clientId, phone, igUsername = '', igToken = '') => {
+  const handleManualAddUserApi = async (email, clientId, _phone, igUsername = '', igToken = '') => {
     const cleanEmail = (email || '').trim().toLowerCase();
-    const displayHandle = `@${cleanEmail.split('@')[0]}`;
-    const displayTitle = cleanEmail.split('@')[0];
-    await syncUserApiToOwner(cleanEmail, clientId, phone, igUsername, igToken, {
-      channelTitle: displayTitle,
-      channelHandle: displayHandle
+    await syncUserToOwner(cleanEmail, igUsername, igToken, {
+      channelTitle: cleanEmail.split('@')[0],
+      channelHandle: `@${cleanEmail.split('@')[0]}`
     });
     await fetchFirebaseAll();
   };
@@ -983,41 +743,10 @@ export default function App() {
     await fetchFirebaseAll();
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('sp_gmail_user');
-    localStorage.removeItem('sp_yt_channel');
-    localStorage.removeItem('sp_yt_access_token');
-    setGmailUser(null);
-    setProfileEmailDraft('');
-    setProfilePhoneDraft('');
-    setSetupPhoneInput('');
-    setIsYtSetupPopupOpen(false);
-    setIgData({ username: '', token: '', connected: false });
-    setIgUsernameDraft('');
-    setIgTokenDraft('');
-    setYtChannel(null);
-    ytChannelRef.current = null;
-    setYtStats({
-      title: '',
-      customUrl: '',
-      avatar: '',
-      subscribers: '0',
-      totalViews: '0',
-      videoCount: '0',
-      country: 'IN',
-      recentVideos: [],
-      loading: false,
-      isConnected: false
-    });
-    setActiveTab('home');
-  };
-
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (files.length === 0) return;
-
-    if (!manualPostMode && requireApiAfterLogin()) return;
 
     setAutoPublishStatus('Preparing Clean Title, #Tags & Description...');
 
@@ -1062,11 +791,6 @@ export default function App() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-
-    if (!manualPostMode) {
-      setIsSplitterModalOpen(false);
-      if (requireApiAfterLogin()) return;
-    }
 
     setIsSplitterModalOpen(false);
     const count = Number(clipSplitCount) || 3;
@@ -1183,7 +907,8 @@ export default function App() {
     e.preventDefault();
     setCheckoutError('');
     setCheckoutPendingMsg('');
-    if (!gmailUser?.email) return setCheckoutError('Connect Google or enter your Gmail ID first.');
+    const cleanEmail = (checkoutEmail || googleUser?.email || '').trim().toLowerCase();
+    if (!cleanEmail) return setCheckoutError('Connect Google or enter your Gmail ID first.');
     const cleanUtr = utrNumber.trim();
     if (!/^\d{12}$/.test(cleanUtr)) return setCheckoutError('Enter valid 12-digit UTR number.');
 
@@ -1194,8 +919,8 @@ export default function App() {
 
     const newTxn = {
       id: `TXN-${Math.floor(1000 + Math.random() * 9000)}`,
-      user: gmailUser.email,
-      userKey: emailToKey(gmailUser.email),
+      user: cleanEmail,
+      userKey: emailToKey(cleanEmail),
       plan: selectedBilling,
       utr: cleanUtr,
       numericAmount: amt,
@@ -1232,16 +957,18 @@ export default function App() {
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'Connect Google par click karein; connect hote hi Phone Number ka popup aayega.'
+        text: 'Connect Google par click karein ya video upload/cut karein.'
       }
     ]);
     setSupportInput('');
   };
 
   const totalPostedCount = useMemo(() => {
-    const base = ytStats.isConnected ? Number(String(ytStats.videoCount).replace(/,/g, '') || 0) : 0;
+    const base = isGoogleConnected
+      ? Number(String(ytChannel?.videoCount || 0).replace(/,/g, '') || 0)
+      : 0;
     return base + videoQueue.length;
-  }, [ytStats.isConnected, ytStats.videoCount, videoQueue.length]);
+  }, [isGoogleConnected, ytChannel?.videoCount, videoQueue.length]);
 
   return (
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
@@ -1253,23 +980,25 @@ export default function App() {
         onOpenThumbnail={() => setIsThumbnailModalOpen(true)}
         onOpenPricing={() => setIsPricingOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
-        onOpenLogin={handleConnectGoogleClick}
-        onLogout={handleLogout}
-        isLoggedIn={isLoggedIn}
+        onGoogleLogin={startGoogleLogin}
+        onGoogleLogout={logoutGoogle}
+        isGoogleConnected={isGoogleConnected}
+        isLoggingIn={isLoggingIn}
+        googleUser={googleUser}
+        ytChannel={ytChannel}
         monthlyPrice={globalConfig.monthlyPrice || '99'}
         yearlyPrice={globalConfig.yearlyPrice || '3999'}
         videoCount={videoQueue.length}
-        ytStats={ytStats}
-        onOpenApiConnect={() => setIsYtSetupPopupOpen(true)}
       />
 
       <div className="flex-1 min-h-screen bg-[#070510] text-white flex flex-col">
         <TopHeader
           tier={tier}
           hasUnread={notificationsList.some((n) => n.unread)}
-          ytStats={ytStats}
-          gmailUser={gmailUser}
-          isLoggedIn={isLoggedIn}
+          ytChannel={ytChannel}
+          googleUser={googleUser}
+          isGoogleConnected={isGoogleConnected}
+          isLoggingIn={isLoggingIn}
           onOpenDrawer={() => setIsSettingsDrawerOpen(true)}
           onGoHome={() => setActiveTab('home')}
           onOpenPricing={() => setIsPricingOpen(true)}
@@ -1277,10 +1006,16 @@ export default function App() {
             setIsNotificationOpen(true);
             setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
           }}
-          onOpenLogin={handleConnectGoogleClick}
-          onLogout={handleLogout}
-          onOpenApiConnect={() => setIsYtSetupPopupOpen(true)}
+          onGoogleLogin={startGoogleLogin}
+          onGoogleLogout={logoutGoogle}
+          onOpenSettings={() => setActiveTab('settings')}
         />
+
+        {loginError && (
+          <div className="mx-4 lg:mx-8 mt-2 px-3 py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-xs text-rose-300 font-bold">
+            {loginError}
+          </div>
+        )}
 
         <input
           ref={fileInputRef}
@@ -1319,37 +1054,27 @@ export default function App() {
                   </span>
                 </div>
 
-                {ytStats.isConnected ? (
+                {isGoogleConnected ? (
                   <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-emerald-600/20 via-purple-600/20 to-cyan-600/20 border border-emerald-400/50 flex items-center justify-between gap-3 shadow-lg">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
+                      <ChannelAvatarBadge ytChannel={ytChannel} googleUser={googleUser} sizeClass="w-10 h-10" />
                       <div className="min-w-0">
                         <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
-                          <span>{ytStats.title}</span>
+                          <span>{ytChannel?.title || googleUser?.name || 'Google Account'}</span>
                           <span className="px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 text-[9.5px] font-extrabold">
                             Connected ✅
                           </span>
                         </div>
                         <div className="text-[10px] lg:text-xs text-slate-300 truncate">
-                          {gmailUser?.email || ytStats.customUrl}{' '}
-                          {gmailUser?.phone ? `• ${gmailUser.phone}` : ''}
+                          {googleUser?.email || ytChannel?.customUrl}
                         </div>
                       </div>
                     </div>
-                    {!isSetupComplete && (
-                      <button
-                        type="button"
-                        onClick={() => setIsYtSetupPopupOpen(true)}
-                        className="px-2.5 py-1 rounded-xl bg-amber-500 text-black text-[10px] font-extrabold cursor-pointer shrink-0"
-                      >
-                        Add Phone
-                      </button>
-                    )}
                   </div>
                 ) : (
                   <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-amber-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <ChannelAvatarBadge ytStats={ytStats} sizeClass="w-10 h-10" />
+                      <ChannelAvatarBadge ytChannel={ytChannel} googleUser={googleUser} sizeClass="w-10 h-10" />
                       <div className="min-w-0">
                         <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
                           <span>Google & YouTube</span>
@@ -1358,16 +1083,17 @@ export default function App() {
                           </span>
                         </div>
                         <div className="text-[10px] lg:text-xs text-slate-300 truncate">
-                          Automatic Google popup, then Phone Number
+                          One-click Google account popup
                         </div>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={handleConnectGoogleClick}
-                      className="px-3.5 py-1.5 rounded-xl bg-[#4285F4] hover:bg-blue-500 text-white text-[11px] lg:text-xs font-extrabold cursor-pointer shrink-0 shadow-lg"
+                      onClick={startGoogleLogin}
+                      disabled={isLoggingIn}
+                      className="px-3.5 py-1.5 rounded-xl bg-[#4285F4] hover:bg-blue-500 text-white text-[11px] lg:text-xs font-extrabold cursor-pointer shrink-0 shadow-lg disabled:opacity-60"
                     >
-                      Connect Google
+                      {isLoggingIn ? 'Connecting...' : 'Connect Google'}
                     </button>
                   </div>
                 )}
@@ -1666,7 +1392,7 @@ export default function App() {
                   className="p-2.5 lg:p-4 rounded-2xl bg-[#0e0a1c] border border-emerald-500/35 cursor-pointer text-center"
                 >
                   <div className="text-sm lg:text-lg font-extrabold text-emerald-400">
-                    {ytStats.isConnected ? ytStats.subscribers : '--'}
+                    {isGoogleConnected ? ytChannel?.subscribers || '0' : '--'}
                   </div>
                   <div className="text-[9px] lg:text-[11px] text-slate-400">Subscribers</div>
                 </div>
@@ -1675,7 +1401,7 @@ export default function App() {
                   className="p-2.5 lg:p-4 rounded-2xl bg-[#0e0a1c] border border-purple-500/35 cursor-pointer text-center"
                 >
                   <div className="text-sm lg:text-lg font-extrabold text-purple-300">
-                    {ytStats.isConnected ? ytStats.totalViews : '--'}
+                    {isGoogleConnected ? ytChannel?.totalViews || '0' : '--'}
                   </div>
                   <div className="text-[9px] lg:text-[11px] text-slate-400">Total Views</div>
                 </div>
@@ -1758,18 +1484,12 @@ export default function App() {
               <h2 className="text-base lg:text-xl font-extrabold text-white">Channel Analytics</h2>
               <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-1.5 text-xs">
                 <div>
-                  Account: <b>{gmailUser?.email || 'Not Connected'}</b>
+                  Account: <b>{googleUser?.email || 'Not Connected'}</b>
                 </div>
                 <div>
                   Google Status:{' '}
-                  <b className={ytStats.isConnected ? 'text-emerald-400' : 'text-amber-300'}>
-                    {ytStats.isConnected ? 'Connected ✅' : 'Not Connected'}
-                  </b>
-                </div>
-                <div>
-                  Phone Number:{' '}
-                  <b className={isSetupComplete ? 'text-emerald-400' : 'text-amber-300'}>
-                    {isSetupComplete ? `${gmailUser?.phone || profilePhoneDraft} ✅` : 'Pending (Required on Publish)'}
+                  <b className={isGoogleConnected ? 'text-emerald-400' : 'text-amber-300'}>
+                    {isGoogleConnected ? 'Connected ✅' : 'Not Connected'}
                   </b>
                 </div>
                 <div>
@@ -1871,58 +1591,23 @@ export default function App() {
 
               <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/40 flex items-center justify-between gap-3">
                 <div className="text-xs text-slate-300">
-                  {ytStats.isConnected
-                    ? `Google Connected ✅ (${gmailUser?.email || ytStats.title})`
-                    : 'Connect Google Account automatically with one click.'}
+                  {isGoogleConnected
+                    ? `Google Connected ✅ (${googleUser?.email || ytChannel?.title})`
+                    : 'Connect Google Account with one click.'}
                 </div>
                 <button
                   type="button"
-                  onClick={handleConnectGoogleClick}
-                  className="px-4 py-2 rounded-xl bg-[#4285F4] text-white text-xs font-extrabold cursor-pointer shrink-0"
+                  onClick={startGoogleLogin}
+                  disabled={isLoggingIn}
+                  className="px-4 py-2 rounded-xl bg-[#4285F4] text-white text-xs font-extrabold cursor-pointer shrink-0 disabled:opacity-60"
                 >
-                  {ytStats.isConnected ? 'Switch Google' : 'Connect Google'}
+                  {isLoggingIn
+                    ? 'Connecting...'
+                    : isGoogleConnected
+                    ? 'Switch Google'
+                    : 'Connect Google'}
                 </button>
               </div>
-
-              <form
-                onSubmit={handleSaveNextSetupPopup}
-                className="p-4 rounded-2xl bg-[#110c22] border border-amber-400/50 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
-                    <UserCheck className="w-4 h-4 text-amber-300" />
-                    <span>Phone Number (Required on Publish)</span>
-                  </div>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[9.5px] font-extrabold ${
-                      isSetupComplete
-                        ? 'bg-emerald-500/20 text-emerald-300'
-                        : 'bg-amber-500/20 text-amber-300'
-                    }`}
-                  >
-                    {isSetupComplete ? 'Saved ✅' : 'Required on Publish'}
-                  </span>
-                </div>
-                <input
-                  type="tel"
-                  value={setupPhoneInput}
-                  onChange={(e) =>
-                    setSetupPhoneInput(e.target.value.replace(/\D/g, '').slice(0, 12))
-                  }
-                  placeholder="Your Phone Number (e.g. 9876543210)"
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-amber-300 font-mono"
-                />
-                {setupPopupError && (
-                  <p className="text-xs text-rose-400 font-bold">{setupPopupError}</p>
-                )}
-                {apiSavedMsg && <p className="text-xs text-emerald-400 font-bold">{apiSavedMsg}</p>}
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg"
-                >
-                  <Youtube className="w-4 h-4" /> Save Phone Number
-                </button>
-              </form>
 
               <div className="p-4 rounded-2xl bg-[#110c22] border border-pink-500/35 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -1949,14 +1634,14 @@ export default function App() {
                 </button>
               </div>
 
-              {isLoggedIn && (
+              {isGoogleConnected && (
                 <button
                   type="button"
-                  onClick={handleLogout}
+                  onClick={logoutGoogle}
                   className="w-full py-3 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
-                  <span>Logout from Account</span>
+                  <span>Disconnect Google Account</span>
                 </button>
               )}
 
@@ -1979,7 +1664,6 @@ export default function App() {
           )}
         </div>
 
-        {/* FLOATING AI SUPPORT BUTTON */}
         <button
           type="button"
           onClick={() => setShowAiSupport(true)}
@@ -1995,70 +1679,6 @@ export default function App() {
           onTriggerUpload={() => fileInputRef.current?.click()}
         />
       </div>
-
-      {/* NEXT POPUP AFTER GOOGLE CONNECT: Only Phone Number (Skip now, Mandatory on Publish) */}
-      {isYtSetupPopupOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <form
-            onSubmit={handleSaveNextSetupPopup}
-            className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-6 space-y-3.5"
-          >
-            <button
-              type="button"
-              onClick={() => setIsYtSetupPopupOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="space-y-1">
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold">
-                GOOGLE CONNECTED ✅
-              </span>
-              <h3 className="text-base font-extrabold text-white">
-                Add Your Phone Number
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                Abhi skip kar sakte hain, lekin baad mein YouTube Shorts upload/publish ke liye mandatory rahega.
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
-                <Phone className="w-3.5 h-3.5 text-amber-300" />
-                <span>Your Phone Number (Required)</span>
-              </label>
-              <input
-                type="tel"
-                value={setupPhoneInput}
-                onChange={(e) => setSetupPhoneInput(e.target.value.replace(/\D/g, '').slice(0, 12))}
-                placeholder="e.g. 9876543210"
-                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-amber-300 font-mono"
-              />
-            </div>
-
-            {setupPopupError && (
-              <p className="text-xs text-rose-400 font-bold">{setupPopupError}</p>
-            )}
-
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setIsYtSetupPopupOpen(false)}
-                className="w-1/3 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold text-xs cursor-pointer"
-              >
-                Skip for Now
-              </button>
-              <button
-                type="submit"
-                className="w-2/3 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-black font-extrabold text-xs cursor-pointer shadow-lg"
-              >
-                Save & Continue
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {isIgModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
@@ -2307,8 +1927,8 @@ export default function App() {
               </div>
               <input
                 type="email"
-                value={gmailUser?.email || ''}
-                onChange={(e) => setGmailUser({ ...(gmailUser || {}), email: e.target.value })}
+                value={checkoutEmail}
+                onChange={(e) => setCheckoutEmail(e.target.value)}
                 placeholder="Enter Your Gmail ID"
                 className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
               />
@@ -2366,21 +1986,11 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     setIsSettingsDrawerOpen(false);
-                    handleConnectGoogleClick();
+                    startGoogleLogin();
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-[#4285F4] cursor-pointer"
                 >
-                  {ytStats.isConnected ? '✅ Google Connected' : 'Connect Google'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsYtSetupPopupOpen(true);
-                    setIsSettingsDrawerOpen(false);
-                  }}
-                  className="w-full p-2.5 rounded-xl text-left text-emerald-300 cursor-pointer"
-                >
-                  📱 Phone Number Setup
+                  {isGoogleConnected ? '✅ Google Connected' : 'Connect Google'}
                 </button>
                 <button
                   type="button"
@@ -2448,11 +2058,11 @@ export default function App() {
               </div>
             </div>
             <div className="space-y-2">
-              {isLoggedIn && (
+              {isGoogleConnected && (
                 <button
                   type="button"
                   onClick={() => {
-                    handleLogout();
+                    logoutGoogle();
                     setIsSettingsDrawerOpen(false);
                   }}
                   className="w-full py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
@@ -2584,7 +2194,7 @@ export default function App() {
         onManualAddUserApi={handleManualAddUserApi}
         onDeleteUserApi={handleDeleteUserApi}
         fetchFirebaseAll={fetchFirebaseAll}
-        gmailUser={gmailUser}
+        gmailUser={googleUser}
         setTier={setTier}
       />
     </div>
