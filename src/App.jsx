@@ -806,41 +806,60 @@ export default function App() {
 
   const dbBase = (liveDbUrl || DEFAULT_FIREBASE_URL).trim().replace(/\/$/, '');
 
-  const applyConnectedGoogleProfile = useCallback((profile, tokens = {}) => {
-    if (!profile?.email) return;
-    const cleanEmail = String(profile.email).trim().toLowerCase();
-    const formattedProfile = {
-      name: profile.name || cleanEmail.split('@')[0],
-      email: cleanEmail,
-      avatar: profile.avatar || '',
-      ...(tokens.accessToken ? { accessToken: tokens.accessToken } : {}),
-      ...(tokens.refreshToken ? { refreshToken: tokens.refreshToken } : {})
-    };
-    setGoogleUser(formattedProfile);
-    setCheckoutEmail(cleanEmail);
-    setLoginError('');
-    try {
-      localStorage.setItem('sp_google_user', JSON.stringify(formattedProfile));
-    } catch {}
-    saveLocalRegistry(cleanEmail, {
-      email: cleanEmail,
-      name: formattedProfile.name,
-      ...(tokens.accessToken ? { accessToken: tokens.accessToken } : {}),
-      ...(tokens.refreshToken ? { refreshToken: tokens.refreshToken } : {})
-    });
-  }, []);
+const GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
 
-  useEffect(() => {
-    let active = true;
-    idbGetAllClips().then((savedClips) => {
-      if (active && Array.isArray(savedClips) && savedClips.length > 0) {
-        setVideoQueue(savedClips);
-      }
-    });
-    return () => {
-      active = false;
+const FIXED_OAUTH_ORIGIN = 'https://www.shortspilot.in';
+
+const applyConnectedGoogleProfile = useCallback(
+  (profile, tokens = {}) => {
+    const userPayload = {
+      name: profile.name || 'YouTube Creator',
+      email: profile.email,
+      avatar: profile.avatar || '',
+      connectedAt: Date.now()
     };
-  }, []);
+    setGoogleUser(userPayload);
+    localStorage.setItem('shortspilot_google_user', JSON.stringify(userPayload));
+
+    if (tokens.accessToken) {
+      setYoutubeAccessToken(tokens.accessToken);
+      localStorage.setItem('shortspilot_yt_access_token', tokens.accessToken);
+    }
+    if (tokens.refreshToken) {
+      setYoutubeRefreshToken(tokens.refreshToken);
+      localStorage.setItem('shortspilot_yt_refresh_token', tokens.refreshToken);
+    }
+
+    setLoginError('');
+    setIsGoogleAccountModalOpen(false);
+  },
+  []
+);
+
+const startGoogleLogin = useCallback(() => {
+  setLoginError('');
+  setIsLoggingIn(true);
+  try {
+    const statePayload = btoa(
+      JSON.stringify({ cid: GOOGLE_CLIENT_ID, origin: FIXED_OAUTH_ORIGIN })
+    );
+    const redirectUri = encodeURIComponent(`${FIXED_OAUTH_ORIGIN}/api/youtube/callback`);
+    const scope = encodeURIComponent(
+      'openid email profile https://www.googleapis.com/auth/youtube.upload'
+    );
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+      GOOGLE_CLIENT_ID
+    )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
+      statePayload
+    )}`;
+    window.location.href = authUrl;
+  } catch {
+    setIsLoggingIn(false);
+    setIsGoogleAccountModalOpen(true);
+  }
+}, []);
 
 useEffect(() => {
   const params = new URLSearchParams(window.location.search);
