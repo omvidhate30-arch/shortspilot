@@ -24,7 +24,8 @@ import {
   LogOut,
   ExternalLink,
   Copy,
-  FileText
+  FileText,
+  Lock
 } from 'lucide-react';
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
@@ -489,7 +490,7 @@ const GoogleUserLogo = React.memo(({ googleUser, onClick }) => {
 const DesktopSidebar = React.memo(
   ({
     activeTab,
-    setActiveTab,
+    onSelectTab,
     onTriggerUpload,
     onOpenSplitter,
     onOpenThumbnail,
@@ -507,7 +508,7 @@ const DesktopSidebar = React.memo(
   }) => (
     <aside className="hidden lg:flex flex-col justify-between w-64 shrink-0 bg-[#090614] border-r border-purple-500/20 p-5 sticky top-0 h-screen z-30">
       <div className="space-y-5">
-        <div onClick={() => setActiveTab('home')} className="flex items-center gap-2.5 cursor-pointer">
+        <div onClick={() => onSelectTab('home')} className="flex items-center gap-2.5 cursor-pointer">
           <div className="w-10 h-10 rounded-2xl bg-[#140d2a] border border-pink-500/40 flex items-center justify-center shadow-lg">
             <Sparkles className="w-5 h-5 text-pink-400" />
           </div>
@@ -521,7 +522,7 @@ const DesktopSidebar = React.memo(
         </div>
 
         <div
-          onClick={() => (!isGoogleConnected ? onGoogleLogin() : setActiveTab('settings'))}
+          onClick={() => (!isGoogleConnected ? onGoogleLogin() : onSelectTab('settings'))}
           className={`p-2.5 rounded-2xl border flex items-center gap-2.5 cursor-pointer transition-all ${
             isGoogleConnected
               ? 'bg-emerald-500/10 border-emerald-400/50'
@@ -562,7 +563,7 @@ const DesktopSidebar = React.memo(
           </div>
           <button
             type="button"
-            onClick={() => setActiveTab('home')}
+            onClick={() => onSelectTab('home')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
               activeTab === 'home'
                 ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
@@ -575,7 +576,7 @@ const DesktopSidebar = React.memo(
 
           <button
             type="button"
-            onClick={() => setActiveTab('analytics')}
+            onClick={() => onSelectTab('analytics')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
               activeTab === 'analytics'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
@@ -588,7 +589,7 @@ const DesktopSidebar = React.memo(
 
           <button
             type="button"
-            onClick={() => setActiveTab('projects')}
+            onClick={() => onSelectTab('projects')}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
               activeTab === 'projects'
                 ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
@@ -606,7 +607,7 @@ const DesktopSidebar = React.memo(
 
           <button
             type="button"
-            onClick={() => setActiveTab('settings')}
+            onClick={() => onSelectTab('settings')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
               activeTab === 'settings'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
@@ -739,7 +740,7 @@ const TopHeader = React.memo(
                 : 'bg-amber-500/15 border-amber-400/40 text-amber-300'
             }`}
           >
-            {isGoogleConnected ? '● Google Connected ✅' : '● Connect Google Popup'}
+            {isGoogleConnected ? '● Google Connected ✅' : '● Login Required for Options'}
           </span>
           <span className="text-xs text-slate-400">
             Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b>
@@ -793,11 +794,11 @@ const TopHeader = React.memo(
   )
 );
 
-const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUpload }) => (
+const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload }) => (
   <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-[#090614] border-t border-purple-500/25 px-3 flex items-center justify-around z-30">
     <button
       type="button"
-      onClick={() => setActiveTab('home')}
+      onClick={() => onSelectTab('home')}
       className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
         activeTab === 'home' ? 'text-pink-400 font-extrabold' : 'text-slate-400'
       }`}
@@ -807,7 +808,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUploa
     </button>
     <button
       type="button"
-      onClick={() => setActiveTab('analytics')}
+      onClick={() => onSelectTab('analytics')}
       className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
         activeTab === 'analytics' ? 'text-cyan-400 font-extrabold' : 'text-slate-400'
       }`}
@@ -829,7 +830,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUploa
     </div>
     <button
       type="button"
-      onClick={() => setActiveTab('projects')}
+      onClick={() => onSelectTab('projects')}
       className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
         activeTab === 'projects' ? 'text-purple-400 font-extrabold' : 'text-slate-400'
       }`}
@@ -839,7 +840,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, setActiveTab, onTriggerUploa
     </button>
     <button
       type="button"
-      onClick={() => setActiveTab('settings')}
+      onClick={() => onSelectTab('settings')}
       className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
         activeTab === 'settings' ? 'text-amber-400 font-extrabold' : 'text-slate-400'
       }`}
@@ -878,11 +879,28 @@ export default function App() {
 
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [isAuthGateModalOpen, setIsAuthGateModalOpen] = useState(false);
+  const [blockedOptionName, setBlockedOptionName] = useState('');
   const [isGoogleAccountModalOpen, setIsGoogleAccountModalOpen] = useState(false);
   const [manualGoogleEmail, setManualGoogleEmail] = useState('');
   const [manualGoogleName, setManualGoogleName] = useState('');
 
   const isGoogleConnected = Boolean(googleUser?.email);
+  const pendingActionRef = useRef(null);
+
+  const requireGoogleAuth = useCallback(
+    (actionFn, optionLabel = 'this option') => {
+      if (isGoogleConnected) {
+        actionFn?.();
+        return true;
+      }
+      pendingActionRef.current = actionFn || null;
+      setBlockedOptionName(optionLabel);
+      setIsAuthGateModalOpen(true);
+      return false;
+    },
+    [isGoogleConnected]
+  );
 
   const [globalConfig, setGlobalConfig] = useState(() => {
     try {
@@ -1051,7 +1069,14 @@ export default function App() {
     });
 
     setLoginError('');
+    setIsAuthGateModalOpen(false);
     setIsGoogleAccountModalOpen(false);
+
+    if (pendingActionRef.current) {
+      const nextAction = pendingActionRef.current;
+      pendingActionRef.current = null;
+      setTimeout(() => nextAction?.(), 50);
+    }
   }, []);
 
   const startGoogleLogin = useCallback(() => {
@@ -1085,6 +1110,7 @@ export default function App() {
     setGoogleUser(null);
     setYoutubeAccessToken('');
     setYoutubeRefreshToken('');
+    setActiveTab('home');
     setLoginError('');
     try {
       localStorage.removeItem('sp_google_user');
@@ -1582,13 +1608,17 @@ export default function App() {
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onTriggerUpload={() => fileInputRef.current?.click()}
-        onOpenSplitter={() => setIsSplitterModalOpen(true)}
-        onOpenThumbnail={() => setIsThumbnailModalOpen(true)}
-        onOpenPricing={() => setIsPricingOpen(true)}
-        onOpenAdmin={() => setIsAdminOpen(true)}
-        onOpenTerms={() => setIsTermsOpen(true)}
+        onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
+        onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Short')}
+        onOpenSplitter={() =>
+          requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
+        }
+        onOpenThumbnail={() =>
+          requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset')
+        }
+        onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
+        onOpenAdmin={() => requireGoogleAuth(() => setIsAdminOpen(true), 'Owner Admin Console')}
+        onOpenTerms={() => requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions')}
         onGoogleLogin={startGoogleLogin}
         onGoogleLogout={logoutGoogle}
         isGoogleConnected={isGoogleConnected}
@@ -1608,14 +1638,16 @@ export default function App() {
           isLoggingIn={isLoggingIn}
           onOpenDrawer={() => setIsSettingsDrawerOpen(true)}
           onGoHome={() => setActiveTab('home')}
-          onOpenPricing={() => setIsPricingOpen(true)}
-          onOpenNotifications={() => {
-            setIsNotificationOpen(true);
-            setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
-          }}
+          onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
+          onOpenNotifications={() =>
+            requireGoogleAuth(() => {
+              setIsNotificationOpen(true);
+              setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
+            }, 'Notifications')
+          }
           onGoogleLogin={startGoogleLogin}
           onGoogleLogout={logoutGoogle}
-          onOpenSettings={() => setActiveTab('settings')}
+          onOpenSettings={() => requireGoogleAuth(() => setActiveTab('settings'), 'Settings')}
         />
 
         {loginError && (
@@ -1690,7 +1722,7 @@ export default function App() {
                           </span>
                         </div>
                         <div className="text-[10px] lg:text-xs text-slate-300 truncate">
-                          One-click Google account popup
+                          Login required to unlock options
                         </div>
                       </div>
                     </div>
@@ -1744,7 +1776,9 @@ export default function App() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setIsIgModalOpen(true)}
+                      onClick={() =>
+                        requireGoogleAuth(() => setIsIgModalOpen(true), 'Instagram Token Connect')
+                      }
                       className="px-3 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-[10.5px] font-extrabold cursor-pointer shrink-0"
                     >
                       Add Token
@@ -1773,7 +1807,9 @@ export default function App() {
                     </div>
 
                     <div
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() =>
+                        requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Short')
+                      }
                       className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-purple-600/30 to-pink-600/30 border border-purple-400/50 flex items-center justify-center relative cursor-pointer shadow-xl shrink-0 group"
                     >
                       <span className="absolute -top-1 right-0 px-2 py-0.5 rounded-md bg-cyan-500 text-[9px] font-extrabold text-black">
@@ -1793,7 +1829,9 @@ export default function App() {
 
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() =>
+                      requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Short')
+                    }
                     className="w-full py-3 lg:py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs lg:text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(56,189,248,0.4)] border border-white/20 active:scale-95 transition-all cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-white" />
@@ -1825,7 +1863,9 @@ export default function App() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setIsSplitterModalOpen(true)}
+                      onClick={() =>
+                        requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
+                      }
                       className="px-3 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-[11px] font-extrabold cursor-pointer shadow-md shrink-0"
                     >
                       Open Cutter
@@ -1837,7 +1877,9 @@ export default function App() {
                       <button
                         key={num}
                         type="button"
-                        onClick={() => setClipSplitCount(num)}
+                        onClick={() =>
+                          requireGoogleAuth(() => setClipSplitCount(num), `${num} Clips Mode`)
+                        }
                         className={`py-2 lg:py-2.5 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
                           clipSplitCount === num
                             ? 'bg-pink-500/30 border-pink-400 text-pink-200 shadow-[0_0_12px_rgba(236,72,153,0.35)]'
@@ -1851,7 +1893,12 @@ export default function App() {
 
                   <button
                     type="button"
-                    onClick={() => splitterInputRef.current?.click()}
+                    onClick={() =>
+                      requireGoogleAuth(
+                        () => splitterInputRef.current?.click(),
+                        'Long Video Clip Cutter'
+                      )
+                    }
                     className="w-full py-2.5 lg:py-3.5 px-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-extrabold text-xs lg:text-sm flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
                   >
                     <Scissors className="w-3.5 h-3.5" />
@@ -1880,7 +1927,9 @@ export default function App() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setIsThumbnailModalOpen(true)}
+                    onClick={() =>
+                      requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset')
+                    }
                     className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-[11px] font-extrabold cursor-pointer shadow-md"
                   >
                     Choose Style
@@ -1900,7 +1949,9 @@ export default function App() {
 
                   <button
                     type="button"
-                    onClick={() => setManualPostMode(!manualPostMode)}
+                    onClick={() =>
+                      requireGoogleAuth(() => setManualPostMode(!manualPostMode), 'Posting Control')
+                    }
                     className={`px-3 py-1.5 rounded-full border text-[11px] font-extrabold cursor-pointer transition-all ${
                       manualPostMode
                         ? 'bg-amber-500/25 border-amber-400 text-amber-300'
@@ -1914,10 +1965,12 @@ export default function App() {
 
               <div className="grid grid-cols-2 gap-2.5 lg:gap-5">
                 <div
-                  onClick={() => {
-                    setSelectedBilling('monthly');
-                    setIsPricingOpen(true);
-                  }}
+                  onClick={() =>
+                    requireGoogleAuth(() => {
+                      setSelectedBilling('monthly');
+                      setIsPricingOpen(true);
+                    }, 'Monthly Pro Plan')
+                  }
                   className="p-3.5 lg:p-5 rounded-2xl bg-gradient-to-b from-[#16102b] to-[#0c0818] border border-cyan-500/50 space-y-2 cursor-pointer hover:border-cyan-400 transition-all"
                 >
                   <div className="flex items-center justify-between">
@@ -1944,10 +1997,12 @@ export default function App() {
                 </div>
 
                 <div
-                  onClick={() => {
-                    setSelectedBilling('yearly');
-                    setIsPricingOpen(true);
-                  }}
+                  onClick={() =>
+                    requireGoogleAuth(() => {
+                      setSelectedBilling('yearly');
+                      setIsPricingOpen(true);
+                    }, 'Yearly VIP Plan')
+                  }
                   className="p-3.5 lg:p-5 rounded-2xl bg-gradient-to-b from-[#221033] to-[#11081f] border border-amber-500/60 space-y-2 shadow-lg cursor-pointer hover:border-amber-400 transition-all"
                 >
                   <div className="flex items-center justify-between">
@@ -1976,7 +2031,7 @@ export default function App() {
 
               <div className="grid grid-cols-3 gap-2">
                 <div
-                  onClick={() => setActiveTab('projects')}
+                  onClick={() => requireGoogleAuth(() => setActiveTab('projects'), 'Queue Vault')}
                   className="p-2.5 lg:p-4 rounded-2xl bg-[#0e0a1c] border border-blue-500/35 cursor-pointer text-center"
                 >
                   <div className="text-sm lg:text-lg font-extrabold text-white">
@@ -1985,7 +2040,9 @@ export default function App() {
                   <div className="text-[9px] lg:text-[11px] text-slate-400">Queued Shorts</div>
                 </div>
                 <div
-                  onClick={() => setActiveTab('analytics')}
+                  onClick={() =>
+                    requireGoogleAuth(() => setActiveTab('analytics'), 'Channel Analytics')
+                  }
                   className="p-2.5 lg:p-4 rounded-2xl bg-[#0e0a1c] border border-purple-500/35 cursor-pointer text-center"
                 >
                   <div className="text-sm lg:text-lg font-extrabold text-purple-300">
@@ -2006,7 +2063,7 @@ export default function App() {
                   </h3>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('projects')}
+                    onClick={() => requireGoogleAuth(() => setActiveTab('projects'), 'Queue Vault')}
                     className="text-[11px] lg:text-xs font-bold text-cyan-300 cursor-pointer"
                   >
                     View Vault ({videoQueue.length}) →
@@ -2022,7 +2079,7 @@ export default function App() {
                       <div className="flex items-center justify-between gap-2.5">
                         <div className="flex items-center gap-3 min-w-0">
                           <div
-                            onClick={() => setPreviewClip(clip)}
+                            onClick={() => requireGoogleAuth(() => setPreviewClip(clip), 'Watch Clip')}
                             className={`w-12 h-16 rounded-xl bg-gradient-to-b ${
                               clip.thumbnailGradient || 'from-pink-600 to-slate-950'
                             } border border-purple-400/40 flex flex-col items-center justify-center shrink-0 cursor-pointer p-1 text-center overflow-hidden`}
@@ -2044,7 +2101,9 @@ export default function App() {
                           </div>
                           <div className="min-w-0">
                             <h4
-                              onClick={() => setPreviewClip(clip)}
+                              onClick={() =>
+                                requireGoogleAuth(() => setPreviewClip(clip), 'Watch Clip')
+                              }
                               className="text-xs font-extrabold text-white truncate cursor-pointer hover:text-pink-300"
                             >
                               {clip.title}
@@ -2061,7 +2120,9 @@ export default function App() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => handleDeleteClip(clip.id)}
+                          onClick={() =>
+                            requireGoogleAuth(() => handleDeleteClip(clip.id), 'Delete Clip')
+                          }
                           className="p-1.5 text-rose-400 cursor-pointer shrink-0"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -2072,8 +2133,10 @@ export default function App() {
                       </div>
                       <ClipActionShortcuts
                         clip={clip}
-                        onPreview={setPreviewClip}
-                        onCopyDescription={handleCopyDescription}
+                        onPreview={(c) => requireGoogleAuth(() => setPreviewClip(c), 'Watch Clip')}
+                        onCopyDescription={(c) =>
+                          requireGoogleAuth(() => handleCopyDescription(c), 'Copy Description')
+                        }
                       />
                     </div>
                   ))}
@@ -2084,7 +2147,9 @@ export default function App() {
                 <span>Developed by shortspilot.in</span>
                 <button
                   type="button"
-                  onClick={() => setIsTermsOpen(true)}
+                  onClick={() =>
+                    requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions')
+                  }
                   className="text-cyan-300 hover:underline font-bold cursor-pointer"
                 >
                   Terms & Conditions
@@ -2093,7 +2158,7 @@ export default function App() {
             </>
           )}
 
-          {activeTab === 'analytics' && (
+          {activeTab === 'analytics' && isGoogleConnected && (
             <div className="space-y-4 pt-2 max-w-3xl mx-auto">
               <h2 className="text-base lg:text-xl font-extrabold text-white">Channel Analytics</h2>
               <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-1.5 text-xs">
@@ -2102,9 +2167,7 @@ export default function App() {
                 </div>
                 <div>
                   Google Status:{' '}
-                  <b className={isGoogleConnected ? 'text-emerald-400' : 'text-amber-300'}>
-                    {isGoogleConnected ? 'Connected ✅' : 'Not Connected'}
-                  </b>
+                  <b className="text-emerald-400">Connected ✅</b>
                 </div>
                 <div>
                   YouTube Token:{' '}
@@ -2125,7 +2188,7 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === 'projects' && (
+          {activeTab === 'projects' && isGoogleConnected && (
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between">
                 <h2 className="text-base lg:text-xl font-extrabold text-white">
@@ -2218,7 +2281,7 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === 'settings' && (
+          {activeTab === 'settings' && isGoogleConnected && (
             <div className="space-y-4 pt-2 max-w-2xl mx-auto">
               <h2 className="text-base lg:text-xl font-extrabold text-white">
                 Profile & Settings
@@ -2226,9 +2289,7 @@ export default function App() {
 
               <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/40 flex items-center justify-between gap-3">
                 <div className="text-xs text-slate-300">
-                  {isGoogleConnected
-                    ? `Google Connected ✅ (${googleUser?.email})`
-                    : 'Connect Google Account with one click.'}
+                  Google Connected ✅ ({googleUser?.email})
                 </div>
                 <button
                   type="button"
@@ -2236,11 +2297,7 @@ export default function App() {
                   disabled={isLoggingIn}
                   className="px-4 py-2 rounded-xl bg-[#4285F4] text-white text-xs font-extrabold cursor-pointer shrink-0 disabled:opacity-60"
                 >
-                  {isLoggingIn
-                    ? 'Connecting...'
-                    : isGoogleConnected
-                    ? 'Switch Google'
-                    : 'Connect Google'}
+                  {isLoggingIn ? 'Connecting...' : 'Switch Google'}
                 </button>
               </div>
 
@@ -2278,16 +2335,14 @@ export default function App() {
                 <span>Terms & Conditions</span>
               </button>
 
-              {isGoogleConnected && (
-                <button
-                  type="button"
-                  onClick={logoutGoogle}
-                  className="w-full py-3 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Disconnect Google Account</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={logoutGoogle}
+                className="w-full py-3 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Disconnect Google Account</span>
+              </button>
 
               <button
                 type="button"
@@ -2310,7 +2365,7 @@ export default function App() {
 
         <button
           type="button"
-          onClick={() => setShowAiSupport(true)}
+          onClick={() => requireGoogleAuth(() => setShowAiSupport(true), 'AI Support Chat')}
           aria-label="Floating AI Support"
           className="fixed bottom-24 lg:bottom-6 right-4 lg:right-6 z-20 w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 text-white shadow-xl border border-white/20 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform"
         >
@@ -2319,12 +2374,44 @@ export default function App() {
 
         <MobileBottomNavBar
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          onTriggerUpload={() => fileInputRef.current?.click()}
+          onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
+          onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Short')}
         />
       </div>
 
-      {isTermsOpen && (
+      {isAuthGateModalOpen && !isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-6 space-y-4 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                pendingActionRef.current = null;
+                setIsAuthGateModalOpen(false);
+              }}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center mx-auto">
+              <Lock className="w-6 h-6 text-cyan-300" />
+            </div>
+            <h3 className="text-base font-extrabold text-white">Google Login Required</h3>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              <b>{blockedOptionName}</b> open karne ke liye pehle apna Google account connect karein.
+            </p>
+            <button
+              type="button"
+              onClick={startGoogleLogin}
+              disabled={isLoggingIn}
+              className="w-full py-3 rounded-2xl bg-[#4285F4] hover:bg-blue-500 text-white font-extrabold text-xs cursor-pointer shadow-lg disabled:opacity-60"
+            >
+              {isLoggingIn ? 'Connecting...' : 'Connect Google'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isTermsOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-3 max-h-[85vh] overflow-y-auto text-xs text-slate-300">
             <button
@@ -2420,7 +2507,7 @@ export default function App() {
         </div>
       )}
 
-      {isIgModalOpen && (
+      {isIgModalOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <form
             onSubmit={handleSaveInstagramToken}
@@ -2463,7 +2550,7 @@ export default function App() {
         </div>
       )}
 
-      {isThumbnailModalOpen && (
+      {isThumbnailModalOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <button
@@ -2537,7 +2624,7 @@ export default function App() {
         </div>
       )}
 
-      {isSplitterModalOpen && (
+      {isSplitterModalOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-pink-500/50 p-6 space-y-4">
             <button
@@ -2581,7 +2668,7 @@ export default function App() {
         </div>
       )}
 
-      {isPricingOpen && (
+      {isPricingOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-amber-400/50 p-6 space-y-4">
             <button
@@ -2728,8 +2815,8 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsIgModalOpen(true);
                     setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsIgModalOpen(true), 'Instagram Token Connect');
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-pink-300 flex items-center justify-between cursor-pointer"
                 >
@@ -2741,8 +2828,8 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsSplitterModalOpen(true);
                     setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter');
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-pink-300 cursor-pointer"
                 >
@@ -2751,8 +2838,8 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsThumbnailModalOpen(true);
                     setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset');
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
                 >
@@ -2761,8 +2848,8 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsPricingOpen(true);
                     setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans');
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer"
                 >
@@ -2771,8 +2858,8 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveTab('settings');
                     setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setActiveTab('settings'), 'Settings');
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-slate-300 cursor-pointer"
                 >
@@ -2781,8 +2868,8 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsTermsOpen(true);
                     setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions');
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
                 >
@@ -2791,8 +2878,8 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsAdminOpen(true);
                     setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsAdminOpen(true), 'Owner Admin Console');
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-rose-400 cursor-pointer"
                 >
@@ -2820,7 +2907,7 @@ export default function App() {
         </div>
       )}
 
-      {isNotificationOpen && (
+      {isNotificationOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-6 space-y-2.5">
             <button
@@ -2841,7 +2928,7 @@ export default function App() {
         </div>
       )}
 
-      {showAiSupport && (
+      {showAiSupport && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-sm h-[420px] rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-4 flex flex-col">
             <div className="flex justify-between items-center pb-2.5 border-b border-slate-800">
@@ -2887,7 +2974,7 @@ export default function App() {
         </div>
       )}
 
-      {previewClip && (
+      {previewClip && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
           <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-4 space-y-3 max-h-[92vh] overflow-y-auto">
             <button
@@ -2930,7 +3017,7 @@ export default function App() {
         </div>
       )}
 
-      {isAdminOpen && (
+      {isAdminOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3 max-h-[88vh] overflow-y-auto">
             <button
