@@ -28,6 +28,7 @@ const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.c
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
+const GOOGLE_CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
 const FIXED_OAUTH_ORIGIN = 'https://www.shortspilot.in';
 const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
@@ -56,6 +57,21 @@ const formatClockTime = (seconds = 0) => {
   const mins = Math.floor(total / 60);
   const secs = total % 60;
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
+
+const detectTopicFromFile = (fileName = '') => {
+  const base = String(fileName || '')
+    .replace(/\.[^/.]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b(vid|video|screen|recording|record|clip|short|shorts|final|edit|hd|fhd|4k|1080p|720p|60fps|30fps|mp4|mov|mkv)\b/gi, ' ')
+    .replace(/\b\d{4,}\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!base || base.length < 2) {
+    return 'Insane Viral Moment';
+  }
+  return base.replace(/\b\w/g, (ch) => ch.toUpperCase());
 };
 
 const readLocalRegistry = () => {
@@ -210,7 +226,7 @@ const buildClipPackage = (
   partLabel = '',
   watermarkText = 'Developed by shortspilot.in'
 ) => {
-  const cleanTopic = (rawTopic || 'Viral Short').trim();
+  const cleanTopic = (rawTopic || 'Insane Viral Moment').trim();
   const title = partLabel ? `${cleanTopic} (${partLabel})` : cleanTopic;
   const tagBase = cleanTopic
     .replace(/[^a-zA-Z0-9\s]/g, '')
@@ -235,7 +251,7 @@ const buildClipPackage = (
   };
 };
 
-const buildThumbnailConcepts = (topic = 'GTA 6') => {
+const buildThumbnailConcepts = (topic = 'VIRAL') => {
   const clean = (topic || 'VIRAL').trim().toUpperCase().slice(0, 18);
   return [
     {
@@ -766,9 +782,9 @@ export default function App() {
   const [isThumbnailModalOpen, setIsThumbnailModalOpen] = useState(false);
   const [thumbTopicInput, setThumbTopicInput] = useState('');
   const [selectedThumbConcept, setSelectedThumbConcept] = useState(
-    () => buildThumbnailConcepts('GTA 6')[0]
+    () => buildThumbnailConcepts('VIRAL')[0]
   );
-  const [thumbConcepts, setThumbConcepts] = useState(() => buildThumbnailConcepts('GTA 6'));
+  const [thumbConcepts, setThumbConcepts] = useState(() => buildThumbnailConcepts('VIRAL'));
 
   const [selectedTimeSlot] = useState(() => {
     const h = new Date().getHours();
@@ -777,7 +793,6 @@ export default function App() {
     return '7:30 PM (Nearest VIP Slot)';
   });
 
-  const [customVideoTopic, setCustomVideoTopic] = useState('');
   const [autoPublishStatus, setAutoPublishStatus] = useState('');
   const [manualPostMode, setManualPostMode] = useState(false);
 
@@ -868,38 +883,32 @@ export default function App() {
     setIsGoogleAccountModalOpen(false);
   }, []);
 
-const GOOGLE_CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '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';
-
-const startGoogleLogin = useCallback(() => {
-  setLoginError('');
-  setIsLoggingIn(true);
-  try {
-    const origin =
-      window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? window.location.origin
-        : FIXED_OAUTH_ORIGIN;
-    const statePayload = btoa(
-      JSON.stringify({
-        cid: GOOGLE_CLIENT_ID,
-        csec: GOOGLE_CLIENT_SECRET,
-        origin
-      })
-    );
-    const redirectUri = encodeURIComponent(`${origin}/api/youtube/callback`);
-    const scope = encodeURIComponent(
-      'openid email profile https://www.googleapis.com/auth/youtube.upload'
-    );
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
-      GOOGLE_CLIENT_ID
-    )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
-      statePayload
-    )}`;
-    window.location.href = authUrl;
-  } catch {
-    setIsLoggingIn(false);
-    setIsGoogleAccountModalOpen(true);
-  }
-}, []);
+  const startGoogleLogin = useCallback(() => {
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+      const origin =
+        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          ? window.location.origin
+          : FIXED_OAUTH_ORIGIN;
+      const payload = { cid: GOOGLE_CLIENT_ID, origin };
+      if (GOOGLE_CLIENT_SECRET) payload.csec = GOOGLE_CLIENT_SECRET;
+      const statePayload = btoa(JSON.stringify(payload));
+      const redirectUri = encodeURIComponent(`${origin}/api/youtube/callback`);
+      const scope = encodeURIComponent(
+        'openid email profile https://www.googleapis.com/auth/youtube.upload'
+      );
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+        GOOGLE_CLIENT_ID
+      )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
+        statePayload
+      )}`;
+      window.location.href = authUrl;
+    } catch {
+      setIsLoggingIn(false);
+      setIsGoogleAccountModalOpen(true);
+    }
+  }, []);
 
   const logoutGoogle = useCallback(() => {
     setGoogleUser(null);
@@ -1044,14 +1053,14 @@ const startGoogleLogin = useCallback(() => {
     e.target.value = '';
     if (files.length === 0) return;
 
-    setAutoPublishStatus('Preparing Clean Title, #Tags & Description...');
+    setAutoPublishStatus('AI Detecting Topic, Title & Viral #Tags...');
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
+      const detectedTopic = detectTopicFromFile(file.name);
       const meta = await readVideoMetadata(file);
       const aiMeta = buildClipPackage(
-        rawName,
+        detectedTopic,
         i,
         '',
         globalConfig.watermarkText || 'Developed by shortspilot.in'
@@ -1086,9 +1095,9 @@ const startGoogleLogin = useCallback(() => {
 
     setIsSplitterModalOpen(false);
     const count = Number(clipSplitCount) || 3;
-    setAutoPublishStatus(`Cutting ${count} Clips...`);
+    setAutoPublishStatus(`AI Detecting Topic & Cutting ${count} Clips...`);
 
-    const rawName = customVideoTopic.trim() || file.name.replace(/\.[^/.]+$/, '');
+    const detectedTopic = detectTopicFromFile(file.name);
     const meta = await readVideoMetadata(file);
     const totalDur = Math.max(15, meta.duration || 60);
     const segDur = Math.max(5, Math.floor(totalDur / count));
@@ -1103,7 +1112,7 @@ const startGoogleLogin = useCallback(() => {
       const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
       const partLabel = count > 1 ? `Part ${i + 1}/${count}` : '';
       const aiMeta = buildClipPackage(
-        rawName,
+        detectedTopic,
         i,
         partLabel,
         globalConfig.watermarkText || 'Developed by shortspilot.in'
@@ -1136,7 +1145,7 @@ const startGoogleLogin = useCallback(() => {
 
   const handleGenerateThumbnails = (e) => {
     e.preventDefault();
-    const updated = buildThumbnailConcepts(thumbTopicInput || customVideoTopic || 'GTA 6');
+    const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
     setThumbConcepts(updated);
     setSelectedThumbConcept(updated[0]);
   };
@@ -1291,7 +1300,7 @@ const startGoogleLogin = useCallback(() => {
                         Shorts Feed Engine Active
                       </div>
                       <div className="text-[10px] lg:text-xs text-slate-200">
-                        Clean Titles • Smart #Tags • shortspilot.in
+                        Auto AI Titles • Smart #Tags • shortspilot.in
                       </div>
                     </div>
                   </div>
@@ -1423,14 +1432,6 @@ const startGoogleLogin = useCallback(() => {
                       </div>
                     </div>
                   </div>
-
-                  <input
-                    type="text"
-                    value={customVideoTopic}
-                    onChange={(e) => setCustomVideoTopic(e.target.value)}
-                    placeholder="Topic / game (e.g. GTA 6, Free Fire, BMW)..."
-                    className="w-full px-3 py-2 rounded-xl bg-[#070412] border border-purple-500/35 text-xs text-white placeholder:text-slate-400"
-                  />
 
                   {autoPublishStatus && (
                     <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-300 text-xs font-bold text-center animate-pulse">
@@ -2035,7 +2036,7 @@ const startGoogleLogin = useCallback(() => {
                 type="text"
                 value={thumbTopicInput}
                 onChange={(e) => setThumbTopicInput(e.target.value)}
-                placeholder="Enter topic (e.g. GTA 6, Free Fire)..."
+                placeholder="Enter cover label..."
                 className="flex-1 px-3 py-2.5 rounded-xl bg-[#06040c] border border-cyan-500/40 text-xs text-white"
               />
               <button
@@ -2104,7 +2105,7 @@ const startGoogleLogin = useCallback(() => {
               <h3 className="text-base font-extrabold text-white">AI Engaging Clips Auto-Splitter</h3>
             </div>
             <p className="text-xs text-slate-300">
-              Select how many viral clips you want AI to cut from your full-length video:
+              Select how many viral clips you want AI to cut from your full-length video (topic & #tags auto-detected):
             </p>
             <div className="grid grid-cols-3 gap-2.5">
               {[1, 3, 5].map((count) => (
@@ -2122,13 +2123,6 @@ const startGoogleLogin = useCallback(() => {
                 </button>
               ))}
             </div>
-            <input
-              type="text"
-              value={customVideoTopic}
-              onChange={(e) => setCustomVideoTopic(e.target.value)}
-              placeholder="Topic / game (e.g. GTA 6, Free Fire)..."
-              className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-purple-500/40 text-xs text-white"
-            />
             <button
               type="button"
               onClick={() => splitterInputRef.current?.click()}
