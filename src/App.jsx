@@ -2238,6 +2238,8 @@ export default function App() {
     setSupportInput('');
   };
 
+  const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
+  
 return (
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
