@@ -857,6 +857,7 @@ const GoogleVerificationGuideModal = React.memo(
     );
   }
 );
+
 const ClipActionShortcuts = React.memo(
   ({ clip, onPreview, onCopyDescription, onSendThumbAI }) => {
     const youtubeUrl = clip?.youtubeVideoId
@@ -1472,23 +1473,30 @@ export default function App() {
 
   const [autoPublishStatus, setAutoPublishStatus] = useState('');
   const [manualPostMode, setManualPostMode] = useState(false);
-  const [uploadMode, setUploadMode] = useState('auto'); // 'auto' | 'short' | 'video'
+  const [shortsOptionOpen, setShortsOptionOpen] = useState(true);
+  const [videoOptionOn, setVideoOptionOn] = useState(false);
 
-  const handleCycleUploadMode = useCallback(() => {
-    setUploadMode((prev) => {
-      const next = prev === 'short' ? 'video' : prev === 'video' ? 'auto' : 'short';
+  const handleOpenShortsOption = useCallback(() => {
+    setShortsOptionOpen(true);
+    setVideoOptionOn(false);
+    setLoginError('');
+    setAutoPublishStatus('⚡ Shorts Option Open — ab Shorts upload active hai');
+    setTimeout(() => {
+      setAutoPublishStatus((curr) => (curr.startsWith('⚡') ? '' : curr));
+    }, 2500);
+  }, []);
+
+  const handleToggleVideoOption = useCallback(() => {
+    setVideoOptionOn((prev) => {
+      const next = !prev;
       setLoginError('');
       setAutoPublishStatus(
-        next === 'video'
-          ? '📹 Video Mode ON — ab normal Video ki tarah upload/cut hoga'
-          : next === 'short'
-          ? '⚡ Short Mode ON — ab #Shorts ke saath Short ki tarah upload/cut hoga'
-          : '🔄 Auto Mode ON — video size/duration ke hisab se auto detect hoga'
+        next
+          ? '📹 Video Option ON — ab normal Video upload active hai'
+          : '📹 Video Option OFF — wapas Shorts mode active hai'
       );
       setTimeout(() => {
-        setAutoPublishStatus((curr) =>
-          curr.startsWith('📹') || curr.startsWith('⚡') || curr.startsWith('🔄') ? '' : curr
-        );
+        setAutoPublishStatus((curr) => (curr.startsWith('📹') ? '' : curr));
       }, 2500);
       return next;
     });
@@ -1498,8 +1506,8 @@ export default function App() {
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Single Short / Video Mode Ready ✅',
-      desc: 'Switch between Short (#Shorts) and Video (normal video) with a single toggle.',
+      title: 'Shorts & Video Options Ready ✅',
+      desc: 'Shorts option open by default, and Video option can be toggled ON/OFF.',
       unread: true
     }
   ]);
@@ -1508,7 +1516,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! Video dalna ho to Video mode aur Short dalna ho to Short mode select karein.'
+      text: 'Namaste! Shorts option pehle open rehta hai aur Video option alag se ON/OFF kiya ja sakta hai.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -1605,7 +1613,6 @@ export default function App() {
       setTimeout(() => nextAction?.(), 50);
     }
   }, []);
-
 
 const startGoogleLogin = useCallback(() => {
     setLoginError('');
@@ -2051,8 +2058,7 @@ const startGoogleLogin = useCallback(() => {
       const detectedTopic = detectTopicFromFile(file.name);
       const meta = await readVideoMetadata(file);
       const fmt = detectMediaFormat(meta);
-      const activeFormat =
-        uploadMode === 'short' || uploadMode === 'video' ? uploadMode : fmt.format;
+      const activeFormat = videoOptionOn ? 'video' : shortsOptionOpen ? 'short' : fmt.format;
       const activeBadge = activeFormat === 'video' ? 'VIDEO' : 'SHORT';
 
       const durLabel = formatClockTime(meta.duration);
@@ -2159,8 +2165,7 @@ const startGoogleLogin = useCallback(() => {
         height: meta.height,
         duration: clipLength
       });
-      const activeFormat =
-        uploadMode === 'short' || uploadMode === 'video' ? uploadMode : segFmt.format;
+      const activeFormat = videoOptionOn ? 'video' : shortsOptionOpen ? 'short' : segFmt.format;
       const activeBadge = activeFormat === 'video' ? 'VIDEO' : 'SHORT';
 
       const durLabel = formatClockTime(clipLength);
@@ -2324,7 +2329,7 @@ const startGoogleLogin = useCallback(() => {
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'Video dalna ho to Video mode aur Short dalna ho to Short mode select karein.'
+        text: 'Shorts option pehle open rehta hai aur Video option alag se ON/OFF kiya ja sakta hai.'
       }
     ]);
     setSupportInput('');
@@ -2666,34 +2671,42 @@ const startGoogleLogin = useCallback(() => {
                   </button>
                 </div>
 
-                <div className="p-4 rounded-[24px] bg-[#110c22] border border-cyan-500/45 flex items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-extrabold text-white">Upload Type</h3>
-                    <p className="text-[10.5px] text-cyan-200 font-semibold">
-                      {uploadMode === 'video'
-                        ? '📹 Video Active (No #Shorts)'
-                        : uploadMode === 'short'
-                        ? '⚡ Short Active (#Shorts)'
-                        : '🔄 Auto Detect Active'}
-                    </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="p-3.5 rounded-[24px] bg-[#110c22] border border-emerald-500/45 flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs font-extrabold text-white">Shorts Option</h3>
+                      <p className="text-[10px] text-emerald-200 font-semibold">
+                        {shortsOptionOpen && !videoOptionOn ? 'Open (#Shorts)' : 'Standby'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleOpenShortsOption}
+                      className="px-3 py-1.5 rounded-full border border-emerald-400 bg-emerald-500/25 text-emerald-200 text-[11px] font-extrabold cursor-pointer active:scale-95"
+                    >
+                      ⚡ Open Shorts
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleCycleUploadMode}
-                    className={`px-4 py-2 rounded-full border text-xs font-extrabold cursor-pointer transition-all active:scale-95 ${
-                      uploadMode === 'video'
-                        ? 'bg-purple-500/25 border-purple-400 text-purple-200'
-                        : uploadMode === 'short'
-                        ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
-                        : 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
-                    }`}
-                  >
-                    {uploadMode === 'video'
-                      ? '📹 Video'
-                      : uploadMode === 'short'
-                      ? '⚡ Short'
-                      : '🔄 Auto'}
-                  </button>
+
+                  <div className="p-3.5 rounded-[24px] bg-[#110c22] border border-purple-500/45 flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs font-extrabold text-white">Video Option</h3>
+                      <p className="text-[10px] text-purple-200 font-semibold">
+                        {videoOptionOn ? 'ON (Video)' : 'OFF (Shorts)'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleToggleVideoOption}
+                      className={`px-3 py-1.5 rounded-full border text-[11px] font-extrabold cursor-pointer active:scale-95 ${
+                        videoOptionOn
+                          ? 'bg-purple-500/30 border-purple-400 text-purple-100'
+                          : 'bg-slate-800 border-slate-600 text-slate-300'
+                      }`}
+                    >
+                      {videoOptionOn ? '📹 Video ON' : '📹 Video OFF'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-4 rounded-[24px] bg-[#130c26] border border-purple-400/35 flex items-center justify-between">
@@ -2965,7 +2978,7 @@ const startGoogleLogin = useCallback(() => {
                   </b>
                 </div>
                 <div>
-                  Upload Type Mode: <b className="text-cyan-300 uppercase">{uploadMode}</b>
+                  Active Mode: <b className="text-cyan-300">{videoOptionOn ? 'VIDEO' : 'SHORTS'}</b>
                 </div>
                 <div>
                   Daily Auto Slots: <b>09:00 AM, 01:30 PM, 05:30 PM, 09:00 PM</b>
