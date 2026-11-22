@@ -27,7 +27,6 @@ import {
   FileText,
   Lock
 } from 'lucide-react';
-import { sendThumbnailPromptToAI } from './thumbnailPrompt';
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 const GOOGLE_CLIENT_ID =
@@ -115,6 +114,71 @@ const detectTopicFromFile = (fileName = '') => {
     return 'Insane Viral Moment';
   }
   return base.replace(/\b\w/g, (ch) => ch.toUpperCase());
+};
+
+const buildMasterThumbnailPrompt = ({
+  clip = {},
+  customStyleNote = '',
+  watermarkText = 'Developed by shortspilot.in'
+} = {}) => {
+  const title = String(clip?.title || 'Viral Short').trim();
+  const hookText = String(clip?.thumbnailHook || 'WAIT FOR END 😱').trim();
+  const description = String(clip?.description || '').trim();
+  const hashtags = String(clip?.hashtags || '#Shorts #ViralShorts').trim();
+  const credit = String(
+    watermarkText || clip?.watermarkText || 'Developed by shortspilot.in'
+  ).trim();
+
+  const extraStyle = String(customStyleNote || '').trim()
+    ? `\n- Custom Style Note: ${String(customStyleNote).trim()}`
+    : '';
+
+  return [
+    'Create a high-CTR 9:16 vertical YouTube Shorts thumbnail (1080x1920) for the following short video:',
+    '',
+    `- Title: ${title}`,
+    `- Hook Text: ${hookText}`,
+    `- Description: ${description}`,
+    `- Hashtags: ${hashtags}`,
+    `- Credit / Watermark: ${credit}${extraStyle}`,
+    '',
+    'Design Instructions:',
+    '1. Vertical 9:16 aspect ratio (1080x1920), clean composition with a clear focal subject and no clutter.',
+    '2. Bold, high-contrast hook text with strong outline/glow so it is instantly readable on mobile screens.',
+    '3. Dramatic lighting, rich contrast, and energetic colors matching the title, description, and hashtags.',
+    `4. Keep on-image text punchy and readable; place "${credit}" cleanly and subtly near the bottom.`,
+    '5. Do not dump the full description or raw hashtag list as messy text on the image.'
+  ].join('\n');
+};
+
+const sendThumbnailPromptToAI = async ({
+  clip = {},
+  customStyleNote = '',
+  target = 'gemini',
+  watermarkText = 'Developed by shortspilot.in'
+} = {}) => {
+  const finalPrompt = buildMasterThumbnailPrompt({
+    clip,
+    customStyleNote,
+    watermarkText
+  });
+
+  try {
+    if (typeof navigator !== 'undefined' && navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(finalPrompt);
+    }
+  } catch {}
+
+  const url =
+    target === 'chatgpt'
+      ? `https://chatgpt.com/?q=${encodeURIComponent(finalPrompt)}`
+      : `https://gemini.google.com/app?q=${encodeURIComponent(finalPrompt)}`;
+
+  if (typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  return finalPrompt;
 };
 
 const generateThumbnailBlob = async ({
@@ -2174,8 +2238,7 @@ export default function App() {
     setSupportInput('');
   };
 
-  const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
-  return (
+return (
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
         activeTab={activeTab}
