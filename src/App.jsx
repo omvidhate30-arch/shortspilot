@@ -1493,15 +1493,14 @@ export default function App() {
 
   const [autoPublishStatus, setAutoPublishStatus] = useState('');
   const [manualPostMode, setManualPostMode] = useState(false);
-  const [shortsEnabled, setShortsEnabled] = useState(true);
-  const [videosEnabled, setVideosEnabled] = useState(true);
+  const [uploadMode, setUploadMode] = useState('auto'); // 'auto' | 'short' | 'video'
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Shorts & Videos ON/OFF Ready ✅',
-      desc: 'Shorts and Videos can be toggled ON or OFF independently with 4 daily slots.',
+      title: 'Single Short / Video Mode Ready ✅',
+      desc: 'Switch between Short (#Shorts) and Video (normal video) with a single toggle.',
       unread: true
     }
   ]);
@@ -1510,7 +1509,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! Aap Shorts Mode aur Videos Mode ko alag-alag ON ya OFF kar sakte hain.'
+      text: 'Namaste! Video dalna ho to Video mode aur Short dalna ho to Short mode select karein.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -1607,8 +1606,7 @@ export default function App() {
       setTimeout(() => nextAction?.(), 50);
     }
   }, []);
-
-const startGoogleLogin = useCallback(() => {
+  const startGoogleLogin = useCallback(() => {
     setLoginError('');
     setIsLoggingIn(true);
     try {
@@ -1804,15 +1802,6 @@ const startGoogleLogin = useCallback(() => {
   const handleRetryYouTubeUpload = useCallback(
     async (clip) => {
       if (!clip?.id) return;
-      if (clip.mediaFormat === 'short' && !shortsEnabled) {
-        setLoginError('Shorts mode OFF hai — upload karne ke liye Shorts ON karein.');
-        return;
-      }
-      if (clip.mediaFormat === 'video' && !videosEnabled) {
-        setLoginError('Videos mode OFF hai — upload karne ke liye Videos ON karein.');
-        return;
-      }
-
       setLoginError('');
       setAutoPublishStatus(`Uploading to YouTube: ${clip.title}...`);
 
@@ -1849,7 +1838,7 @@ const startGoogleLogin = useCallback(() => {
 
       setAutoPublishStatus('');
     },
-    [uploadClipToYouTube, shortsEnabled, videosEnabled]
+    [uploadClipToYouTube]
   );
 
   useEffect(() => {
@@ -1866,12 +1855,9 @@ const startGoogleLogin = useCallback(() => {
       const lastRunKey = localStorage.getItem('sp_last_auto_slot_run') || '';
       if (lastRunKey === dayKey) return;
 
-      const pendingClip = videoQueue.find((c) => {
-        if (c.youtubeVideoId || !(c.blob instanceof Blob) || c.blob.size === 0) return false;
-        if (c.mediaFormat === 'short' && !shortsEnabled) return false;
-        if (c.mediaFormat === 'video' && !videosEnabled) return false;
-        return true;
-      });
+      const pendingClip = videoQueue.find(
+        (c) => !c.youtubeVideoId && c.blob instanceof Blob && c.blob.size > 0
+      );
       if (!pendingClip) return;
 
       localStorage.setItem('sp_last_auto_slot_run', dayKey);
@@ -1880,14 +1866,7 @@ const startGoogleLogin = useCallback(() => {
 
     const timer = setInterval(tickSlots, 60000);
     return () => clearInterval(timer);
-  }, [
-    manualPostMode,
-    isGoogleConnected,
-    videoQueue,
-    handleRetryYouTubeUpload,
-    shortsEnabled,
-    videosEnabled
-  ]);
+  }, [manualPostMode, isGoogleConnected, videoQueue, handleRetryYouTubeUpload]);
 
   useEffect(() => {
     let active = true;
@@ -2067,20 +2046,14 @@ const startGoogleLogin = useCallback(() => {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const meta = await readVideoMetadata(file);
-      const fmt = detectMediaFormat(meta);
-
-      if (fmt.format === 'short' && !shortsEnabled) {
-        setLoginError('Shorts mode OFF hai — Shorts upload karne ke liye Shorts ON karein.');
-        continue;
-      }
-      if (fmt.format === 'video' && !videosEnabled) {
-        setLoginError('Videos mode OFF hai — Videos upload karne ke liye Videos ON karein.');
-        continue;
-      }
-
       const slotLabel = getNextSlotLabel(videoQueue.length + i);
       const detectedTopic = detectTopicFromFile(file.name);
+      const meta = await readVideoMetadata(file);
+      const fmt = detectMediaFormat(meta);
+      const activeFormat =
+        uploadMode === 'short' || uploadMode === 'video' ? uploadMode : fmt.format;
+      const activeBadge = activeFormat === 'video' ? 'VIDEO' : 'SHORT';
+
       const durLabel = formatClockTime(meta.duration);
       const hookLabel = selectedThumbConcept?.hookText || 'WAIT FOR END 😱';
       const watermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
@@ -2091,7 +2064,7 @@ const startGoogleLogin = useCallback(() => {
         watermark,
         durLabel,
         hookLabel,
-        fmt.format
+        activeFormat
       );
       const thumb = await generateThumbnailBlob({
         hookText: hookLabel,
@@ -2104,22 +2077,22 @@ const startGoogleLogin = useCallback(() => {
       const objectUrl = URL.createObjectURL(file);
 
       let clipStatus = manualPostMode
-        ? `Manual (${fmt.badge}) • ${slotLabel}`
-        : `Queued (${fmt.badge}) • ${slotLabel}`;
+        ? `Manual (${activeBadge}) • ${slotLabel}`
+        : `Queued (${activeBadge}) • ${slotLabel}`;
       let youtubeVideoId = '';
       let uploadError = '';
 
       if (!manualPostMode) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
-          mediaFormat: fmt.format,
+          mediaFormat: activeFormat,
           blob: file,
           thumbnailBlob: thumb.blob
         });
 
         if (ytRes.uploaded && ytRes.videoId) {
           youtubeVideoId = ytRes.videoId;
-          clipStatus = `Uploaded ${fmt.badge} (${youtubeVideoId}) • ${slotLabel} ✅`;
+          clipStatus = `Uploaded ${activeBadge} (${youtubeVideoId}) • ${slotLabel} ✅`;
         } else {
           uploadError = ytRes.error || 'Token missing';
           clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
@@ -2130,7 +2103,7 @@ const startGoogleLogin = useCallback(() => {
       const readyClip = {
         id: `${Date.now()}-${Math.random()}`,
         title: aiMeta.title,
-        mediaFormat: fmt.format,
+        mediaFormat: activeFormat,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
@@ -2175,6 +2148,7 @@ const startGoogleLogin = useCallback(() => {
     const generated = [];
 
     for (let i = 0; i < count; i++) {
+      const slotLabel = getNextSlotLabel(videoQueue.length + i);
       const startSec = Math.floor(i * segDur);
       const endSec =
         i === count - 1 ? Math.floor(totalDur) : Math.min(Math.floor(totalDur), startSec + segDur);
@@ -2184,17 +2158,10 @@ const startGoogleLogin = useCallback(() => {
         height: meta.height,
         duration: clipLength
       });
+      const activeFormat =
+        uploadMode === 'short' || uploadMode === 'video' ? uploadMode : segFmt.format;
+      const activeBadge = activeFormat === 'video' ? 'VIDEO' : 'SHORT';
 
-      if (segFmt.format === 'short' && !shortsEnabled) {
-        setLoginError('Shorts mode OFF hai — Shorts cut/upload karne ke liye Shorts ON karein.');
-        continue;
-      }
-      if (segFmt.format === 'video' && !videosEnabled) {
-        setLoginError('Videos mode OFF hai — Videos cut/upload karne ke liye Videos ON karein.');
-        continue;
-      }
-
-      const slotLabel = getNextSlotLabel(videoQueue.length + i);
       const durLabel = formatClockTime(clipLength);
       const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
       const partLabel = count > 1 ? `Part ${i + 1}/${count}` : '';
@@ -2205,7 +2172,7 @@ const startGoogleLogin = useCallback(() => {
         watermark,
         durLabel,
         hookLabel,
-        segFmt.format
+        activeFormat
       );
       const thumb = await generateThumbnailBlob({
         hookText: hookLabel,
@@ -2217,22 +2184,22 @@ const startGoogleLogin = useCallback(() => {
       });
 
       let clipStatus = manualPostMode
-        ? `Cut Ready (${segFmt.badge}, ${timeRangeLabel}) • ${slotLabel}`
-        : `Scheduled (${segFmt.badge}) • ${slotLabel}`;
+        ? `Cut Ready (${activeBadge}, ${timeRangeLabel}) • ${slotLabel}`
+        : `Scheduled (${activeBadge}) • ${slotLabel}`;
       let youtubeVideoId = '';
       let uploadError = '';
 
       if (!manualPostMode && i < 4) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
-          mediaFormat: segFmt.format,
+          mediaFormat: activeFormat,
           blob: file,
           thumbnailBlob: thumb.blob
         });
 
         if (ytRes.uploaded && ytRes.videoId) {
           youtubeVideoId = ytRes.videoId;
-          clipStatus = `Uploaded ${segFmt.badge} (${youtubeVideoId}) • ${slotLabel} ✅`;
+          clipStatus = `Uploaded ${activeBadge} (${youtubeVideoId}) • ${slotLabel} ✅`;
         } else {
           uploadError = ytRes.error || 'Token missing';
           clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
@@ -2243,7 +2210,7 @@ const startGoogleLogin = useCallback(() => {
       const clipItem = {
         id: `${Date.now()}-${Math.random()}-${i}`,
         title: aiMeta.title,
-        mediaFormat: segFmt.format,
+        mediaFormat: activeFormat,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
@@ -2356,7 +2323,7 @@ const startGoogleLogin = useCallback(() => {
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'Aap Shorts Mode aur Videos Mode ko alag-alag ON ya OFF kar sakte hain.'
+        text: 'Video dalna ho to Video mode aur Short dalna ho to Short mode select karein.'
       }
     ]);
     setSupportInput('');
@@ -2671,7 +2638,7 @@ const startGoogleLogin = useCallback(() => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-5">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
                 <div className="p-4 rounded-[24px] bg-gradient-to-r from-[#0e1a2b] to-[#1a0c2e] border border-cyan-500/40 flex items-center justify-between shadow-lg">
                   <div className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center">
@@ -2695,6 +2662,38 @@ const startGoogleLogin = useCallback(() => {
                     className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-[11px] font-extrabold cursor-pointer shadow-md"
                   >
                     Choose Style
+                  </button>
+                </div>
+
+                <div className="p-4 rounded-[24px] bg-[#110c22] border border-cyan-500/35 flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-white">Upload Type</h3>
+                    <p className="text-[10.5px] text-slate-300">
+                      {uploadMode === 'video'
+                        ? 'Video selected (no #Shorts)'
+                        : uploadMode === 'short'
+                        ? 'Short selected (#Shorts)'
+                        : 'Auto-detects Short / Video'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      requireGoogleAuth(
+                        () =>
+                          setUploadMode((prev) =>
+                            prev === 'short' ? 'video' : prev === 'video' ? 'auto' : 'short'
+                          ),
+                        'Upload Type Toggle'
+                      )
+                    }
+                    className="px-3.5 py-1.5 rounded-full border border-cyan-400/50 bg-cyan-500/20 text-cyan-200 text-[11px] font-extrabold cursor-pointer transition-all"
+                  >
+                    {uploadMode === 'video'
+                      ? '📹 Video'
+                      : uploadMode === 'short'
+                      ? '⚡ Short'
+                      : '🔄 Auto'}
                   </button>
                 </div>
 
@@ -2723,52 +2722,6 @@ const startGoogleLogin = useCallback(() => {
                     }`}
                   >
                     {manualPostMode ? '⚡ Manual Post Active' : '🤖 Auto-Post ON'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5 lg:gap-4">
-                <div className="p-3.5 rounded-2xl bg-[#110c22] border border-cyan-500/35 flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-extrabold text-white">Shorts Mode</div>
-                    <div className="text-[10px] text-slate-400">
-                      {shortsEnabled ? 'Shorts upload active' : 'Shorts upload paused'}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      requireGoogleAuth(() => setShortsEnabled((prev) => !prev), 'Shorts Mode Toggle')
-                    }
-                    className={`px-3 py-1.5 rounded-full border text-[11px] font-extrabold cursor-pointer transition-all ${
-                      shortsEnabled
-                        ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300'
-                        : 'bg-rose-500/20 border-rose-400 text-rose-300'
-                    }`}
-                  >
-                    {shortsEnabled ? 'Shorts ON' : 'Shorts OFF'}
-                  </button>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-[#110c22] border border-purple-500/35 flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-extrabold text-white">Videos Mode</div>
-                    <div className="text-[10px] text-slate-400">
-                      {videosEnabled ? 'Videos upload active' : 'Videos upload paused'}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      requireGoogleAuth(() => setVideosEnabled((prev) => !prev), 'Videos Mode Toggle')
-                    }
-                    className={`px-3 py-1.5 rounded-full border text-[11px] font-extrabold cursor-pointer transition-all ${
-                      videosEnabled
-                        ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300'
-                        : 'bg-rose-500/20 border-rose-400 text-rose-300'
-                    }`}
-                  >
-                    {videosEnabled ? 'Videos ON' : 'Videos OFF'}
                   </button>
                 </div>
               </div>
@@ -3013,14 +2966,7 @@ const startGoogleLogin = useCallback(() => {
                   </b>
                 </div>
                 <div>
-                  Shorts Mode:{' '}
-                  <b className={shortsEnabled ? 'text-emerald-400' : 'text-rose-400'}>
-                    {shortsEnabled ? 'ON' : 'OFF'}
-                  </b>{' '}
-                  • Videos Mode:{' '}
-                  <b className={videosEnabled ? 'text-emerald-400' : 'text-rose-400'}>
-                    {videosEnabled ? 'ON' : 'OFF'}
-                  </b>
+                  Upload Type Mode: <b className="text-cyan-300 uppercase">{uploadMode}</b>
                 </div>
                 <div>
                   Daily Auto Slots: <b>09:00 AM, 01:30 PM, 05:30 PM, 09:00 PM</b>
