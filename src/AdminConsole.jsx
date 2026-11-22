@@ -226,8 +226,8 @@ export default function AdminConsole({
     e?.preventDefault();
     const clean = blockEmailInput.trim().toLowerCase();
     if (!clean) return;
-    await handleToggleBlockUser(clean, true);
     setBlockEmailInput('');
+    await handleToggleBlockUser(clean, true);
   };
 
   const handleSaveAllConfig = async () => {
@@ -460,11 +460,9 @@ export default function AdminConsole({
       </div>
 
       <div className="p-4 rounded-2xl bg-[#120d24] border border-rose-500/35 space-y-2.5">
-        <div className="flex items-center justify-between">
-          <span className="font-extrabold text-rose-300 flex items-center gap-1.5">
-            <Ban className="w-4 h-4" />
-            <span>Block / Unblock Users ({cfg.blockedEmails.length} Blocked)</span>
-          </span>
+        <div className="font-extrabold text-rose-300 flex items-center gap-1.5">
+          <Ban className="w-4 h-4" />
+          <span>Block / Unblock Users ({cfg.blockedEmails.length} Blocked)</span>
         </div>
 
         <form onSubmit={handleAddBlockEmail} className="flex gap-2">
