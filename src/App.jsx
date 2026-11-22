@@ -1494,6 +1494,19 @@ export default function App() {
   const [autoPublishStatus, setAutoPublishStatus] = useState('');
   const [manualPostMode, setManualPostMode] = useState(false);
   const [uploadMode, setUploadMode] = useState('auto'); // 'auto' | 'short' | 'video'
+  const cycleUploadMode = useCallback(() => {
+    setUploadMode((prev) => {
+      const next = prev === 'short' ? 'video' : prev === 'video' ? 'auto' : 'short';
+      setLoginError(
+        next === 'video'
+          ? 'Video Mode ON — ab upload #Shorts ke bina normal Video ki tarah jayega.'
+          : next === 'short'
+          ? 'Short Mode ON — ab upload #Shorts ke saath Short ki tarah jayega.'
+          : 'Auto Mode ON — video size/aspect ke hisab se automatically Short/Video set hoga.'
+      );
+      return next;
+    });
+  }, []);
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
@@ -1698,7 +1711,13 @@ export default function App() {
       }
 
       const cleanTitleBase = String(clip?.title || 'Viral Upload').trim();
-      const isShort = clip?.mediaFormat === 'short';
+    const effectiveFormat =
+        uploadMode === 'short' || uploadMode === 'video'
+          ? uploadMode
+          : clip?.mediaFormat === 'video'
+          ? 'video'
+          : 'short';
+      const isShort = effectiveFormat === 'short';
       const cleanTitle = (isShort ? `${cleanTitleBase} #Shorts` : cleanTitleBase)
         .replace(/\s+/g, ' ')
         .slice(0, 100);
