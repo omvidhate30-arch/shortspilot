@@ -1583,8 +1583,8 @@ export default function App() {
       } catch {}
     }
 
-    if (tokens.refresh
-        setYoutubeRefreshToken(tokens.refreshToken);
+    if (tokens.refreshToken) {
+      setYoutubeRefreshToken(tokens.refreshToken);
       try {
         localStorage.setItem('sp_yt_refresh_token', tokens.refreshToken);
         localStorage.setItem('shortspilot_yt_refresh_token', tokens.refreshToken);
@@ -1608,7 +1608,7 @@ export default function App() {
     }
   }, []);
 
-  const startGoogleLogin = useCallback(() => {
+const startGoogleLogin = useCallback(() => {
     setLoginError('');
     setIsLoggingIn(true);
     try {
@@ -1880,7 +1880,14 @@ export default function App() {
 
     const timer = setInterval(tickSlots, 60000);
     return () => clearInterval(timer);
-  }, [manualPostMode, isGoogleConnected, videoQueue, handleRetryYouTubeUpload, shortsEnabled, videosEnabled]);
+  }, [
+    manualPostMode,
+    isGoogleConnected,
+    videoQueue,
+    handleRetryYouTubeUpload,
+    shortsEnabled,
+    videosEnabled
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -3097,7 +3104,7 @@ export default function App() {
                               {clip.title}
                             </div>
                             <div className="text-[10px] text-emerald-400 font-bold">
-                              {(clip.mediaFormat === 'video' ? 'VIDEO' : 'SHORT')} • {clip.status} •{' '}
+                              {clip.mediaFormat === 'video' ? 'VIDEO' : 'SHORT'} • {clip.status} •{' '}
                               {clip.duration}
                             </div>
                           </div>
