@@ -166,6 +166,7 @@ const detectMediaFormat = (meta = {}) => {
     category: 'Videos'
   };
 };
+
 const buildMasterThumbnailPrompt = ({
   clip = {},
   customStyleNote = '',
@@ -573,6 +574,7 @@ const idbClearAllClips = async () => {
     return false;
   }
 };
+
 const buildClipPackage = (
   rawTopic,
   index = 0,
@@ -1359,6 +1361,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
     </button>
   </nav>
 ));
+
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
@@ -1490,13 +1493,15 @@ export default function App() {
 
   const [autoPublishStatus, setAutoPublishStatus] = useState('');
   const [manualPostMode, setManualPostMode] = useState(false);
+  const [shortsEnabled, setShortsEnabled] = useState(true);
+  const [videosEnabled, setVideosEnabled] = useState(true);
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Short vs Video Dual Mode Ready ✅',
-      desc: 'Shorts go with #Shorts & vertical hooks, regular videos stay in original format without #Shorts.',
+      title: 'Shorts & Videos ON/OFF Ready ✅',
+      desc: 'Shorts and Videos can be toggled ON or OFF independently with 4 daily slots.',
       unread: true
     }
   ]);
@@ -1505,7 +1510,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! Vertical/short clips par #Shorts aur normal videos par original format + video metadata chalta hai.'
+      text: 'Namaste! Aap Shorts Mode aur Videos Mode ko alag-alag ON ya OFF kar sakte hain.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -1578,8 +1583,8 @@ export default function App() {
       } catch {}
     }
 
-    if (tokens.refreshToken) {
-      setYoutubeRefreshToken(tokens.refreshToken);
+    if (tokens.refresh
+        setYoutubeRefreshToken(tokens.refreshToken);
       try {
         localStorage.setItem('sp_yt_refresh_token', tokens.refreshToken);
         localStorage.setItem('shortspilot_yt_refresh_token', tokens.refreshToken);
@@ -1799,6 +1804,15 @@ export default function App() {
   const handleRetryYouTubeUpload = useCallback(
     async (clip) => {
       if (!clip?.id) return;
+      if (clip.mediaFormat === 'short' && !shortsEnabled) {
+        setLoginError('Shorts mode OFF hai — upload karne ke liye Shorts ON karein.');
+        return;
+      }
+      if (clip.mediaFormat === 'video' && !videosEnabled) {
+        setLoginError('Videos mode OFF hai — upload karne ke liye Videos ON karein.');
+        return;
+      }
+
       setLoginError('');
       setAutoPublishStatus(`Uploading to YouTube: ${clip.title}...`);
 
@@ -1835,7 +1849,7 @@ export default function App() {
 
       setAutoPublishStatus('');
     },
-    [uploadClipToYouTube]
+    [uploadClipToYouTube, shortsEnabled, videosEnabled]
   );
 
   useEffect(() => {
@@ -1852,9 +1866,12 @@ export default function App() {
       const lastRunKey = localStorage.getItem('sp_last_auto_slot_run') || '';
       if (lastRunKey === dayKey) return;
 
-      const pendingClip = videoQueue.find(
-        (c) => !c.youtubeVideoId && c.blob instanceof Blob && c.blob.size > 0
-      );
+      const pendingClip = videoQueue.find((c) => {
+        if (c.youtubeVideoId || !(c.blob instanceof Blob) || c.blob.size === 0) return false;
+        if (c.mediaFormat === 'short' && !shortsEnabled) return false;
+        if (c.mediaFormat === 'video' && !videosEnabled) return false;
+        return true;
+      });
       if (!pendingClip) return;
 
       localStorage.setItem('sp_last_auto_slot_run', dayKey);
@@ -1863,7 +1880,7 @@ export default function App() {
 
     const timer = setInterval(tickSlots, 60000);
     return () => clearInterval(timer);
-  }, [manualPostMode, isGoogleConnected, videoQueue, handleRetryYouTubeUpload]);
+  }, [manualPostMode, isGoogleConnected, videoQueue, handleRetryYouTubeUpload, shortsEnabled, videosEnabled]);
 
   useEffect(() => {
     let active = true;
@@ -2043,10 +2060,20 @@ export default function App() {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const slotLabel = getNextSlotLabel(videoQueue.length + i);
-      const detectedTopic = detectTopicFromFile(file.name);
       const meta = await readVideoMetadata(file);
       const fmt = detectMediaFormat(meta);
+
+      if (fmt.format === 'short' && !shortsEnabled) {
+        setLoginError('Shorts mode OFF hai — Shorts upload karne ke liye Shorts ON karein.');
+        continue;
+      }
+      if (fmt.format === 'video' && !videosEnabled) {
+        setLoginError('Videos mode OFF hai — Videos upload karne ke liye Videos ON karein.');
+        continue;
+      }
+
+      const slotLabel = getNextSlotLabel(videoQueue.length + i);
+      const detectedTopic = detectTopicFromFile(file.name);
       const durLabel = formatClockTime(meta.duration);
       const hookLabel = selectedThumbConcept?.hookText || 'WAIT FOR END 😱';
       const watermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
@@ -2141,7 +2168,6 @@ export default function App() {
     const generated = [];
 
     for (let i = 0; i < count; i++) {
-      const slotLabel = getNextSlotLabel(videoQueue.length + i);
       const startSec = Math.floor(i * segDur);
       const endSec =
         i === count - 1 ? Math.floor(totalDur) : Math.min(Math.floor(totalDur), startSec + segDur);
@@ -2151,6 +2177,17 @@ export default function App() {
         height: meta.height,
         duration: clipLength
       });
+
+      if (segFmt.format === 'short' && !shortsEnabled) {
+        setLoginError('Shorts mode OFF hai — Shorts cut/upload karne ke liye Shorts ON karein.');
+        continue;
+      }
+      if (segFmt.format === 'video' && !videosEnabled) {
+        setLoginError('Videos mode OFF hai — Videos cut/upload karne ke liye Videos ON karein.');
+        continue;
+      }
+
+      const slotLabel = getNextSlotLabel(videoQueue.length + i);
       const durLabel = formatClockTime(clipLength);
       const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
       const partLabel = count > 1 ? `Part ${i + 1}/${count}` : '';
@@ -2227,6 +2264,7 @@ export default function App() {
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
+
   const handleGenerateThumbnails = (e) => {
     e.preventDefault();
     const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
@@ -2311,7 +2349,7 @@ export default function App() {
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'Vertical/short clips par #Shorts aur normal videos par original format + video metadata chalta hai.'
+        text: 'Aap Shorts Mode aur Videos Mode ko alag-alag ON ya OFF kar sakte hain.'
       }
     ]);
     setSupportInput('');
@@ -2682,6 +2720,52 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-2.5 lg:gap-4">
+                <div className="p-3.5 rounded-2xl bg-[#110c22] border border-cyan-500/35 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-extrabold text-white">Shorts Mode</div>
+                    <div className="text-[10px] text-slate-400">
+                      {shortsEnabled ? 'Shorts upload active' : 'Shorts upload paused'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      requireGoogleAuth(() => setShortsEnabled((prev) => !prev), 'Shorts Mode Toggle')
+                    }
+                    className={`px-3 py-1.5 rounded-full border text-[11px] font-extrabold cursor-pointer transition-all ${
+                      shortsEnabled
+                        ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300'
+                        : 'bg-rose-500/20 border-rose-400 text-rose-300'
+                    }`}
+                  >
+                    {shortsEnabled ? 'Shorts ON' : 'Shorts OFF'}
+                  </button>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-[#110c22] border border-purple-500/35 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-extrabold text-white">Videos Mode</div>
+                    <div className="text-[10px] text-slate-400">
+                      {videosEnabled ? 'Videos upload active' : 'Videos upload paused'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      requireGoogleAuth(() => setVideosEnabled((prev) => !prev), 'Videos Mode Toggle')
+                    }
+                    className={`px-3 py-1.5 rounded-full border text-[11px] font-extrabold cursor-pointer transition-all ${
+                      videosEnabled
+                        ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300'
+                        : 'bg-rose-500/20 border-rose-400 text-rose-300'
+                    }`}
+                  >
+                    {videosEnabled ? 'Videos ON' : 'Videos OFF'}
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-2.5 lg:gap-5">
                 <div
                   onClick={() =>
@@ -2919,6 +3003,16 @@ export default function App() {
                   YouTube Token:{' '}
                   <b className={youtubeAccessToken ? 'text-emerald-400' : 'text-slate-400'}>
                     {youtubeAccessToken ? 'Active' : 'Not Issued'}
+                  </b>
+                </div>
+                <div>
+                  Shorts Mode:{' '}
+                  <b className={shortsEnabled ? 'text-emerald-400' : 'text-rose-400'}>
+                    {shortsEnabled ? 'ON' : 'OFF'}
+                  </b>{' '}
+                  • Videos Mode:{' '}
+                  <b className={videosEnabled ? 'text-emerald-400' : 'text-rose-400'}>
+                    {videosEnabled ? 'ON' : 'OFF'}
                   </b>
                 </div>
                 <div>
