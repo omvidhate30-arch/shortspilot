@@ -37,6 +37,9 @@ const FIXED_OAUTH_ORIGIN = 'https://www.shortspilot.in';
 const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
 
+const RAZORPAY_MONTHLY_LINK = 'https://rzp.io/rzp/MwaHJEUU';
+const RAZORPAY_YEARLY_LINK = 'https://rzp.io/rzp/MwaHJEUU';
+
 const SHORTSPILOT_400_URLS = Array.from({ length: 400 }, (_, idx) => {
   const num = idx + 1;
   if (num <= 100) {
@@ -1199,7 +1202,6 @@ export default function App() {
   const [previewClip, setPreviewClip] = useState(null);
 
   const [checkoutEmail, setCheckoutEmail] = useState(() => googleUser?.email || '');
-  const [utrNumber, setUtrNumber] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutPendingMsg, setCheckoutPendingMsg] = useState('');
 
@@ -1750,29 +1752,31 @@ export default function App() {
     await idbClearAllClips();
   };
 
-  const handleVerifyPayment = async (e) => {
-    e.preventDefault();
+  const handleOpenRazorpayCheckout = useCallback(async () => {
     setCheckoutError('');
     setCheckoutPendingMsg('');
+
     const cleanEmail = (checkoutEmail || googleUser?.email || '').trim().toLowerCase();
-    if (!cleanEmail) return setCheckoutError('Enter your Gmail ID first.');
-    const cleanUtr = utrNumber.trim();
-    if (!/^\d{12}$/.test(cleanUtr)) return setCheckoutError('Enter valid 12-digit UTR number.');
+    if (!cleanEmail) {
+      return setCheckoutError('Pehle apna Gmail ID enter karein.');
+    }
 
     const amt =
       selectedBilling === 'yearly'
         ? Number(globalConfig.yearlyPrice || 3999)
         : Number(globalConfig.monthlyPrice || 99);
 
-    const newTxn = {
-      id: `TXN-${Math.floor(1000 + Math.random() * 9000)}`,
+    const targetUrl =
+      selectedBilling === 'yearly' ? RAZORPAY_YEARLY_LINK : RAZORPAY_MONTHLY_LINK;
+
+    const loggedTxn = {
+      id: `RZP-${Date.now()}`,
       user: cleanEmail,
       userKey: emailToKey(cleanEmail),
       plan: selectedBilling,
-      utr: cleanUtr,
       numericAmount: amt,
       amount: `₹${amt} (${selectedBilling})`,
-      status: 'Pending',
+      status: 'Checkout Opened',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
@@ -1781,15 +1785,15 @@ export default function App() {
         await fetch(`${dbBase}/transactions.json`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newTxn)
+          body: JSON.stringify(loggedTxn)
         });
       } catch {}
     }
 
-    setTransactions((prev) => [newTxn, ...prev]);
-    setCheckoutPendingMsg('⏳ UTR Submitted! VIP will activate after verification.');
-    setUtrNumber('');
-  };
+    setTransactions((prev) => [loggedTxn, ...prev]);
+    setCheckoutPendingMsg('Razorpay payment page open ho raha hai...');
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  }, [checkoutEmail, googleUser?.email, selectedBilling, globalConfig, dbBase]);
 
   const handleSendSupport = (e) => {
     e.preventDefault();
@@ -1807,7 +1811,6 @@ export default function App() {
   };
 
   const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
-
   return (
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
@@ -2618,8 +2621,8 @@ export default function App() {
               </p>
               <p>
                 <b className="text-white">3. Subscriptions & Payments:</b> Plans (Monthly / Yearly)
-                digital automation access ke liye hain; UPI/UTR verification ke baad plan active
-                hota hai.
+                digital automation access ke liye hain; Razorpay payment complete hone ke baad plan
+                active hota hai.
               </p>
               <p>
                 <b className="text-white">4. Local Storage & Tokens:</b> Clips local IndexedDB mein
@@ -2850,7 +2853,7 @@ export default function App() {
 
       {isPricingOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-amber-400/50 p-6 space-y-4">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-amber-400/50 p-6 space-y-4 max-h-[92vh] overflow-y-auto">
             <button
               type="button"
               onClick={() => setIsPricingOpen(false)}
@@ -2913,18 +2916,7 @@ export default function App() {
 
             {upgradeReason && <p className="text-xs text-amber-200">{upgradeReason}</p>}
 
-            <form onSubmit={handleVerifyPayment} className="space-y-2.5">
-              <div className="p-2.5 rounded-xl bg-[#120d24] border border-emerald-500/30 text-xs text-slate-300 flex items-center justify-between">
-                <span>
-                  Pay UPI: <b className="text-emerald-400 font-mono">{globalConfig.receiverUpi}</b>
-                </span>
-                <span className="font-extrabold text-white">
-                  ₹
-                  {selectedBilling === 'yearly'
-                    ? globalConfig.yearlyPrice || '3999'
-                    : globalConfig.monthlyPrice || '99'}
-                </span>
-              </div>
+            <div className="space-y-2.5">
               <input
                 type="email"
                 value={checkoutEmail}
@@ -2932,27 +2924,24 @@ export default function App() {
                 placeholder="Enter Your Gmail ID"
                 className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
               />
-              <input
-                type="tel"
-                maxLength={12}
-                value={utrNumber}
-                onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
-                placeholder="Enter 12-Digit Payment UTR Number"
-                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white font-mono"
-              />
-              {checkoutError && <p className="text-xs text-rose-400">{checkoutError}</p>}
-              {checkoutPendingMsg && <p className="text-xs text-amber-300">{checkoutPendingMsg}</p>}
+
+              {checkoutError && <p className="text-xs text-rose-400 font-bold">{checkoutError}</p>}
+              {checkoutPendingMsg && (
+                <p className="text-xs text-emerald-300 font-bold">{checkoutPendingMsg}</p>
+              )}
+
               <button
-                type="submit"
-                className="w-full py-3 rounded-2xl bg-amber-500 text-black font-extrabold text-xs cursor-pointer shadow-lg"
+                type="button"
+                onClick={handleOpenRazorpayCheckout}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-xs cursor-pointer shadow-lg"
               >
-                Submit UTR & Unlock ₹
+                💳 Pay Instantly via Razorpay (₹
                 {selectedBilling === 'yearly'
                   ? globalConfig.yearlyPrice || '3999'
-                  : globalConfig.monthlyPrice || '99'}{' '}
-                Offer
+                  : globalConfig.monthlyPrice || '99'}
+                )
               </button>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -3310,9 +3299,9 @@ export default function App() {
                       className="p-2.5 rounded-xl bg-[#120d24] border border-slate-800 flex items-center justify-between text-[11px]"
                     >
                       <div className="truncate">
-                        <b>{t.user}</b> • {t.amount} • UTR: <span className="font-mono">{t.utr}</span>
+                        <b>{t.user}</b> • {t.amount} • ID: <span className="font-mono">{t.id}</span>
                       </div>
-                      <span className="text-amber-300 font-bold ml-2">{t.status || 'Pending'}</span>
+                      <span className="text-amber-300 font-bold ml-2">{t.status || 'Checkout Opened'}</span>
                     </div>
                   ))}
                 </div>
