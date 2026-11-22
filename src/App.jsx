@@ -116,15 +116,67 @@ const detectTopicFromFile = (fileName = '') => {
   return base.replace(/\b\w/g, (ch) => ch.toUpperCase());
 };
 
+const readVideoMetadata = (file) =>
+  new Promise((resolve) => {
+    try {
+      if (!(file instanceof Blob)) {
+        return resolve({ duration: 30, width: 1080, height: 1920 });
+      }
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 30;
+        const width = video.videoWidth || 1080;
+        const height = video.videoHeight || 1920;
+        URL.revokeObjectURL(url);
+        resolve({ duration: dur, width, height });
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve({ duration: 30, width: 1080, height: 1920 });
+      };
+      video.src = url;
+    } catch {
+      resolve({ duration: 30, width: 1080, height: 1920 });
+    }
+  });
+
+const detectMediaFormat = (meta = {}) => {
+  const vw = Number(meta?.width) || 0;
+  const vh = Number(meta?.height) || 0;
+  const duration = Number(meta?.duration) || 0;
+
+  const isVertical = vw > 0 && vh > 0 ? vh >= vw : true;
+  const isShortDuration = duration > 0 ? duration <= 60 : true;
+
+  if (isVertical && isShortDuration) {
+    return {
+      format: 'short',
+      badge: 'SHORT',
+      label: 'YouTube Short',
+      category: 'Shorts'
+    };
+  }
+
+  return {
+    format: 'video',
+    badge: 'VIDEO',
+    label: 'YouTube Video',
+    category: 'Videos'
+  };
+};
 const buildMasterThumbnailPrompt = ({
   clip = {},
   customStyleNote = '',
   watermarkText = 'Developed by shortspilot.in'
 } = {}) => {
-  const title = String(clip?.title || 'Viral Short').trim();
+  const title = String(clip?.title || 'Viral Upload').trim();
   const hookText = String(clip?.thumbnailHook || 'WAIT FOR END 😱').trim();
   const description = String(clip?.description || '').trim();
-  const hashtags = String(clip?.hashtags || '#Shorts #ViralShorts').trim();
+  const hashtags = String(
+    clip?.hashtags || (clip?.mediaFormat === 'video' ? '#Trending #FullVideo' : '#Shorts #ViralShorts')
+  ).trim();
   const credit = String(
     watermarkText || clip?.watermarkText || 'Developed by shortspilot.in'
   ).trim();
@@ -134,7 +186,7 @@ const buildMasterThumbnailPrompt = ({
     : '';
 
   return [
-    'Create a high-CTR 9:16 vertical YouTube Shorts thumbnail (1080x1920) for the following short video:',
+    'Create a high-CTR 9:16 vertical YouTube thumbnail/cover graphic (1080x1920) for this upload:',
     '',
     `- Title: ${title}`,
     `- Hook Text: ${hookText}`,
@@ -143,7 +195,7 @@ const buildMasterThumbnailPrompt = ({
     `- Credit / Watermark: ${credit}${extraStyle}`,
     '',
     'Design Instructions:',
-    '1. Vertical 9:16 aspect ratio (1080x1920), clean composition with a clear focal subject and no clutter.',
+    '1. Clean composition with a clear focal subject and no clutter.',
     '2. Bold, high-contrast hook text with strong outline/glow so it is instantly readable on mobile screens.',
     '3. Dramatic lighting, rich contrast, and energetic colors matching the title, description, and hashtags.',
     `4. Keep on-image text punchy and readable; place "${credit}" cleanly and subtly near the bottom.`,
@@ -286,7 +338,7 @@ const generateThumbnailBlob = async ({
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('⚡ TRENDING SHORT', 221, 125);
+    ctx.fillText('⚡ TRENDING', 221, 125);
     ctx.restore();
 
     const frameX = 64;
@@ -521,57 +573,45 @@ const idbClearAllClips = async () => {
     return false;
   }
 };
-
-const detectMediaFormat = (meta = {}) => {
-  const vw = Number(meta?.width) || 0;
-  const vh = Number(meta?.height) || 0;
-  const duration = Number(meta?.duration) || 0;
-
-  const isVertical = vw > 0 && vh > 0 ? vh >= vw : true;
-  const isShortDuration = duration > 0 ? duration <= 60 : true;
-
-  if (isVertical && isShortDuration) {
-    return {
-      format: 'short',
-      badge: 'SHORT',
-      label: 'YouTube Short',
-      category: 'Shorts'
-    };
-  }
-
-  return {
-    format: 'video',
-    badge: 'VIDEO',
-    label: 'YouTube Video',
-    category: 'Videos'
-  };
-};
-
 const buildClipPackage = (
   rawTopic,
   index = 0,
   partLabel = '',
   watermarkText = 'Developed by shortspilot.in',
   durationLabel = '',
-  hookText = ''
+  hookText = '',
+  mediaFormat = 'short'
 ) => {
   const cleanTopic = (rawTopic || 'Insane Viral Moment').trim();
+  const isShort = mediaFormat === 'short';
   const title = partLabel ? `${cleanTopic} (${partLabel})` : cleanTopic;
 
-  const hookLines = [
-    `Watch till the end for ${cleanTopic} — this moment catches you completely off guard.`,
-    `High-retention highlight from ${cleanTopic} crafted for fast vertical Shorts discovery.`,
-    `Blink and you might miss what happens next in ${cleanTopic}.`,
-    `Pure highlight energy from ${cleanTopic} — clipped for quick mobile viewing.`,
-    `Unexpected turn in ${cleanTopic} that keeps viewers hooked till the final second.`
-  ];
+  const hookLines = isShort
+    ? [
+        `Watch till the end for ${cleanTopic} — this moment catches you completely off guard.`,
+        `High-retention highlight from ${cleanTopic} crafted for fast vertical Shorts discovery.`,
+        `Blink and you might miss what happens next in ${cleanTopic}.`,
+        `Pure highlight energy from ${cleanTopic} — clipped for quick mobile viewing.`,
+        `Unexpected turn in ${cleanTopic} that keeps viewers hooked till the final second.`
+      ]
+    : [
+        `Full coverage and key highlights from ${cleanTopic}.`,
+        `Detailed look at ${cleanTopic} — watch the complete video for every detail.`,
+        `Everything you need to know about ${cleanTopic} in one video.`,
+        `Complete breakdown and moments from ${cleanTopic}.`,
+        `Watch the full video on ${cleanTopic} and share your thoughts in the comments.`
+      ];
 
-  const tagPools = [
+  const shortTagPools = [
     ['#Shorts', '#ViralShorts', '#TrendingNow'],
     ['#YouTubeShorts', '#MustWatch', '#ShortClip'],
-    ['#ShortsFeed', '#ViralClip', '#ForYou'],
-    ['#DailyShorts', '#Highlight', '#TrendingShorts'],
-    ['#QuickWatch', '#ViralMoment', '#ShortsCreator']
+    ['#ShortsFeed', '#ViralClip', '#ForYou']
+  ];
+
+  const videoTagPools = [
+    ['#Trending', '#MustWatch', '#FullVideo'],
+    ['#Highlights', '#Creator', '#Explore'],
+    ['#Update', '#WatchNow', '#Community']
   ];
 
   const words = cleanTopic
@@ -582,13 +622,19 @@ const buildClipPackage = (
     .slice(0, 3)
     .map((w) => `#${w.charAt(0).toUpperCase()}${w.slice(1)}`);
 
-  const pool = tagPools[index % tagPools.length];
+  const pool = isShort
+    ? shortTagPools[index % shortTagPools.length]
+    : videoTagPools[index % videoTagPools.length];
   const combinedTags = Array.from(new Set([...words, ...pool])).slice(0, 5);
   const hashtags = combinedTags.join(' ');
 
   const openingLine = hookLines[index % hookLines.length];
   const metaBits = [
-    partLabel ? `Segment: ${partLabel}` : 'Format: 9:16 Vertical Short',
+    partLabel
+      ? `Segment: ${partLabel}`
+      : isShort
+      ? 'Format: 9:16 Vertical Short'
+      : 'Format: Standard Video',
     durationLabel ? `Length: ${durationLabel}` : '',
     hookText ? `Hook: ${hookText}` : ''
   ]
@@ -614,7 +660,8 @@ const buildClipPackage = (
 
   return {
     title,
-    category: 'Shorts',
+    category: isShort ? 'Shorts' : 'Videos',
+    mediaFormat: isShort ? 'short' : 'video',
     hashtags,
     description,
     watermarkText,
@@ -725,7 +772,7 @@ const GoogleVerificationGuideModal = React.memo(
       {
         badge: 'STEP 3 OF 3 • ALLOW & CONTINUE',
         title: '3. Permission Allow Karke Continue Karein',
-        desc: 'Agli screen par YouTube Shorts upload permission check karke "Continue" dabaye, phir aapka account connect ho jayega.',
+        desc: 'Agli screen par YouTube upload permission check karke "Continue" dabaye, phir aapka account connect ho jayega.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2 select-none">
             <div className="text-[10.5px] font-extrabold text-slate-800">
@@ -831,9 +878,11 @@ const GoogleVerificationGuideModal = React.memo(
 
 const ClipActionShortcuts = React.memo(
   ({ clip, onPreview, onCopyDescription, onSendThumbAI }) => {
-    const youtubeShortUrl = clip?.youtubeVideoId
-      ? `https://www.youtube.com/shorts/${clip.youtubeVideoId}`
-      : 'https://studio.youtube.com/channel/UC/videos/short';
+    const youtubeUrl = clip?.youtubeVideoId
+      ? clip?.mediaFormat === 'video'
+        ? `https://www.youtube.com/watch?v=${clip.youtubeVideoId}`
+        : `https://www.youtube.com/shorts/${clip.youtubeVideoId}`
+      : 'https://studio.youtube.com/channel/UC/videos';
 
     return (
       <div className="pt-2 mt-1 border-t border-white/10 space-y-1.5">
@@ -859,13 +908,19 @@ const ClipActionShortcuts = React.memo(
             </button>
 
             <a
-              href={youtubeShortUrl}
+              href={youtubeUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-400/40 text-red-200 text-[10.5px] font-extrabold transition"
             >
               <Youtube className="w-3.5 h-3.5 text-red-400" />
-              <span>{clip?.youtubeVideoId ? 'Open Short' : 'YT Shorts'}</span>
+              <span>
+                {clip?.youtubeVideoId
+                  ? clip?.mediaFormat === 'video'
+                    ? 'Open Video'
+                    : 'Open Short'
+                  : 'YouTube'}
+              </span>
               <ExternalLink className="w-3 h-3 opacity-80" />
             </a>
           </div>
@@ -1008,7 +1063,7 @@ const DesktopSidebar = React.memo(
           className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-95 transition-all"
         >
           <Plus className="w-4 h-4" />
-          <span>Upload & Auto-Post Short</span>
+          <span>Upload & Auto-Post</span>
         </button>
 
         <div className="space-y-1.5 text-xs font-bold">
@@ -1304,7 +1359,6 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
     </button>
   </nav>
 ));
-
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
@@ -1441,8 +1495,8 @@ export default function App() {
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Auto Thumbnail + YouTube Upload Ready ✅',
-      desc: '4 daily slots (9 AM, 1:30 PM, 5:30 PM, 9 PM), studio 9:16 thumbnails, and upload fix active.',
+      title: 'Short vs Video Dual Mode Ready ✅',
+      desc: 'Shorts go with #Shorts & vertical hooks, regular videos stay in original format without #Shorts.',
       unread: true
     }
   ]);
@@ -1451,7 +1505,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! Video upload karte hi 9:16 thumbnail, dynamic description aur YouTube upload run hota hai.'
+      text: 'Namaste! Vertical/short clips par #Shorts aur normal videos par original format + video metadata chalta hai.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -1640,7 +1694,9 @@ export default function App() {
         };
       }
 
-      const cleanTitle = `${String(clip?.title || 'Viral Short').trim()} #Shorts`
+      const cleanTitleBase = String(clip?.title || 'Viral Upload').trim();
+      const isShort = clip?.mediaFormat === 'short';
+      const cleanTitle = (isShort ? `${cleanTitleBase} #Shorts` : cleanTitleBase)
         .replace(/\s+/g, ' ')
         .slice(0, 100);
 
@@ -1665,7 +1721,7 @@ export default function App() {
         form.append(
           'file',
           fileBlob,
-          `${String(clip?.title || 'short').replace(/[^\w.-]+/g, '_') || 'short'}.mp4`
+          `${String(clip?.title || 'upload').replace(/[^\w.-]+/g, '_') || 'upload'}.mp4`
         );
 
         return fetch(
@@ -1983,51 +2039,53 @@ export default function App() {
     if (files.length === 0) return;
 
     setLoginError('');
-    setAutoPublishStatus('Generating 9:16 Thumbnail, Description & Auto-Posting...');
+    setAutoPublishStatus('Generating Thumbnail, Description & Auto-Posting...');
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const slotLabel = getNextSlotLabel(videoQueue.length + i);
       const detectedTopic = detectTopicFromFile(file.name);
-const readVideoMetadata = (file) =>
-  new Promise((resolve) => {
-    try {
-      if (!(file instanceof Blob)) return resolve({ duration: 30, width: 1080, height: 1920 });
-      const url = URL.createObjectURL(file);
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 30;
-        const width = video.videoWidth || 1080;
-        const height = video.videoHeight || 1920;
-        URL.revokeObjectURL(url);
-        resolve({ duration: dur, width, height });
-      };
-      video.onerror = () => {
-        URL.revokeObjectURL(url);
-        resolve({ duration: 30, width: 1080, height: 1920 });
-      };
-      video.src = url;
-    } catch {
-      resolve({ duration: 30, width: 1080, height: 1920 });
-    }
-  });
+      const meta = await readVideoMetadata(file);
+      const fmt = detectMediaFormat(meta);
+      const durLabel = formatClockTime(meta.duration);
+      const hookLabel = selectedThumbConcept?.hookText || 'WAIT FOR END 😱';
+      const watermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
+      const aiMeta = buildClipPackage(
+        detectedTopic,
+        i,
+        '',
+        watermark,
+        durLabel,
+        hookLabel,
+        fmt.format
+      );
+      const thumb = await generateThumbnailBlob({
+        hookText: hookLabel,
+        subText: detectedTopic,
+        watermarkText: watermark,
+        palette: selectedThumbConcept?.palette,
+        videoBlob: file,
+        seekSec: 2
+      });
       const objectUrl = URL.createObjectURL(file);
 
-      let clipStatus = manualPostMode ? `Manual • ${slotLabel}` : `Queued • ${slotLabel}`;
+      let clipStatus = manualPostMode
+        ? `Manual (${fmt.badge}) • ${slotLabel}`
+        : `Queued (${fmt.badge}) • ${slotLabel}`;
       let youtubeVideoId = '';
       let uploadError = '';
 
       if (!manualPostMode) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
+          mediaFormat: fmt.format,
           blob: file,
           thumbnailBlob: thumb.blob
         });
 
         if (ytRes.uploaded && ytRes.videoId) {
           youtubeVideoId = ytRes.videoId;
-          clipStatus = `Uploaded (${youtubeVideoId}) • ${slotLabel} ✅`;
+          clipStatus = `Uploaded ${fmt.badge} (${youtubeVideoId}) • ${slotLabel} ✅`;
         } else {
           uploadError = ytRes.error || 'Token missing';
           clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
@@ -2038,6 +2096,7 @@ const readVideoMetadata = (file) =>
       const readyClip = {
         id: `${Date.now()}-${Math.random()}`,
         title: aiMeta.title,
+        mediaFormat: fmt.format,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
@@ -2070,7 +2129,7 @@ const readVideoMetadata = (file) =>
     setIsSplitterModalOpen(false);
     setLoginError('');
     const count = Number(clipSplitCount) || 3;
-    setAutoPublishStatus(`Generating 9:16 Thumbnails & Cutting ${count} Clips...`);
+    setAutoPublishStatus(`Generating Thumbnails & Cutting ${count} Clips...`);
 
     const detectedTopic = detectTopicFromFile(file.name);
     const meta = await readVideoMetadata(file);
@@ -2087,6 +2146,11 @@ const readVideoMetadata = (file) =>
       const endSec =
         i === count - 1 ? Math.floor(totalDur) : Math.min(Math.floor(totalDur), startSec + segDur);
       const clipLength = Math.max(1, endSec - startSec);
+      const segFmt = detectMediaFormat({
+        width: meta.width,
+        height: meta.height,
+        duration: clipLength
+      });
       const durLabel = formatClockTime(clipLength);
       const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
       const partLabel = count > 1 ? `Part ${i + 1}/${count}` : '';
@@ -2096,7 +2160,8 @@ const readVideoMetadata = (file) =>
         partLabel,
         watermark,
         durLabel,
-        hookLabel
+        hookLabel,
+        segFmt.format
       );
       const thumb = await generateThumbnailBlob({
         hookText: hookLabel,
@@ -2108,21 +2173,22 @@ const readVideoMetadata = (file) =>
       });
 
       let clipStatus = manualPostMode
-        ? `Cut Ready (${timeRangeLabel}) • ${slotLabel}`
-        : `Scheduled (${slotLabel})`;
+        ? `Cut Ready (${segFmt.badge}, ${timeRangeLabel}) • ${slotLabel}`
+        : `Scheduled (${segFmt.badge}) • ${slotLabel}`;
       let youtubeVideoId = '';
       let uploadError = '';
 
       if (!manualPostMode && i < 4) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
+          mediaFormat: segFmt.format,
           blob: file,
           thumbnailBlob: thumb.blob
         });
 
         if (ytRes.uploaded && ytRes.videoId) {
           youtubeVideoId = ytRes.videoId;
-          clipStatus = `Uploaded (${youtubeVideoId}) • ${slotLabel} ✅`;
+          clipStatus = `Uploaded ${segFmt.badge} (${youtubeVideoId}) • ${slotLabel} ✅`;
         } else {
           uploadError = ytRes.error || 'Token missing';
           clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
@@ -2133,6 +2199,7 @@ const readVideoMetadata = (file) =>
       const clipItem = {
         id: `${Date.now()}-${Math.random()}-${i}`,
         title: aiMeta.title,
+        mediaFormat: segFmt.format,
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
@@ -2160,7 +2227,6 @@ const readVideoMetadata = (file) =>
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
-
   const handleGenerateThumbnails = (e) => {
     e.preventDefault();
     const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
@@ -2206,7 +2272,7 @@ const readVideoMetadata = (file) =>
 
     if (!targetUrl) {
       return setCheckoutError(
-        '₹1,499 Yearly plan ki alag Razorpay link abhi set nahi hai.'
+        'Yearly plan ki alag Razorpay link abhi set nahi hai.'
       );
     }
 
@@ -2245,20 +2311,20 @@ const readVideoMetadata = (file) =>
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'Video upload karte hi 9:16 thumbnail, dynamic description aur YouTube upload auto run hota hai.'
+        text: 'Vertical/short clips par #Shorts aur normal videos par original format + video metadata chalta hai.'
       }
     ]);
     setSupportInput('');
   };
 
   const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
-  
-return (
+
+  return (
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
         activeTab={activeTab}
         onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
-        onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Short')}
+        onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload')}
         onOpenSplitter={() =>
           requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
         }
@@ -2330,7 +2396,7 @@ return (
                     <Crown className="w-6 h-6 text-amber-400 fill-amber-400 shrink-0" />
                     <div className="min-w-0">
                       <div className="text-xs lg:text-sm font-extrabold text-amber-300 truncate">
-                        Auto-Post + Thumbnail Active
+                        Short + Video Mode Active
                       </div>
                       <div className="text-[10px] lg:text-xs text-slate-200">
                         4 Daily Slots • 9:16 Thumb • shortspilot.in
@@ -2441,13 +2507,13 @@ return (
                   <div className="flex items-center justify-between gap-2">
                     <div className="max-w-[65%] space-y-1.5">
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-400/40 text-[9.5px] font-extrabold text-pink-300">
-                        <Zap className="w-3 h-3 text-pink-400" /> Shorts Feed Engine
+                        <Zap className="w-3 h-3 text-pink-400" /> Shorts & Video Engine
                       </span>
                       <h2 className="text-[22px] lg:text-[26px] font-extrabold text-white leading-[1.15] tracking-tight">
                         Publish to <br />
                         YouTube{' '}
                         <span className="bg-gradient-to-r from-pink-400 to-cyan-400 bg-clip-text text-transparent">
-                          Shorts
+                          Shorts & Videos
                         </span>
                       </h2>
                       <p className="text-[10.5px] lg:text-xs text-slate-300 font-medium">
@@ -2457,12 +2523,12 @@ return (
 
                     <div
                       onClick={() =>
-                        requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Short')
+                        requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload')
                       }
                       className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-purple-600/30 to-pink-600/30 border border-purple-400/50 flex items-center justify-center relative cursor-pointer shadow-xl shrink-0 group"
                     >
                       <span className="absolute -top-1 right-0 px-2 py-0.5 rounded-md bg-cyan-500 text-[9px] font-extrabold text-black">
-                        SHORT
+                        AUTO
                       </span>
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-orange-500 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
                         <Play className="w-7 h-7 text-white fill-white ml-0.5" />
@@ -2479,13 +2545,15 @@ return (
                   <button
                     type="button"
                     onClick={() =>
-                      requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Short')
+                      requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload')
                     }
                     className="w-full py-3 lg:py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs lg:text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(56,189,248,0.4)] border border-white/20 active:scale-95 transition-all cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-white" />
                     <span>
-                      {manualPostMode ? 'Upload to Manual Vault' : 'Upload & Auto-Post to Shorts Feed'}
+                      {manualPostMode
+                        ? 'Upload to Manual Vault'
+                        : 'Upload & Auto-Post (Short / Video)'}
                     </span>
                   </button>
                 </div>
@@ -2552,7 +2620,7 @@ return (
                   >
                     <Scissors className="w-3.5 h-3.5" />
                     <span>
-                      Select Long Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Clip' : 'Clips'} Now
+                      Select Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Clip' : 'Clips'} Now
                     </span>
                   </button>
                 </div>
@@ -2688,7 +2756,7 @@ return (
                   <div className="text-sm lg:text-lg font-extrabold text-white">
                     {totalPostedCount}
                   </div>
-                  <div className="text-[9px] lg:text-[11px] text-slate-400">Queued Shorts</div>
+                  <div className="text-[9px] lg:text-[11px] text-slate-400">Queued Items</div>
                 </div>
                 <div
                   onClick={() =>
@@ -2710,7 +2778,7 @@ return (
               <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between px-1">
                   <h3 className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-pink-400" /> Your Published & Cut Shorts
+                    <Clock className="w-4 h-4 text-pink-400" /> Your Published & Cut Shorts / Videos
                   </h3>
                   <button
                     type="button"
@@ -2760,6 +2828,9 @@ return (
                               {clip.title}
                             </h4>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold uppercase">
+                                {clip.mediaFormat === 'video' ? 'VIDEO' : 'SHORT'}
+                              </span>
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
                                 {clip.status}
                               </span>
@@ -2860,7 +2931,7 @@ return (
                   </b>
                 </div>
                 <div>
-                  Total Queued Clips: <b>{totalPostedCount}</b>
+                  Total Queued Items: <b>{totalPostedCount}</b>
                 </div>
               </div>
             </div>
@@ -2891,7 +2962,7 @@ return (
                     onClick={() => fileInputRef.current?.click()}
                     className="px-5 py-2.5 rounded-xl bg-purple-600/30 border border-purple-400/40 text-xs font-bold text-purple-200 cursor-pointer"
                   >
-                    + Upload Short
+                    + Upload Short / Video
                   </button>
                 </div>
               ) : (
@@ -2932,7 +3003,8 @@ return (
                               {clip.title}
                             </div>
                             <div className="text-[10px] text-emerald-400 font-bold">
-                              {clip.status} • {clip.duration}
+                              {(clip.mediaFormat === 'video' ? 'VIDEO' : 'SHORT')} • {clip.status} •{' '}
+                              {clip.duration}
                             </div>
                           </div>
                         </div>
@@ -3068,7 +3140,7 @@ return (
         <MobileBottomNavBar
           activeTab={activeTab}
           onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
-          onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Short')}
+          onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload')}
         />
       </div>
 
@@ -3232,7 +3304,7 @@ return (
             </button>
             <div className="flex items-center gap-2">
               <ImageIcon className="w-5 h-5 text-cyan-300" />
-              <h3 className="text-base font-extrabold text-white">9:16 Shorts Thumbnail Preset</h3>
+              <h3 className="text-base font-extrabold text-white">9:16 Thumbnail Preset</h3>
             </div>
 
             <form onSubmit={handleGenerateThumbnails} className="flex gap-2">
@@ -3309,7 +3381,7 @@ return (
               <h3 className="text-base font-extrabold text-white">AI Engaging Clips Auto-Splitter</h3>
             </div>
             <p className="text-xs text-slate-300">
-              Select how many viral clips you want AI to cut from your full-length video:
+              Select how many clips you want AI to cut from your video:
             </p>
             <div className="grid grid-cols-3 gap-2.5">
               {[1, 3, 5].map((count) => (
@@ -3332,7 +3404,7 @@ return (
               onClick={() => splitterInputRef.current?.click()}
               className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
             >
-              Select Full Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Clip' : 'Clips'}
+              Select Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Clip' : 'Clips'}
             </button>
           </div>
         </div>
@@ -3499,7 +3571,7 @@ return (
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
                 >
-                  🎨 9:16 Shorts Thumbnail Preset
+                  🎨 9:16 Thumbnail Preset
                 </button>
                 <button
                   type="button"
