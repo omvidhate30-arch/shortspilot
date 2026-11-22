@@ -857,865 +857,755 @@ const GoogleVerificationGuideModal = React.memo(
     );
   }
 );
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import {
-  Sparkles,
-  Play,
-  Youtube,
-  X,
-  Trash2,
-  Calendar,
-  Clock,
-  Bot,
-  Crown,
-  Bell,
-  Home,
-  BarChart2 as ChartIcon,
-  Plus,
-  FolderKanban,
-  Settings,
-  Menu,
-  Zap,
-  TrendingUp,
-  Scissors,
-  Image as ImageIcon,
-  Instagram,
-  LogOut,
-  ExternalLink,
-  Copy,
-  FileText,
-  Lock
-} from 'lucide-react';
-
-const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
-const GOOGLE_CLIENT_ID =
-  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-  '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
-const GOOGLE_CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
-const FIXED_OAUTH_ORIGIN = 'https://www.shortspilot.in';
-const IDB_NAME = 'ShortsPilotClipsDB';
-const IDB_STORE = 'clips';
-
-const RAZORPAY_MONTHLY_LINK = 'https://rzp.io/rzp/MwaHJEUU';
-const RAZORPAY_YEARLY_LINK = '';
-
-const DAILY_AUTO_SLOTS = [
-  { hour: 9, minute: 0, label: '09:00 AM' },
-  { hour: 13, minute: 30, label: '01:30 PM' },
-  { hour: 17, minute: 30, label: '05:30 PM' },
-  { hour: 21, minute: 0, label: '09:00 PM' }
-];
-
-const getNextSlotLabel = (index = 0) => {
-  const safeIdx = Math.abs(Number(index) || 0) % DAILY_AUTO_SLOTS.length;
-  const slot = DAILY_AUTO_SLOTS[safeIdx];
-  return `${slot.label} (Slot ${safeIdx + 1}/4)`;
-};
-
-const SHORTSPILOT_400_URLS = Array.from({ length: 400 }, (_, idx) => {
-  const num = idx + 1;
-  if (num <= 100) {
-    return `https://www.shortspilot.in/shorts/clip-${String(num).padStart(3, '0')}`;
-  }
-  if (num <= 200) {
-    return `https://www.shortspilot.in/thumbnails/preset-9x16-${String(num - 100).padStart(3, '0')}`;
-  }
-  if (num <= 300) {
-    return `https://www.shortspilot.in/templates/viral-hook-${String(num - 200).padStart(3, '0')}`;
-  }
-  return `https://www.shortspilot.in/redirect/auto-post-${String(num - 300).padStart(3, '0')}`;
-});
-
-const getShortsPilotUrlByIndex = (index = 0) => {
-  const safeIndex = Math.abs(Number(index) || 0) % SHORTSPILOT_400_URLS.length;
-  return SHORTSPILOT_400_URLS[safeIndex];
-};
-
-const emailToKey = (email = '') =>
-  String(email || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[.#$[\]@]/g, '_');
-
-const sanitizeMediaUrl = (url = '') => {
-  if (!url || typeof url !== 'string') return '';
-  if (
-    url.startsWith('blob:') ||
-    url.startsWith('https://') ||
-    url.startsWith('http://') ||
-    url.startsWith('data:image/')
-  ) {
-    return url;
-  }
-  return '';
-};
-
-const formatClockTime = (seconds = 0) => {
-  const total = Math.max(0, Math.floor(Number(seconds) || 0));
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-};
-
-const detectTopicFromFile = (fileName = '') => {
-  const base = String(fileName || '')
-    .replace(/\.[^/.]+$/, '')
-    .replace(/[_-]+/g, ' ')
-    .replace(
-      /\b(vid|video|screen|recording|record|clip|short|shorts|final|edit|hd|fhd|4k|1080p|720p|60fps|30fps|mp4|mov|mkv)\b/gi,
-      ' '
-    )
-    .replace(/\b\d{4,}\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!base || base.length < 2) {
-    return 'Insane Viral Moment';
-  }
-  return base.replace(/\b\w/g, (ch) => ch.toUpperCase());
-};
-
-const readVideoMetadata = (file) =>
-  new Promise((resolve) => {
-    try {
-      if (!(file instanceof Blob)) {
-        return resolve({ duration: 30, width: 1080, height: 1920 });
-      }
-      const url = URL.createObjectURL(file);
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 30;
-        const width = video.videoWidth || 1080;
-        const height = video.videoHeight || 1920;
-        URL.revokeObjectURL(url);
-        resolve({ duration: dur, width, height });
-      };
-      video.onerror = () => {
-        URL.revokeObjectURL(url);
-        resolve({ duration: 30, width: 1080, height: 1920 });
-      };
-      video.src = url;
-    } catch {
-      resolve({ duration: 30, width: 1080, height: 1920 });
-    }
-  });
-
-const detectMediaFormat = (meta = {}) => {
-  const vw = Number(meta?.width) || 0;
-  const vh = Number(meta?.height) || 0;
-  const duration = Number(meta?.duration) || 0;
-
-  const isVertical = vw > 0 && vh > 0 ? vh >= vw : true;
-  const isShortDuration = duration > 0 ? duration <= 60 : true;
-
-  if (isVertical && isShortDuration) {
-    return {
-      format: 'short',
-      badge: 'SHORT',
-      label: 'YouTube Short',
-      category: 'Shorts'
-    };
-  }
-
-  return {
-    format: 'video',
-    badge: 'VIDEO',
-    label: 'YouTube Video',
-    category: 'Videos'
-  };
-};
-
-const buildMasterThumbnailPrompt = ({
-  clip = {},
-  customStyleNote = '',
-  watermarkText = 'Developed by shortspilot.in'
-} = {}) => {
-  const title = String(clip?.title || 'Viral Upload').trim();
-  const hookText = String(clip?.thumbnailHook || 'WAIT FOR END 😱').trim();
-  const description = String(clip?.description || '').trim();
-  const hashtags = String(
-    clip?.hashtags || (clip?.mediaFormat === 'video' ? '#Trending #FullVideo' : '#Shorts #ViralShorts')
-  ).trim();
-  const credit = String(
-    watermarkText || clip?.watermarkText || 'Developed by shortspilot.in'
-  ).trim();
-
-  const extraStyle = String(customStyleNote || '').trim()
-    ? `\n- Custom Style Note: ${String(customStyleNote).trim()}`
-    : '';
-
-  return [
-    'Create a high-CTR 9:16 vertical YouTube thumbnail/cover graphic (1080x1920) for this upload:',
-    '',
-    `- Title: ${title}`,
-    `- Hook Text: ${hookText}`,
-    `- Description: ${description}`,
-    `- Hashtags: ${hashtags}`,
-    `- Credit / Watermark: ${credit}${extraStyle}`,
-    '',
-    'Design Instructions:',
-    '1. Clean composition with a clear focal subject and no clutter.',
-    '2. Bold, high-contrast hook text with strong outline/glow so it is instantly readable on mobile screens.',
-    '3. Dramatic lighting, rich contrast, and energetic colors matching the title, description, and hashtags.',
-    `4. Keep on-image text punchy and readable; place "${credit}" cleanly and subtly near the bottom.`,
-    '5. Do not dump the full description or raw hashtag list as messy text on the image.'
-  ].join('\n');
-};
-
-const sendThumbnailPromptToAI = async ({
-  clip = {},
-  customStyleNote = '',
-  target = 'gemini',
-  watermarkText = 'Developed by shortspilot.in'
-} = {}) => {
-  const finalPrompt = buildMasterThumbnailPrompt({
-    clip,
-    customStyleNote,
-    watermarkText
-  });
-
-  try {
-    if (typeof navigator !== 'undefined' && navigator?.clipboard?.writeText) {
-      await navigator.clipboard.writeText(finalPrompt);
-    }
-  } catch {}
-
-  const url =
-    target === 'chatgpt'
-      ? `https://chatgpt.com/?q=${encodeURIComponent(finalPrompt)}`
-      : `https://gemini.google.com/app?q=${encodeURIComponent(finalPrompt)}`;
-
-  if (typeof window !== 'undefined') {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }
-
-  return finalPrompt;
-};
-
-const generateThumbnailBlob = async ({
-  hookText = 'WAIT FOR END 😱',
-  subText = 'VIRAL SHORT',
-  watermarkText = 'Developed by shortspilot.in',
-  palette = ['#ec4899', '#22d3ee', '#070510'],
-  videoBlob = null,
-  seekSec = 2
-}) => {
-  try {
-    if (typeof document === 'undefined') return { blob: null, dataUrl: '' };
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080;
-    canvas.height = 1920;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return { blob: null, dataUrl: '' };
-
-    const accentA = palette[0] || '#ec4899';
-    const accentB = palette[1] || '#22d3ee';
-    const baseDark = palette[2] || '#070510';
-
-    let videoEl = null;
-    let vidUrl = '';
-
-    if (videoBlob instanceof Blob && videoBlob.size > 0) {
-      try {
-        vidUrl = URL.createObjectURL(videoBlob);
-        const vid = document.createElement('video');
-        vid.muted = true;
-        vid.playsInline = true;
-        vid.preload = 'auto';
-        vid.src = vidUrl;
-
-        await new Promise((resolve) => {
-          const timer = setTimeout(resolve, 2600);
-          vid.onloadedmetadata = () => {
-            const targetTime = Math.min(
-              Math.max(0.6, Number(seekSec) || 2),
-              Math.max(0.6, (vid.duration || 6) * 0.3)
-            );
-            vid.currentTime = targetTime;
-          };
-          vid.onseeked = () => {
-            clearTimeout(timer);
-            resolve();
-          };
-          vid.onerror = () => {
-            clearTimeout(timer);
-            resolve();
-          };
-        });
-
-        if (vid.videoWidth > 0 && vid.videoHeight > 0) {
-          videoEl = vid;
-        } else {
-          URL.revokeObjectURL(vidUrl);
-          vidUrl = '';
-        }
-      } catch {
-        if (vidUrl) URL.revokeObjectURL(vidUrl);
-        vidUrl = '';
-      }
-    }
-
-    if (videoEl) {
-      ctx.save();
-      ctx.filter = 'blur(18px) brightness(0.45) saturate(1.35)';
-      const bgScale = Math.max(canvas.width / videoEl.videoWidth, canvas.height / videoEl.videoHeight);
-      const bgW = videoEl.videoWidth * bgScale;
-      const bgH = videoEl.videoHeight * bgScale;
-      ctx.drawImage(videoEl, (canvas.width - bgW) / 2, (canvas.height - bgH) / 2, bgW, bgH);
-      ctx.restore();
-    } else {
-      const bgGrad = ctx.createRadialGradient(540, 650, 120, 540, 960, 1250);
-      bgGrad.addColorStop(0, '#2b1055');
-      bgGrad.addColorStop(0.5, '#120826');
-      bgGrad.addColorStop(1, baseDark);
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
-    const orbLeft = ctx.createRadialGradient(180, 380, 20, 180, 380, 480);
-    orbLeft.addColorStop(0, `${accentA}55`);
-    orbLeft.addColorStop(1, 'transparent');
-    ctx.fillStyle = orbLeft;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const orbRight = ctx.createRadialGradient(900, 1380, 20, 900, 1380, 520);
-    orbRight.addColorStop(0, `${accentB}4d`);
-    orbRight.addColorStop(1, 'transparent');
-    ctx.fillStyle = orbRight;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.save();
-    const pillGrad = ctx.createLinearGradient(76, 92, 366, 158);
-    pillGrad.addColorStop(0, '#ff1e56');
-    pillGrad.addColorStop(1, '#ff7700');
-    ctx.fillStyle = pillGrad;
-    ctx.beginPath();
-    ctx.roundRect(76, 92, 290, 64, 32);
-    ctx.fill();
-
-    ctx.font = '900 30px sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('⚡ TRENDING', 221, 125);
-    ctx.restore();
-
-    const frameX = 64;
-    const frameY = 235;
-    const frameW = 952;
-    const frameH = 780;
-
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
-    ctx.shadowBlur = 40;
-    ctx.shadowOffsetY = 18;
-    ctx.beginPath();
-    ctx.roundRect(frameX, frameY, frameW, frameH, 36);
-    ctx.fillStyle = '#090d16';
-    ctx.fill();
-    ctx.clip();
-
-    if (videoEl) {
-      const fScale = Math.max(frameW / videoEl.videoWidth, frameH / videoEl.videoHeight);
-      const fW = videoEl.videoWidth * fScale;
-      const fH = videoEl.videoHeight * fScale;
-      ctx.drawImage(videoEl, frameX + (frameW - fW) / 2, frameY + (frameH - fH) / 2, fW, fH);
-    } else {
-      const cardGrad = ctx.createLinearGradient(frameX, frameY, frameX + frameW, frameY + frameH);
-      cardGrad.addColorStop(0, '#1e1b4b');
-      cardGrad.addColorStop(0.5, '#3b0764');
-      cardGrad.addColorStop(1, '#0f172a');
-      ctx.fillStyle = cardGrad;
-      ctx.fillRect(frameX, frameY, frameW, frameH);
-    }
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.roundRect(frameX, frameY, frameW, frameH, 36);
-    ctx.stroke();
-    ctx.restore();
-
-    const hookTextClean = String(hookText || 'WAIT FOR END 😱').trim().toUpperCase().slice(0, 22);
-    const subTextClean = String(subText || 'VIRAL HIGHLIGHT').trim().toUpperCase().slice(0, 28);
-
-    ctx.save();
-    const bannerGrad = ctx.createLinearGradient(76, 1110, 1004, 1255);
-    bannerGrad.addColorStop(0, '#fde047');
-    bannerGrad.addColorStop(0.5, '#facc15');
-    bannerGrad.addColorStop(1, '#fb923c');
-
-    ctx.shadowColor = 'rgba(250, 204, 21, 0.35)';
-    ctx.shadowBlur = 28;
-    ctx.fillStyle = bannerGrad;
-    ctx.beginPath();
-    ctx.roundRect(76, 1115, 928, 128, 28);
-    ctx.fill();
-    ctx.restore();
-
-    ctx.save();
-    ctx.font = '900 64px sans-serif';
-    ctx.fillStyle = '#070912';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(hookTextClean, 540, 1181);
-    ctx.restore();
-
-    ctx.save();
-    ctx.font = '900 54px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = 14;
-    ctx.strokeStyle = 'rgba(5, 7, 17, 0.95)';
-    ctx.strokeText(subTextClean, 540, 1345);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(subTextClean, 540, 1345);
-    ctx.restore();
-
-    ctx.save();
-    ctx.font = '700 28px monospace';
-    ctx.fillStyle = 'rgba(226, 232, 240, 0.72)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(watermarkText, 540, 1815);
-    ctx.restore();
-
-    ctx.save();
-    const edgeGrad = ctx.createLinearGradient(0, 0, 1080, 1920);
-    edgeGrad.addColorStop(0, accentB);
-    edgeGrad.addColorStop(0.5, accentA);
-    edgeGrad.addColorStop(1, '#facc15');
-    ctx.strokeStyle = edgeGrad;
-    ctx.lineWidth = 10;
-    ctx.beginPath();
-    ctx.roundRect(14, 14, canvas.width - 28, canvas.height - 28, 48);
-    ctx.stroke();
-    ctx.restore();
-
-    if (vidUrl) {
-      try {
-        URL.revokeObjectURL(vidUrl);
-      } catch {}
-    }
-
-    const dataUrl = canvas.toDataURL('image/png');
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-    return { blob, dataUrl };
-  } catch {
-    return { blob: null, dataUrl: '' };
-  }
-};
-
-const readLocalRegistry = () => {
-  try {
-    const raw = JSON.parse(localStorage.getItem('sp_user_registry') || '{}');
-    return raw && typeof raw === 'object' ? raw : {};
-  } catch {
-    return {};
-  }
-};
-
-const saveLocalRegistry = (email, record) => {
-  try {
-    const cleanEmail = String(email || '').trim().toLowerCase();
-    if (!cleanEmail) return;
-    const current = readLocalRegistry();
-    current[cleanEmail] = {
-      ...(current[cleanEmail] || {}),
-      ...record,
-      email: cleanEmail,
-      updatedAt: Date.now()
-    };
-    localStorage.setItem('sp_user_registry', JSON.stringify(current));
-  } catch {}
-};
-
-let cachedDbPromise = null;
-const openClipsDB = () => {
-  if (cachedDbPromise) return cachedDbPromise;
-  cachedDbPromise = new Promise((resolve, reject) => {
-    if (typeof window === 'undefined' || !window.indexedDB) {
-      return reject(new Error('IndexedDB not supported'));
-    }
-    const req = window.indexedDB.open(IDB_NAME, 1);
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE, { keyPath: 'id' });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => {
-      cachedDbPromise = null;
-      reject(req.error);
-    };
-  });
-  return cachedDbPromise;
-};
-
-const idbSaveClip = async (clipObj) => {
-  try {
-    const db = await openClipsDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      const { croppedUrl, ...persistable } = clipObj;
-      tx.objectStore(IDB_STORE).put({
-        ...persistable,
-        savedAt: Date.now()
-      });
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-    });
-  } catch {
-    return false;
-  }
-};
-
-const idbGetAllClips = async () => {
-  try {
-    const db = await openClipsDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(IDB_STORE, 'readonly');
-      const req = tx.objectStore(IDB_STORE).getAll();
-      req.onsuccess = () => {
-        const items = (req.result || []).sort(
-          (a, b) => (b.savedAt || 0) - (a.savedAt || 0)
-        );
-        resolve(
-          items.map((item) => {
-            const baseUrl = item.blob instanceof Blob ? URL.createObjectURL(item.blob) : '';
-            const trimHash =
-              baseUrl && typeof item.startSec === 'number' && typeof item.endSec === 'number'
-                ? `#t=${Math.floor(item.startSec)},${Math.floor(item.endSec)}`
-                : '';
-            return {
-              ...item,
-              croppedUrl: baseUrl ? `${baseUrl}${trimHash}` : ''
-            };
-          })
-        );
-      };
-      req.onerror = () => resolve([]);
-    });
-  } catch {
-    return [];
-  }
-};
-
-const idbDeleteClip = async (clipId) => {
-  try {
-    const db = await openClipsDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).delete(clipId);
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-    });
-  } catch {
-    return false;
-  }
-};
-
-const idbClearAllClips = async () => {
-  try {
-    const db = await openClipsDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).clear();
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-    });
-  } catch {
-    return false;
-  }
-};
-
-const buildClipPackage = (
-  rawTopic,
-  index = 0,
-  partLabel = '',
-  watermarkText = 'Developed by shortspilot.in',
-  durationLabel = '',
-  hookText = '',
-  mediaFormat = 'short'
-) => {
-  const cleanTopic = (rawTopic || 'Insane Viral Moment').trim();
-  const isShort = mediaFormat === 'short';
-  const title = partLabel ? `${cleanTopic} (${partLabel})` : cleanTopic;
-
-  const hookLines = [
-    `Watch till the end for ${cleanTopic} — this moment catches you completely off guard.`,
-    `High-retention highlight from ${cleanTopic} crafted for fast Shorts & feed discovery.`,
-    `Blink and you might miss what happens next in ${cleanTopic}.`,
-    `Pure highlight energy from ${cleanTopic} — clipped for quick mobile viewing.`,
-    `Unexpected turn in ${cleanTopic} that keeps viewers hooked till the final second.`
-  ];
-
-  const tagPools = [
-    ['#Shorts', '#ViralShorts', '#TrendingNow'],
-    ['#YouTubeShorts', '#MustWatch', '#ShortClip'],
-    ['#ShortsFeed', '#ViralClip', '#ForYou']
-  ];
-
-  const words = cleanTopic
-    .replace(/[^a-zA-Z0-9\s]/g, '')
-    .trim()
-    .split(/\s+/)
-    .filter((w) => w.length > 1)
-    .slice(0, 3)
-    .map((w) => `#${w.charAt(0).toUpperCase()}${w.slice(1)}`);
-
-  const pool = tagPools[index % tagPools.length];
-  const combinedTags = Array.from(new Set([...words, ...pool])).slice(0, 5);
-  const hashtags = combinedTags.join(' ');
-
-  const openingLine = hookLines[index % hookLines.length];
-  const metaBits = [
-    partLabel ? `Segment: ${partLabel}` : '',
-    durationLabel ? `Length: ${durationLabel}` : '',
-    hookText ? `Hook: ${hookText}` : ''
-  ]
-    .filter(Boolean)
-    .join(' • ');
-
-  const description = [
-    title,
-    '',
-    openingLine,
-    metaBits ? `\n${metaBits}` : '',
-    '',
-    hashtags,
-    '',
-    watermarkText
-  ]
-    .filter((line) => line !== undefined)
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-
-  const hookScore = `${Math.min(99, 88 + ((index * 3) % 10))}/100`;
-
-  return {
-    title,
-    category: isShort ? 'Shorts' : 'Videos',
-    mediaFormat: isShort ? 'short' : 'video',
-    hashtags,
-    description,
-    watermarkText,
-    websiteUrl: getShortsPilotUrlByIndex(index),
-    hookScore
-  };
-};
-
-const buildThumbnailConcepts = (topic = 'VIRAL') => {
-  const clean = (topic || 'VIRAL').trim().toUpperCase().slice(0, 18);
-  return [
-    {
-      id: 't1',
-      badge: 'HIGH CTR',
-      hookText: 'WAIT FOR END 😱',
-      subText: clean,
-      accentText: 'text-amber-300',
-      ctrScore: '9.6 CTR',
-      gradient: 'from-pink-600 via-purple-900 to-slate-950',
-      palette: ['#db2777', '#22d3ee', '#070510']
-    },
-    {
-      id: 't2',
-      badge: 'TRENDING',
-      hookText: 'INSANE CLUTCH 🔥',
-      subText: clean,
-      accentText: 'text-cyan-300',
-      ctrScore: '9.4 CTR',
-      gradient: 'from-cyan-600 via-blue-950 to-slate-950',
-      palette: ['#0891b2', '#ec4899', '#070510']
-    },
-    {
-      id: 't3',
-      badge: 'VIRAL',
-      hookText: 'NO WAY!! 🤯',
-      subText: clean,
-      accentText: 'text-rose-300',
-      ctrScore: '9.2 CTR',
-      gradient: 'from-amber-500 via-rose-900 to-slate-950',
-      palette: ['#f59e0b', '#a855f7', '#070510']
-    }
-  ];
-};
-
-const GoogleVerificationGuideModal = React.memo(
-  ({
-    isOpen,
-    onClose,
-    onConnectGoogle,
-    isLoggingIn,
-    blockedOptionName = ''
-  }) => {
-    const [stepIndex, setStepIndex] = useState(0);
-
-    useEffect(() => {
-      if (isOpen) setStepIndex(0);
-    }, [isOpen]);
-
-    if (!isOpen) return null;
-
-    const guideSteps = [
-      {
-        badge: 'STEP 1 OF 3 • CLICK ADVANCED',
-        title: '1. Warning Screen Par "Advanced" Dabaye',
-        desc: blockedOptionName
-          ? `"${blockedOptionName}" use karne ke liye Google login karein. Google verification pending hone par screen par "Advanced" option dikhega — uspe click karein.`
-          : 'Google verification pending hone ki wajah se login screen par warning dikh sakti hai. Neeche left mein "Advanced" par click karein.',
-        renderVisual: () => (
-          <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2.5 select-none">
-            <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-xs font-black flex items-center justify-center">
-                !
-              </span>
-              <span className="text-[11px] font-extrabold text-slate-800">
-                Google hasn&apos;t verified this app
-              </span>
-            </div>
-            <p className="text-[9.5px] text-slate-600 leading-snug">
-              The app is requesting access to sensitive info in your Google Account.
-            </p>
-            <div className="flex items-center justify-between pt-1">
-              <span className="px-2.5 py-1 rounded-md bg-amber-100 border-2 border-rose-500 text-[10px] font-extrabold text-blue-700 animate-pulse">
-                👆 Advanced
-              </span>
-              <span className="px-3 py-1 rounded bg-blue-600 text-white text-[10px] font-bold">
-                Back to safety
-              </span>
-            </div>
-          </div>
-        )
-      },
-      {
-        badge: 'STEP 2 OF 3 • GO TO SHORTSPILOT',
-        title: '2. "Go to shortspilot.in" Par Click Karein',
-        desc: 'Advanced khulne ke baad neeche "Go to shortspilot.in (unsafe)" ka link aayega — us link par click karke aage badhein.',
-        renderVisual: () => (
-          <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2 select-none">
-            <div className="text-[10px] font-bold text-slate-500">Advanced options opened:</div>
-            <p className="text-[9.5px] text-slate-600 leading-snug">
-              Only continue if you understand the risks and trust the developer.
-            </p>
-            <div className="p-2 rounded-lg bg-cyan-50 border-2 border-rose-500 text-[10px] font-extrabold text-blue-700 underline animate-pulse">
-              👆 Go to shortspilot.in (unsafe)
-            </div>
-          </div>
-        )
-      },
-      {
-        badge: 'STEP 3 OF 3 • ALLOW & CONTINUE',
-        title: '3. Permission Allow Karke Continue Karein',
-        desc: 'Agli screen par YouTube upload permission check karke "Continue" dabaye, phir aapka account connect ho jayega.',
-        renderVisual: () => (
-          <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2 select-none">
-            <div className="text-[10.5px] font-extrabold text-slate-800">
-              ShortsPilot AI wants access to your Google Account
-            </div>
-            <div className="flex items-center gap-2 text-[9.5px] text-slate-700 bg-slate-100 p-1.5 rounded">
-              <span className="text-emerald-600 font-black">✓</span>
-              <span>Manage &amp; upload your YouTube videos</span>
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <span className="px-2.5 py-1 rounded border border-slate-300 text-[9.5px] text-slate-600">
-                Cancel
-              </span>
-              <span className="px-3 py-1 rounded bg-blue-600 border-2 border-rose-500 text-white text-[10px] font-extrabold animate-pulse">
-                👆 Continue
-              </span>
-            </div>
-          </div>
-        )
-      }
-    ];
-
-    const current = guideSteps[stepIndex] || guideSteps[0];
+const ClipActionShortcuts = React.memo(
+  ({ clip, onPreview, onCopyDescription, onSendThumbAI }) => {
+    const youtubeUrl = clip?.youtubeVideoId
+      ? clip?.mediaFormat === 'video'
+        ? `https://www.youtube.com/watch?v=${clip.youtubeVideoId}`
+        : `https://www.youtube.com/shorts/${clip.youtubeVideoId}`
+      : 'https://studio.youtube.com/channel/UC/videos';
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs">
-        <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-3.5 shadow-2xl">
+      <div className="pt-2 mt-1 border-t border-white/10 space-y-1.5">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <button
             type="button"
-            onClick={onClose}
-            aria-label="Close guide popup"
-            className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"
+            onClick={() => onPreview?.(clip)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 border border-purple-400/40 text-purple-200 text-[10.5px] font-extrabold cursor-pointer transition"
           >
-            <X className="w-5 h-5" />
+            <Play className="w-3 h-3 fill-purple-200" />
+            <span>Watch Clip</span>
           </button>
 
-          <div className="space-y-1 pr-6">
-            <span className="inline-block px-2.5 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/40 text-[10px] font-extrabold text-cyan-300">
-              {current.badge}
-            </span>
-            <h3 className="text-sm font-extrabold text-white flex items-center gap-1.5">
-              <Lock className="w-4 h-4 text-cyan-300 shrink-0" />
-              <span>{current.title}</span>
-            </h3>
-          </div>
-
-          {current.renderVisual()}
-
-          <p className="text-[11.5px] text-slate-200 leading-relaxed bg-[#120d24] p-3 rounded-2xl border border-purple-500/30">
-            {current.desc}
-          </p>
-
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setStepIndex((prev) => Math.max(0, prev - 1))}
-              disabled={stepIndex === 0}
-              className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 disabled:opacity-35 cursor-pointer"
+              onClick={() => onCopyDescription?.(clip)}
+              title="Copy Description & #Tags"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-cyan-300 text-[10.5px] font-bold cursor-pointer transition"
             >
-              Prev
+              <Copy className="w-3 h-3" />
+              <span>Copy Desc</span>
             </button>
 
-            <div className="flex items-center gap-1.5">
-              {guideSteps.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setStepIndex(idx)}
-                  aria-label={`Guide step ${idx + 1}`}
-                  className={`h-2 rounded-full transition-all cursor-pointer ${
-                    stepIndex === idx ? 'w-5 bg-cyan-400' : 'w-2 bg-slate-600'
-                  }`}
-                />
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                setStepIndex((prev) => Math.min(guideSteps.length - 1, prev + 1))
-              }
-              disabled={stepIndex === guideSteps.length - 1}
-              className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-cyan-300 disabled:opacity-35 cursor-pointer"
+            <a
+              href={youtubeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-400/40 text-red-200 text-[10.5px] font-extrabold transition"
             >
-              Next
-            </button>
+              <Youtube className="w-3.5 h-3.5 text-red-400" />
+              <span>
+                {clip?.youtubeVideoId
+                  ? clip?.mediaFormat === 'video'
+                    ? 'Open Video'
+                    : 'Open Short'
+                  : 'YouTube'}
+              </span>
+              <ExternalLink className="w-3 h-3 opacity-80" />
+            </a>
           </div>
+        </div>
 
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
-            onClick={onConnectGoogle}
-            disabled={isLoggingIn}
-            className="w-full py-3 rounded-2xl bg-[#4285F4] hover:bg-blue-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-60"
+            onClick={() => onSendThumbAI?.(clip, 'gemini')}
+            className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 text-cyan-200 text-[10px] font-extrabold cursor-pointer transition"
           >
-            <Youtube className="w-4 h-4 text-white" />
-            <span>{isLoggingIn ? 'Connecting...' : 'Connect Google'}</span>
+            <span>✨ Gemini Thumb</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSendThumbAI?.(clip, 'chatgpt')}
+            className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 text-emerald-200 text-[10px] font-extrabold cursor-pointer transition"
+          >
+            <span>🤖 ChatGPT Thumb</span>
           </button>
         </div>
       </div>
     );
   }
 );
+
+const ChannelAvatarBadge = React.memo(({ googleUser, sizeClass = 'w-10 h-10' }) => {
+  const safeAvatar = sanitizeMediaUrl(googleUser?.avatar);
+  if (googleUser?.email && safeAvatar) {
+    return (
+      <div className="relative shrink-0">
+        <img
+          src={safeAvatar}
+          alt={googleUser?.name || googleUser?.email || 'Google Account'}
+          className={`${sizeClass} rounded-full object-cover border-2 border-emerald-400 shadow-md`}
+        />
+        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#090614]" />
+      </div>
+    );
+  }
+  return (
+    <div
+      className={`${sizeClass} rounded-full bg-red-600/20 border border-red-500/40 flex items-center justify-center shrink-0`}
+    >
+      <Youtube className="w-5 h-5 text-red-500" />
+    </div>
+  );
+});
+
+const GoogleUserLogo = React.memo(({ googleUser, onClick }) => {
+  const safeAvatar = sanitizeMediaUrl(googleUser?.avatar);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={googleUser?.email ? `${googleUser.email} (Google Connected)` : 'Connect Google'}
+      className="w-9 h-9 rounded-full bg-white p-[1.5px] flex items-center justify-center cursor-pointer overflow-hidden shadow shrink-0"
+    >
+      {safeAvatar ? (
+        <img
+          src={safeAvatar}
+          alt="Google Profile"
+          className="w-full h-full rounded-full object-cover"
+        />
+      ) : googleUser?.email ? (
+        <span className="w-full h-full rounded-full bg-[#4285F4] text-white text-xs font-black flex items-center justify-center uppercase">
+          {googleUser.email[0]}
+        </span>
+      ) : (
+        <span className="text-sm font-black text-[#4285F4] leading-none">G</span>
+      )}
+    </button>
+  );
+});
+
+const DesktopSidebar = React.memo(
+  ({
+    activeTab,
+    onSelectTab,
+    onTriggerUpload,
+    onOpenSplitter,
+    onOpenThumbnail,
+    onOpenPricing,
+    onOpenAdmin,
+    onOpenTerms,
+    onGoogleLogin,
+    onGoogleLogout,
+    isGoogleConnected,
+    isLoggingIn,
+    googleUser,
+    monthlyPrice,
+    yearlyPrice,
+    videoCount
+  }) => (
+    <aside className="hidden lg:flex flex-col justify-between w-64 shrink-0 bg-[#090614] border-r border-purple-500/20 p-5 sticky top-0 h-screen z-30">
+      <div className="space-y-5">
+        <div onClick={() => onSelectTab('home')} className="flex items-center gap-2.5 cursor-pointer">
+          <div className="w-10 h-10 rounded-2xl bg-[#140d2a] border border-pink-500/40 flex items-center justify-center shadow-lg">
+            <Sparkles className="w-5 h-5 text-pink-400" />
+          </div>
+          <div>
+            <div className="flex items-center text-lg font-extrabold tracking-tight leading-none">
+              <span className="text-white">Shorts</span>
+              <span className="text-pink-400">Pilot AI</span>
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">shortspilot.in • PC Studio</p>
+          </div>
+        </div>
+
+        <div
+          onClick={() => (!isGoogleConnected ? onGoogleLogin() : onSelectTab('settings'))}
+          className={`p-2.5 rounded-2xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+            isGoogleConnected
+              ? 'bg-emerald-500/10 border-emerald-400/50'
+              : 'bg-[#120c24] border-amber-400/50 hover:border-cyan-400/60'
+          }`}
+        >
+          <ChannelAvatarBadge googleUser={googleUser} sizeClass="w-10 h-10" />
+          <div className="min-w-0">
+            <div className="text-xs font-extrabold text-white truncate">
+              {isLoggingIn
+                ? 'Connecting...'
+                : isGoogleConnected
+                ? googleUser?.name || googleUser?.email
+                : 'Connect Google'}
+            </div>
+            <div
+              className={`text-[10px] font-bold truncate ${
+                isGoogleConnected ? 'text-emerald-400' : 'text-amber-300'
+              }`}
+            >
+              {isGoogleConnected ? '✅ Connected' : 'Click for 3-Step Guide'}
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onTriggerUpload}
+          className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-95 transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Upload & Auto-Post</span>
+        </button>
+
+        <div className="space-y-1.5 text-xs font-bold">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pb-1">
+            PC Workspace
+          </div>
+          <button
+            type="button"
+            onClick={() => onSelectTab('home')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+              activeTab === 'home'
+                ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <Home className="w-4 h-4" />
+            <span>Dashboard Overview</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectTab('analytics')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+              activeTab === 'analytics'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <ChartIcon className="w-4 h-4" />
+            <span>Channel Analytics</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectTab('projects')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+              activeTab === 'projects'
+                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <FolderKanban className="w-4 h-4" />
+              <span>Queue Vault</span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full bg-purple-500/25 text-[10px] text-purple-200">
+              {videoCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectTab('settings')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+              activeTab === 'settings'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            <span>Profile & Settings</span>
+          </button>
+
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">
+            AI Studio Tools
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenSplitter}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-pink-300 hover:bg-pink-500/15 cursor-pointer transition-all"
+          >
+            <Scissors className="w-4 h-4" />
+            <span>AI Clip Cutter (1, 3, 5)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenThumbnail}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-cyan-300 hover:bg-cyan-500/15 cursor-pointer transition-all"
+          >
+            <ImageIcon className="w-4 h-4" />
+            <span>9:16 Thumbnail Preset</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-2.5 pt-4 border-t border-purple-500/20">
+        <button
+          type="button"
+          onClick={onOpenPricing}
+          className="w-full p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-400/50 text-left cursor-pointer hover:border-amber-300 transition-all"
+        >
+          <div className="flex items-center justify-between text-xs font-extrabold text-amber-300">
+            <span>VIP Offer Active</span>
+            <Crown className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+          </div>
+          <div className="text-[10px] text-slate-300 mt-1">
+            ₹{monthlyPrice}/mo • ₹{yearlyPrice}/yr
+          </div>
+        </button>
+
+        {isGoogleConnected && (
+          <button
+            type="button"
+            onClick={onGoogleLogout}
+            className="w-full py-2 px-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer hover:bg-rose-500/25"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Disconnect Google</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onOpenAdmin}
+          className="w-full py-2.5 px-3 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-extrabold cursor-pointer hover:bg-purple-600/30"
+        >
+          🔐 Owner Admin Console
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenTerms}
+          className="w-full py-1.5 px-3 rounded-xl text-slate-400 hover:text-cyan-300 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Terms & Conditions</span>
+        </button>
+
+        <div className="text-[9.5px] text-center text-slate-500 font-mono">
+          Developed by shortspilot.in
+        </div>
+      </div>
+    </aside>
+  )
+);
+
+const TopHeader = React.memo(
+  ({
+    tier,
+    hasUnread,
+    googleUser,
+    isGoogleConnected,
+    isLoggingIn,
+    onOpenDrawer,
+    onGoHome,
+    onOpenPricing,
+    onOpenNotifications,
+    onGoogleLogin,
+    onGoogleLogout,
+    onOpenSettings
+  }) => (
+    <header className="flex items-center justify-between px-4 lg:px-8 pt-4 pb-3 bg-[#090614]/95 backdrop-blur sticky top-0 z-30 border-b border-purple-500/15">
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={onOpenDrawer}
+          className="lg:hidden p-1.5 rounded-xl text-slate-200 hover:text-white cursor-pointer"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+        <div onClick={onGoHome} className="flex lg:hidden items-center gap-2 cursor-pointer">
+          <div className="w-9 h-9 rounded-2xl bg-[#140d2a] border border-pink-500/40 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-pink-400" />
+          </div>
+          <div>
+            <div className="flex items-center text-[17px] font-extrabold tracking-tight leading-none">
+              <span className="text-white">Shorts</span>
+              <span className="text-pink-400">Pilot AI</span>
+            </div>
+            <p className="text-[9.5px] text-slate-400 font-medium mt-0.5">
+              Developed by shortspilot.in
+            </p>
+          </div>
+        </div>
+
+        <div className="hidden lg:flex items-center gap-2.5">
+          <span
+            className={`px-2.5 py-1 rounded-full border text-[11px] font-extrabold ${
+              isGoogleConnected
+                ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
+                : 'bg-amber-500/15 border-amber-400/40 text-amber-300'
+            }`}
+          >
+            {isGoogleConnected ? '● Google Connected ✅' : '● Login Required for Options'}
+          </span>
+          <span className="text-xs text-slate-400">
+            Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b>
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {!isGoogleConnected ? (
+          <button
+            type="button"
+            onClick={onGoogleLogin}
+            disabled={isLoggingIn}
+            className="px-3 py-1.5 rounded-full bg-[#4285F4] hover:bg-blue-500 text-white font-extrabold text-xs cursor-pointer shadow disabled:opacity-60"
+          >
+            {isLoggingIn ? 'Connecting...' : 'Connect Google'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onGoogleLogout}
+            title="Disconnect Google"
+            className="px-2.5 py-1.5 rounded-full bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center gap-1 cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onOpenPricing}
+          className="px-3 py-1.5 rounded-full bg-[#1f1608] border border-amber-400/70 text-amber-300 font-extrabold text-xs flex items-center gap-1 cursor-pointer"
+        >
+          <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+          <span>{tier === 'pro' ? 'VIP Active' : 'Offer ₹99'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenNotifications}
+          className="relative p-2 rounded-full bg-[#120d24] border border-purple-500/30 text-slate-200 cursor-pointer"
+        >
+          <Bell className="w-4 h-4" />
+          {hasUnread && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />}
+        </button>
+
+        <GoogleUserLogo googleUser={googleUser} onClick={onOpenSettings} />
+      </div>
+    </header>
+  )
+);
+
+const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload }) => (
+  <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-[#090614] border-t border-purple-500/25 px-3 flex items-center justify-around z-30">
+    <button
+      type="button"
+      onClick={() => onSelectTab('home')}
+      className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
+        activeTab === 'home' ? 'text-pink-400 font-extrabold' : 'text-slate-400'
+      }`}
+    >
+      <Home className="w-5 h-5" />
+      <span className="text-[10.5px]">Home</span>
+    </button>
+    <button
+      type="button"
+      onClick={() => onSelectTab('analytics')}
+      className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
+        activeTab === 'analytics' ? 'text-cyan-400 font-extrabold' : 'text-slate-400'
+      }`}
+    >
+      <ChartIcon className="w-5 h-5" />
+      <span className="text-[10.5px]">Analytics</span>
+    </button>
+    <div className="relative -top-4">
+      <button
+        type="button"
+        onClick={onTriggerUpload}
+        className="w-14 h-14 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-cyan-400 p-[2px] shadow-lg flex items-center justify-center cursor-pointer active:scale-95 transition-transform"
+      >
+        <div className="w-full h-full rounded-full bg-[#160b2e] flex flex-col items-center justify-center px-2.5 py-2">
+          <Plus className="w-5 h-5 text-white" />
+          <span className="text-[8px] font-extrabold text-white -mt-0.5">Upload</span>
+        </div>
+      </button>
+    </div>
+    <button
+      type="button"
+      onClick={() => onSelectTab('projects')}
+      className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
+        activeTab === 'projects' ? 'text-purple-400 font-extrabold' : 'text-slate-400'
+      }`}
+    >
+      <FolderKanban className="w-5 h-5" />
+      <span className="text-[10.5px]">Projects</span>
+    </button>
+    <button
+      type="button"
+      onClick={() => onSelectTab('settings')}
+      className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
+        activeTab === 'settings' ? 'text-amber-400 font-extrabold' : 'text-slate-400'
+      }`}
+    >
+      <Settings className="w-5 h-5" />
+      <span className="text-[10.5px]">Settings</span>
+    </button>
+  </nav>
+));
+
+export default function App() {
+  const [googleUser, setGoogleUser] = useState(() => {
+    try {
+      const saved =
+        localStorage.getItem('sp_google_user') || localStorage.getItem('shortspilot_google_user');
+      const parsed = saved ? JSON.parse(saved) : null;
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [youtubeAccessToken, setYoutubeAccessToken] = useState(
+    () =>
+      localStorage.getItem('sp_yt_access_token') ||
+      localStorage.getItem('shortspilot_yt_access_token') ||
+      ''
+  );
+
+  const [youtubeRefreshToken, setYoutubeRefreshToken] = useState(
+    () =>
+      localStorage.getItem('sp_yt_refresh_token') ||
+      localStorage.getItem('shortspilot_yt_refresh_token') ||
+      ''
+  );
+
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [isAuthGateModalOpen, setIsAuthGateModalOpen] = useState(false);
+  const [blockedOptionName, setBlockedOptionName] = useState('');
+  const [isGoogleAccountModalOpen, setIsGoogleAccountModalOpen] = useState(false);
+  const [manualGoogleEmail, setManualGoogleEmail] = useState('');
+  const [manualGoogleName, setManualGoogleName] = useState('');
+
+  const isGoogleConnected = Boolean(googleUser?.email);
+  const pendingActionRef = useRef(null);
+
+  const openGoogleGuidePopup = useCallback((actionFn = null, optionLabel = 'Google Login') => {
+    pendingActionRef.current = actionFn || null;
+    setBlockedOptionName(optionLabel);
+    setIsAuthGateModalOpen(true);
+  }, []);
+
+  const requireGoogleAuth = useCallback(
+    (actionFn, optionLabel = 'this option') => {
+      if (isGoogleConnected) {
+        actionFn?.();
+        return true;
+      }
+      openGoogleGuidePopup(actionFn, optionLabel);
+      return false;
+    },
+    [isGoogleConnected, openGoogleGuidePopup]
+  );
+
+  const [globalConfig, setGlobalConfig] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('sp_global_config') || 'null');
+      if (saved && typeof saved === 'object') {
+        return {
+          ...saved,
+          monthlyOriginalPrice: '499',
+          monthlyPrice: saved.monthlyPrice || '99',
+          yearlyOriginalPrice: '6999',
+          yearlyPrice: saved.yearlyPrice || '1499',
+          watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
+          ownerAlertEmail: saved.ownerAlertEmail || '',
+          paymentWebhookUrl: saved.paymentWebhookUrl || ''
+        };
+      }
+    } catch {}
+    return {
+      receiverUpi: '9767905729@paytm',
+      monthlyOriginalPrice: '499',
+      monthlyPrice: '99',
+      yearlyOriginalPrice: '6999',
+      yearlyPrice: '1499',
+      couponCode: 'SAVE200',
+      couponDiscount: '200',
+      freeLimit: 3,
+      watermarkText: 'Developed by shortspilot.in',
+      ownerAlertEmail: '',
+      paymentWebhookUrl: '',
+      ytAutoUploadActive: true,
+      adminPin: '9767905729'
+    };
+  });
+
+  const [igData, setIgData] = useState(() => {
+    try {
+      const reg = readLocalRegistry()['creator@shortspilot.in'];
+      if (reg?.igToken) {
+        return {
+          username: reg.igUsername || '@instagram_user',
+          token: reg.igToken,
+          connected: true
+        };
+      }
+    } catch {}
+    return { username: '', token: '', connected: false };
+  });
+
+  const [igUsernameDraft, setIgUsernameDraft] = useState(() => igData.username || '');
+  const [igTokenDraft, setIgTokenDraft] = useState(() => igData.token || '');
+  const [isIgModalOpen, setIsIgModalOpen] = useState(false);
+  const [igError, setIgError] = useState('');
+
+  const [activeTab, setActiveTab] = useState('home');
+  const [tier, setTier] = useState('pro');
+  const [videoQueue, setVideoQueue] = useState([]);
+
+  const [clipSplitCount, setClipSplitCount] = useState(3);
+  const [isSplitterModalOpen, setIsSplitterModalOpen] = useState(false);
+
+  const [isThumbnailModalOpen, setIsThumbnailModalOpen] = useState(false);
+  const [thumbTopicInput, setThumbTopicInput] = useState('');
+  const [selectedThumbConcept, setSelectedThumbConcept] = useState(
+    () => buildThumbnailConcepts('VIRAL')[0]
+  );
+  const [thumbConcepts, setThumbConcepts] = useState(() => buildThumbnailConcepts('VIRAL'));
+
+  const [selectedTimeSlot] = useState(() => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const upcoming =
+      DAILY_AUTO_SLOTS.find((s) => s.hour * 60 + s.minute > currentMinutes) || DAILY_AUTO_SLOTS[0];
+    return `${upcoming.label} • 4 Daily Slots`;
+  });
+
+  const [autoPublishStatus, setAutoPublishStatus] = useState('');
+  const [manualPostMode, setManualPostMode] = useState(false);
+  const [uploadMode, setUploadMode] = useState('auto'); // 'auto' | 'short' | 'video'
+
+  const handleCycleUploadMode = useCallback(() => {
+    setUploadMode((prev) => {
+      const next = prev === 'short' ? 'video' : prev === 'video' ? 'auto' : 'short';
+      setLoginError('');
+      setAutoPublishStatus(
+        next === 'video'
+          ? '📹 Video Mode ON — ab normal Video ki tarah upload/cut hoga'
+          : next === 'short'
+          ? '⚡ Short Mode ON — ab #Shorts ke saath Short ki tarah upload/cut hoga'
+          : '🔄 Auto Mode ON — video size/duration ke hisab se auto detect hoga'
+      );
+      setTimeout(() => {
+        setAutoPublishStatus((curr) =>
+          curr.startsWith('📹') || curr.startsWith('⚡') || curr.startsWith('🔄') ? '' : curr
+        );
+      }, 2500);
+      return next;
+    });
+  }, []);
+
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [notificationsList, setNotificationsList] = useState([
+    {
+      id: 1,
+      title: 'Single Short / Video Mode Ready ✅',
+      desc: 'Switch between Short (#Shorts) and Video (normal video) with a single toggle.',
+      unread: true
+    }
+  ]);
+
+  const [showAiSupport, setShowAiSupport] = useState(false);
+  const [supportMessages, setSupportMessages] = useState([
+    {
+      role: 'ai',
+      text: 'Namaste! Video dalna ho to Video mode aur Short dalna ho to Short mode select karein.'
+    }
+  ]);
+  const [supportInput, setSupportInput] = useState('');
+
+  const [isTermsOpen, setIsTermsOpen] = useState(false);
+  const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [selectedBilling, setSelectedBilling] = useState('yearly');
+  const [upgradeReason] = useState('');
+
+  const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
+  const [previewClip, setPreviewClip] = useState(null);
+
+  const [checkoutEmail, setCheckoutEmail] = useState(() => googleUser?.email || '');
+  const [checkoutError, setCheckoutError] = useState('');
+  const [checkoutPendingMsg, setCheckoutPendingMsg] = useState('');
+
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [adminPinInput, setAdminPinInput] = useState('');
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [adminError, setAdminError] = useState('');
+  const [liveDbUrl, setLiveDbUrl] = useState(
+    () => localStorage.getItem('sp_firebase_url') || DEFAULT_FIREBASE_URL
+  );
+  const [transactions, setTransactions] = useState([]);
+
+  const fileInputRef = useRef(null);
+  const splitterInputRef = useRef(null);
+
+  const dbBase = (liveDbUrl || DEFAULT_FIREBASE_URL).trim().replace(/\/$/, '');
+
+  const handleCopyDescription = useCallback((clip) => {
+    if (clip?.description && navigator.clipboard) {
+      navigator.clipboard.writeText(clip.description).catch(() => {});
+    }
+  }, []);
+
+  const handleSendThumbAI = useCallback(
+    (clip, target = 'gemini') => {
+      sendThumbnailPromptToAI({
+        clip,
+        customStyleNote: '',
+        target,
+        watermarkText: globalConfig.watermarkText || 'Developed by shortspilot.in'
+      });
+    },
+    [globalConfig.watermarkText]
+  );
+
+  const applyConnectedGoogleProfile = useCallback((profile, tokens = {}) => {
+    const userPayload = {
+      name: profile.name || 'YouTube Creator',
+      email: profile.email,
+      avatar: profile.avatar || '',
+      channelId: profile.channelId || '',
+      connectedAt: Date.now()
+    };
+
+    setGoogleUser(userPayload);
+    setCheckoutEmail((prev) => prev || profile.email);
+    try {
+      localStorage.setItem('sp_google_user', JSON.stringify(userPayload));
+      localStorage.setItem('shortspilot_google_user', JSON.stringify(userPayload));
+    } catch {}
+
+    if (tokens.accessToken) {
+      setYoutubeAccessToken(tokens.accessToken);
+      try {
+        localStorage.setItem('sp_yt_access_token', tokens.accessToken);
+        localStorage.setItem('shortspilot_yt_access_token', tokens.accessToken);
+      } catch {}
+    }
+
+    if (tokens.refreshToken) {
+      setYoutubeRefreshToken(tokens.refreshToken);
+      try {
+        localStorage.setItem('sp_yt_refresh_token', tokens.refreshToken);
+        localStorage.setItem('shortspilot_yt_refresh_token', tokens.refreshToken);
+      } catch {}
+    }
+
+    saveLocalRegistry(profile.email, {
+      name: userPayload.name,
+      avatar: userPayload.avatar,
+      channelId: userPayload.channelId
+    });
+
+    setLoginError('');
+    setIsAuthGateModalOpen(false);
+    setIsGoogleAccountModalOpen(false);
+
+    if (pendingActionRef.current) {
+      const nextAction = pendingActionRef.current;
+      pendingActionRef.current = null;
+      setTimeout(() => nextAction?.(), 50);
+    }
+  }, []);
+
 
 const startGoogleLogin = useCallback(() => {
     setLoginError('');
