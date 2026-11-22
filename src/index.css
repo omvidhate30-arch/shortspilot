@@ -1,3 +1,40 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    background-color: #05030a;
+    color: #f1f5f9;
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #090614;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(168, 85, 247, 0.35);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(236, 72, 153, 0.6);
+  }
+}
+
+a[href*="contact" i],
+button[data-testid*="contact" i],
+[data-testid*="contact" i],
+#contact,
+.contact-link,
+.contact-btn {
+  display: none !important;
+}
