@@ -27,7 +27,6 @@ import {
   FileText,
   Lock
 } from 'lucide-react';
-
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
