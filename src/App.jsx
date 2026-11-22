@@ -27,6 +27,7 @@ import {
   FileText,
   Lock
 } from 'lucide-react';
+
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -35,6 +36,25 @@ const GOOGLE_CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
 const FIXED_OAUTH_ORIGIN = 'https://www.shortspilot.in';
 const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
+
+const SHORTSPILOT_400_URLS = Array.from({ length: 400 }, (_, idx) => {
+  const num = idx + 1;
+  if (num <= 100) {
+    return `https://www.shortspilot.in/shorts/clip-${String(num).padStart(3, '0')}`;
+  }
+  if (num <= 200) {
+    return `https://www.shortspilot.in/thumbnails/preset-9x16-${String(num - 100).padStart(3, '0')}`;
+  }
+  if (num <= 300) {
+    return `https://www.shortspilot.in/templates/viral-hook-${String(num - 200).padStart(3, '0')}`;
+  }
+  return `https://www.shortspilot.in/redirect/auto-post-${String(num - 300).padStart(3, '0')}`;
+});
+
+const getShortsPilotUrlByIndex = (index = 0) => {
+  const safeIndex = Math.abs(Number(index) || 0) % SHORTSPILOT_400_URLS.length;
+  return SHORTSPILOT_400_URLS[safeIndex];
+};
 
 const emailToKey = (email = '') =>
   String(email || '')
@@ -354,7 +374,7 @@ const buildClipPackage = (
     hashtags,
     description,
     watermarkText,
-    websiteUrl: 'https://shortspilot.in',
+    websiteUrl: getShortsPilotUrlByIndex(index),
     hookScore
   };
 };
@@ -401,7 +421,6 @@ const GoogleVerificationGuideModal = React.memo(
     onClose,
     onConnectGoogle,
     isLoggingIn,
-    clientId,
     blockedOptionName = ''
   }) => {
     const [stepIndex, setStepIndex] = useState(0);
@@ -414,21 +433,74 @@ const GoogleVerificationGuideModal = React.memo(
 
     const guideSteps = [
       {
-        badge: 'POPUP 1 / 3 • VERIFICATION',
-        title: 'Google Verification Pending',
+        badge: 'STEP 1 OF 3 • CLICK ADVANCED',
+        title: '1. Warning Screen Par "Advanced" Dabaye',
         desc: blockedOptionName
-          ? `"${blockedOptionName}" use karne ke liye Google login zaroori hai. Abhi hamara Google verification/setup pending hai, isliye login popup mein warning ya redirect error aa sakta hai.`
-          : 'Abhi hamara Google verification / OAuth setup pending hai, isliye Google sign-in popup mein warning ya redirect error dikh sakta hai.'
+          ? `"${blockedOptionName}" use karne ke liye Google login karein. Google verification pending hone par screen par "Advanced" option dikhega — uspe click karein.`
+          : 'Google verification pending hone ki wajah se login screen par warning dikh sakti hai. Neeche left mein "Advanced" par click karein.',
+        renderVisual: () => (
+          <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2.5 select-none">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-xs font-black flex items-center justify-center">
+                !
+              </span>
+              <span className="text-[11px] font-extrabold text-slate-800">
+                Google hasn&apos;t verified this app
+              </span>
+            </div>
+            <p className="text-[9.5px] text-slate-600 leading-snug">
+              The app is requesting access to sensitive info in your Google Account.
+            </p>
+            <div className="flex items-center justify-between pt-1">
+              <span className="px-2.5 py-1 rounded-md bg-amber-100 border-2 border-rose-500 text-[10px] font-extrabold text-blue-700 animate-pulse">
+                👆 Advanced
+              </span>
+              <span className="px-3 py-1 rounded bg-blue-600 text-white text-[10px] font-bold">
+                Back to safety
+              </span>
+            </div>
+          </div>
+        )
       },
       {
-        badge: 'POPUP 2 / 3 • REDIRECT CHECK',
-        title: 'Redirect URI & Origin Check',
-        desc: 'Google Cloud Console mein usi Client ID ke andar Authorized redirect URI "https://www.shortspilot.in/api/youtube/callback" aur Origin "https://www.shortspilot.in" saved hona chahiye.'
+        badge: 'STEP 2 OF 3 • GO TO SHORTSPILOT',
+        title: '2. "Go to shortspilot.in" Par Click Karein',
+        desc: 'Advanced khulne ke baad neeche "Go to shortspilot.in (unsafe)" ka link aayega — us link par click karke aage badhein.',
+        renderVisual: () => (
+          <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2 select-none">
+            <div className="text-[10px] font-bold text-slate-500">Advanced options opened:</div>
+            <p className="text-[9.5px] text-slate-600 leading-snug">
+              Only continue if you understand the risks and trust the developer.
+            </p>
+            <div className="p-2 rounded-lg bg-cyan-50 border-2 border-rose-500 text-[10px] font-extrabold text-blue-700 underline animate-pulse">
+              👆 Go to shortspilot.in (unsafe)
+            </div>
+          </div>
+        )
       },
       {
-        badge: 'POPUP 3 / 3 • CONNECT NOW',
-        title: 'Continue With Google',
-        desc: 'Agar aap test karna chahte hain (ya Incognito/browser mein try karna hai), to neeche Connect Google par click karein.'
+        badge: 'STEP 3 OF 3 • ALLOW & CONTINUE',
+        title: '3. Permission Allow Karke Continue Karein',
+        desc: 'Agli screen par YouTube Shorts upload permission check karke "Continue" dabaye, phir aapka account connect ho jayega.',
+        renderVisual: () => (
+          <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2 select-none">
+            <div className="text-[10.5px] font-extrabold text-slate-800">
+              ShortsPilot AI wants access to your Google Account
+            </div>
+            <div className="flex items-center gap-2 text-[9.5px] text-slate-700 bg-slate-100 p-1.5 rounded">
+              <span className="text-emerald-600 font-black">✓</span>
+              <span>Manage &amp; upload your YouTube videos</span>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <span className="px-2.5 py-1 rounded border border-slate-300 text-[9.5px] text-slate-600">
+                Cancel
+              </span>
+              <span className="px-3 py-1 rounded bg-blue-600 border-2 border-rose-500 text-white text-[10px] font-extrabold animate-pulse">
+                👆 Continue
+              </span>
+            </div>
+          </div>
+        )
       }
     ];
 
@@ -436,7 +508,7 @@ const GoogleVerificationGuideModal = React.memo(
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs">
-        <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-4 shadow-2xl">
+        <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-3.5 shadow-2xl">
           <button
             type="button"
             onClick={onClose}
@@ -450,28 +522,24 @@ const GoogleVerificationGuideModal = React.memo(
             <span className="inline-block px-2.5 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/40 text-[10px] font-extrabold text-cyan-300">
               {current.badge}
             </span>
-            <h3 className="text-base font-extrabold text-white flex items-center gap-1.5">
+            <h3 className="text-sm font-extrabold text-white flex items-center gap-1.5">
               <Lock className="w-4 h-4 text-cyan-300 shrink-0" />
               <span>{current.title}</span>
             </h3>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-[#120d24] border border-purple-500/30 text-xs text-slate-200 leading-relaxed min-h-[84px]">
-            {current.desc}
-          </div>
+          {current.renderVisual()}
 
-          {stepIndex === 1 && clientId && (
-            <div className="p-2.5 rounded-xl bg-[#06040c] border border-slate-800 text-[10px] text-slate-400 font-mono break-all">
-              Client ID: <span className="text-cyan-300">{clientId}</span>
-            </div>
-          )}
+          <p className="text-[11.5px] text-slate-200 leading-relaxed bg-[#120d24] p-3 rounded-2xl border border-purple-500/30">
+            {current.desc}
+          </p>
 
           <div className="flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={() => setStepIndex((prev) => Math.max(0, prev - 1))}
               disabled={stepIndex === 0}
-              className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 disabled:opacity-35 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 disabled:opacity-35 cursor-pointer"
             >
               Prev
             </button>
@@ -482,7 +550,7 @@ const GoogleVerificationGuideModal = React.memo(
                   key={idx}
                   type="button"
                   onClick={() => setStepIndex(idx)}
-                  aria-label={`Guide popup ${idx + 1}`}
+                  aria-label={`Guide step ${idx + 1}`}
                   className={`h-2 rounded-full transition-all cursor-pointer ${
                     stepIndex === idx ? 'w-5 bg-cyan-400' : 'w-2 bg-slate-600'
                   }`}
@@ -496,7 +564,7 @@ const GoogleVerificationGuideModal = React.memo(
                 setStepIndex((prev) => Math.min(guideSteps.length - 1, prev + 1))
               }
               disabled={stepIndex === guideSteps.length - 1}
-              className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-cyan-300 disabled:opacity-35 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-cyan-300 disabled:opacity-35 cursor-pointer"
             >
               Next
             </button>
@@ -664,7 +732,7 @@ const DesktopSidebar = React.memo(
                 isGoogleConnected ? 'text-emerald-400' : 'text-amber-300'
               }`}
             >
-              {isGoogleConnected ? '✅ Connected' : 'Click for Google Popup'}
+              {isGoogleConnected ? '✅ Connected' : 'Click for 3-Step Guide'}
             </div>
           </div>
         </div>
@@ -1009,18 +1077,22 @@ export default function App() {
   const isGoogleConnected = Boolean(googleUser?.email);
   const pendingActionRef = useRef(null);
 
+  const openGoogleGuidePopup = useCallback((actionFn = null, optionLabel = 'Google Login') => {
+    pendingActionRef.current = actionFn || null;
+    setBlockedOptionName(optionLabel);
+    setIsAuthGateModalOpen(true);
+  }, []);
+
   const requireGoogleAuth = useCallback(
     (actionFn, optionLabel = 'this option') => {
       if (isGoogleConnected) {
         actionFn?.();
         return true;
       }
-      pendingActionRef.current = actionFn || null;
-      setBlockedOptionName(optionLabel);
-      setIsAuthGateModalOpen(true);
+      openGoogleGuidePopup(actionFn, optionLabel);
       return false;
     },
-    [isGoogleConnected]
+    [isGoogleConnected, openGoogleGuidePopup]
   );
 
   const [globalConfig, setGlobalConfig] = useState(() => {
@@ -1268,7 +1340,7 @@ export default function App() {
     return '';
   }, [youtubeRefreshToken]);
 
-const uploadClipToYouTube = useCallback(
+  const uploadClipToYouTube = useCallback(
     async (clip) => {
       let token = youtubeAccessToken;
       if (!token && youtubeRefreshToken) {
@@ -1366,7 +1438,7 @@ const uploadClipToYouTube = useCallback(
     },
     [youtubeAccessToken, youtubeRefreshToken, refreshAccessToken]
   );
-  
+
   useEffect(() => {
     let active = true;
     idbGetAllClips().then((clips) => {
@@ -1514,24 +1586,24 @@ const uploadClipToYouTube = useCallback(
       });
       const objectUrl = URL.createObjectURL(file);
 
-      let clipStatus = manualPostMode ? 'Manual Ready' : 'Queued for Auto-Post';
+      let clipStatus = manualPostMode
+        ? 'Saved Locally (Manual Mode)'
+        : 'Not Uploaded (Login Required)';
       let youtubeVideoId = '';
 
       if (!manualPostMode) {
-        try {
-          const ytRes = await uploadClipToYouTube({
-            ...aiMeta,
-            blob: file,
-            thumbnailBlob: thumb.blob
-          });
-          if (ytRes.uploaded) {
-            youtubeVideoId = ytRes.videoId || '';
-            clipStatus = `Uploaded to YT (${youtubeVideoId || 'Done'}) ✅`;
-          } else {
-            clipStatus = 'Queued (Connect Google for Auto-Post)';
-          }
-        } catch (err) {
-          clipStatus = `Queued (${err.message})`;
+        const ytRes = await uploadClipToYouTube({
+          ...aiMeta,
+          blob: file,
+          thumbnailBlob: thumb.blob
+        });
+
+        if (ytRes.uploaded && ytRes.videoId) {
+          youtubeVideoId = ytRes.videoId;
+          clipStatus = `Uploaded to YT (${youtubeVideoId}) ✅`;
+        } else {
+          clipStatus = `Not Uploaded: ${ytRes.error || 'Token missing'}`;
+          setLoginError(`YouTube Upload Nahi Hua: ${ytRes.error || 'Google token missing'}`);
         }
       }
 
@@ -1560,7 +1632,7 @@ const uploadClipToYouTube = useCallback(
     setAutoPublishStatus('');
   };
 
-const handleSplitFullVideo = async (e) => {
+  const handleSplitFullVideo = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -1651,7 +1723,7 @@ const handleSplitFullVideo = async (e) => {
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
-  
+
   const handleGenerateThumbnails = (e) => {
     e.preventDefault();
     const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
@@ -1751,7 +1823,7 @@ const handleSplitFullVideo = async (e) => {
         onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
         onOpenAdmin={() => requireGoogleAuth(() => setIsAdminOpen(true), 'Owner Admin Console')}
         onOpenTerms={() => requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions')}
-        onGoogleLogin={startGoogleLogin}
+        onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
         onGoogleLogout={logoutGoogle}
         isGoogleConnected={isGoogleConnected}
         isLoggingIn={isLoggingIn}
@@ -1777,7 +1849,7 @@ const handleSplitFullVideo = async (e) => {
               setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
             }, 'Notifications')
           }
-          onGoogleLogin={startGoogleLogin}
+          onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
           onGoogleLogout={logoutGoogle}
           onOpenSettings={() => requireGoogleAuth(() => setActiveTab('settings'), 'Settings')}
         />
@@ -1854,13 +1926,13 @@ const handleSplitFullVideo = async (e) => {
                           </span>
                         </div>
                         <div className="text-[10px] lg:text-xs text-slate-300 truncate">
-                          Login required to unlock options
+                          3-step login guide before connect
                         </div>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={() => requireGoogleAuth(startGoogleLogin, 'Google Connect')}
+                      onClick={() => openGoogleGuidePopup(startGoogleLogin, 'Google Connect')}
                       disabled={isLoggingIn}
                       className="px-3.5 py-1.5 rounded-xl bg-[#4285F4] hover:bg-blue-500 text-white text-[11px] lg:text-xs font-extrabold cursor-pointer shrink-0 shadow-lg disabled:opacity-60"
                     >
@@ -2424,7 +2496,7 @@ const handleSplitFullVideo = async (e) => {
                 </div>
                 <button
                   type="button"
-                  onClick={startGoogleLogin}
+                  onClick={() => openGoogleGuidePopup(startGoogleLogin, 'Switch Google')}
                   disabled={isLoggingIn}
                   className="px-4 py-2 rounded-xl bg-[#4285F4] text-white text-xs font-extrabold cursor-pointer shrink-0 disabled:opacity-60"
                 >
@@ -2511,14 +2583,13 @@ const handleSplitFullVideo = async (e) => {
       </div>
 
       <GoogleVerificationGuideModal
-        isOpen={isAuthGateModalOpen && !isGoogleConnected}
+        isOpen={isAuthGateModalOpen}
         onClose={() => {
           pendingActionRef.current = null;
           setIsAuthGateModalOpen(false);
         }}
         onConnectGoogle={startGoogleLogin}
         isLoggingIn={isLoggingIn}
-        clientId={GOOGLE_CLIENT_ID}
         blockedOptionName={blockedOptionName}
       />
 
@@ -2915,7 +2986,7 @@ const handleSplitFullVideo = async (e) => {
                   type="button"
                   onClick={() => {
                     setIsSettingsDrawerOpen(false);
-                    requireGoogleAuth(startGoogleLogin, 'Google Connect');
+                    openGoogleGuidePopup(startGoogleLogin, 'Google Connect');
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-[#4285F4] cursor-pointer"
                 >
