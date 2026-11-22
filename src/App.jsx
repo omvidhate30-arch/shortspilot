@@ -142,42 +142,15 @@ const readVideoMetadata = (file) =>
     }
   });
 
-const detectMediaFormat = (meta = {}) => {
-  const vw = Number(meta?.width) || 0;
-  const vh = Number(meta?.height) || 0;
-  const duration = Number(meta?.duration) || 0;
-
-  const isVertical = vw > 0 && vh > 0 ? vh >= vw : true;
-  const isShortDuration = duration > 0 ? duration <= 60 : true;
-
-  if (isVertical && isShortDuration) {
-    return {
-      format: 'short',
-      badge: 'SHORT',
-      label: 'YouTube Short',
-      category: 'Shorts'
-    };
-  }
-
-  return {
-    format: 'video',
-    badge: 'VIDEO',
-    label: 'YouTube Video',
-    category: 'Videos'
-  };
-};
-
 const buildMasterThumbnailPrompt = ({
   clip = {},
   customStyleNote = '',
   watermarkText = 'Developed by shortspilot.in'
 } = {}) => {
-  const title = String(clip?.title || 'Viral Upload').trim();
+  const title = String(clip?.title || 'Viral Short').trim();
   const hookText = String(clip?.thumbnailHook || 'WAIT FOR END 😱').trim();
   const description = String(clip?.description || '').trim();
-  const hashtags = String(
-    clip?.hashtags || (clip?.mediaFormat === 'video' ? '#Trending #FullVideo' : '#Shorts #ViralShorts')
-  ).trim();
+  const hashtags = String(clip?.hashtags || '#Shorts #ViralShorts').trim();
   const credit = String(
     watermarkText || clip?.watermarkText || 'Developed by shortspilot.in'
   ).trim();
@@ -187,7 +160,7 @@ const buildMasterThumbnailPrompt = ({
     : '';
 
   return [
-    'Create a high-CTR 9:16 vertical YouTube thumbnail/cover graphic (1080x1920) for this upload:',
+    'Create a high-CTR 9:16 vertical YouTube Shorts thumbnail/cover graphic (1080x1920) for this Short:',
     '',
     `- Title: ${title}`,
     `- Hook Text: ${hookText}`,
@@ -581,11 +554,9 @@ const buildClipPackage = (
   partLabel = '',
   watermarkText = 'Developed by shortspilot.in',
   durationLabel = '',
-  hookText = '',
-  mediaFormat = 'short'
+  hookText = ''
 ) => {
   const cleanTopic = (rawTopic || 'Insane Viral Moment').trim();
-  const isShort = mediaFormat === 'short';
   const title = partLabel ? `${cleanTopic} (${partLabel})` : cleanTopic;
 
   const hookLines = [
@@ -642,8 +613,8 @@ const buildClipPackage = (
 
   return {
     title,
-    category: isShort ? 'Shorts' : 'Videos',
-    mediaFormat: isShort ? 'short' : 'video',
+    category: 'Shorts',
+    mediaFormat: 'short',
     hashtags,
     description,
     watermarkText,
@@ -861,9 +832,7 @@ const GoogleVerificationGuideModal = React.memo(
 const ClipActionShortcuts = React.memo(
   ({ clip, onPreview, onCopyDescription, onSendThumbAI }) => {
     const youtubeUrl = clip?.youtubeVideoId
-      ? clip?.mediaFormat === 'video'
-        ? `https://www.youtube.com/watch?v=${clip.youtubeVideoId}`
-        : `https://www.youtube.com/shorts/${clip.youtubeVideoId}`
+      ? `https://www.youtube.com/shorts/${clip.youtubeVideoId}`
       : 'https://studio.youtube.com/channel/UC/videos';
 
     return (
@@ -896,13 +865,7 @@ const ClipActionShortcuts = React.memo(
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-400/40 text-red-200 text-[10.5px] font-extrabold transition"
             >
               <Youtube className="w-3.5 h-3.5 text-red-400" />
-              <span>
-                {clip?.youtubeVideoId
-                  ? clip?.mediaFormat === 'video'
-                    ? 'Open Video'
-                    : 'Open Short'
-                  : 'YouTube'}
-              </span>
+              <span>{clip?.youtubeVideoId ? 'Open Short' : 'YouTube'}</span>
               <ExternalLink className="w-3 h-3 opacity-80" />
             </a>
           </div>
@@ -1045,7 +1008,7 @@ const DesktopSidebar = React.memo(
           className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-95 transition-all"
         >
           <Plus className="w-4 h-4" />
-          <span>Upload & Auto-Post</span>
+          <span>Upload & Auto-Post Shorts</span>
         </button>
 
         <div className="space-y-1.5 text-xs font-bold">
@@ -1315,7 +1278,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
       >
         <div className="w-full h-full rounded-full bg-[#160b2e] flex flex-col items-center justify-center px-2.5 py-2">
           <Plus className="w-5 h-5 text-white" />
-          <span className="text-[8px] font-extrabold text-white -mt-0.5">Upload</span>
+          <span className="text-[8px] font-extrabold text-white -mt-0.5">Shorts</span>
         </div>
       </button>
     </div>
@@ -1473,41 +1436,13 @@ export default function App() {
 
   const [autoPublishStatus, setAutoPublishStatus] = useState('');
   const [manualPostMode, setManualPostMode] = useState(false);
-  const [shortsOptionOpen, setShortsOptionOpen] = useState(true);
-  const [videoOptionOn, setVideoOptionOn] = useState(false);
-
-  const handleOpenShortsOption = useCallback(() => {
-    setShortsOptionOpen(true);
-    setVideoOptionOn(false);
-    setLoginError('');
-    setAutoPublishStatus('⚡ Shorts Option Open — ab Shorts upload active hai');
-    setTimeout(() => {
-      setAutoPublishStatus((curr) => (curr.startsWith('⚡') ? '' : curr));
-    }, 2500);
-  }, []);
-
-  const handleToggleVideoOption = useCallback(() => {
-    setVideoOptionOn((prev) => {
-      const next = !prev;
-      setLoginError('');
-      setAutoPublishStatus(
-        next
-          ? '📹 Video Option ON — ab normal Video upload active hai'
-          : '📹 Video Option OFF — wapas Shorts mode active hai'
-      );
-      setTimeout(() => {
-        setAutoPublishStatus((curr) => (curr.startsWith('📹') ? '' : curr));
-      }, 2500);
-      return next;
-    });
-  }, []);
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Shorts & Video Options Ready ✅',
-      desc: 'Shorts option open by default, and Video option can be toggled ON/OFF.',
+      title: 'Shorts Mode Active ✅',
+      desc: 'All uploads and AI clips are set to Shorts (#Shorts) mode.',
       unread: true
     }
   ]);
@@ -1516,7 +1451,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! Shorts option pehle open rehta hai aur Video option alag se ON/OFF kiya ja sakta hai.'
+      text: 'Namaste! ShortsPilot abhi Shorts (#Shorts) mode par set hai.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -1613,8 +1548,7 @@ export default function App() {
       setTimeout(() => nextAction?.(), 50);
     }
   }, []);
-
-const startGoogleLogin = useCallback(() => {
+  const startGoogleLogin = useCallback(() => {
     setLoginError('');
     setIsLoggingIn(true);
     try {
@@ -1705,9 +1639,8 @@ const startGoogleLogin = useCallback(() => {
         };
       }
 
-      const cleanTitleBase = String(clip?.title || 'Viral Upload').trim();
-      const isShort = clip?.mediaFormat === 'short';
-      const cleanTitle = (isShort ? `${cleanTitleBase} #Shorts` : cleanTitleBase)
+      const cleanTitleBase = String(clip?.title || 'Viral Short').trim();
+      const cleanTitle = `${cleanTitleBase} #Shorts`
         .replace(/\s+/g, ' ')
         .slice(0, 100);
 
@@ -1732,7 +1665,7 @@ const startGoogleLogin = useCallback(() => {
         form.append(
           'file',
           fileBlob,
-          `${String(clip?.title || 'upload').replace(/[^\w.-]+/g, '_') || 'upload'}.mp4`
+          `${String(clip?.title || 'short').replace(/[^\w.-]+/g, '_') || 'short'}.mp4`
         );
 
         return fetch(
@@ -1811,11 +1744,11 @@ const startGoogleLogin = useCallback(() => {
     async (clip) => {
       if (!clip?.id) return;
       setLoginError('');
-      setAutoPublishStatus(`Uploading to YouTube: ${clip.title}...`);
+      setAutoPublishStatus(`Uploading Short to YouTube: ${clip.title}...`);
 
       setVideoQueue((prev) =>
         prev.map((item) =>
-          item.id === clip.id ? { ...item, status: 'Uploading to YouTube...' } : item
+          item.id === clip.id ? { ...item, status: 'Uploading Short...' } : item
         )
       );
 
@@ -1829,7 +1762,7 @@ const startGoogleLogin = useCallback(() => {
               ...item,
               youtubeVideoId: ytRes.videoId,
               uploadError: '',
-              status: `Uploaded (${ytRes.videoId}) ✅`
+              status: `Uploaded SHORT (${ytRes.videoId}) ✅`
             };
           }
           return {
@@ -2050,17 +1983,13 @@ const startGoogleLogin = useCallback(() => {
     if (files.length === 0) return;
 
     setLoginError('');
-    setAutoPublishStatus('Generating Thumbnail, Description & Auto-Posting...');
+    setAutoPublishStatus('Generating Thumbnail, Description & Auto-Posting Short...');
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const slotLabel = getNextSlotLabel(videoQueue.length + i);
       const detectedTopic = detectTopicFromFile(file.name);
       const meta = await readVideoMetadata(file);
-      const fmt = detectMediaFormat(meta);
-      const activeFormat = videoOptionOn ? 'video' : shortsOptionOpen ? 'short' : fmt.format;
-      const activeBadge = activeFormat === 'video' ? 'VIDEO' : 'SHORT';
-
       const durLabel = formatClockTime(meta.duration);
       const hookLabel = selectedThumbConcept?.hookText || 'WAIT FOR END 😱';
       const watermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
@@ -2070,8 +1999,7 @@ const startGoogleLogin = useCallback(() => {
         '',
         watermark,
         durLabel,
-        hookLabel,
-        activeFormat
+        hookLabel
       );
       const thumb = await generateThumbnailBlob({
         hookText: hookLabel,
@@ -2084,22 +2012,22 @@ const startGoogleLogin = useCallback(() => {
       const objectUrl = URL.createObjectURL(file);
 
       let clipStatus = manualPostMode
-        ? `Manual (${activeBadge}) • ${slotLabel}`
-        : `Queued (${activeBadge}) • ${slotLabel}`;
+        ? `Manual (SHORT) • ${slotLabel}`
+        : `Queued (SHORT) • ${slotLabel}`;
       let youtubeVideoId = '';
       let uploadError = '';
 
       if (!manualPostMode) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
-          mediaFormat: activeFormat,
+          mediaFormat: 'short',
           blob: file,
           thumbnailBlob: thumb.blob
         });
 
         if (ytRes.uploaded && ytRes.videoId) {
           youtubeVideoId = ytRes.videoId;
-          clipStatus = `Uploaded ${activeBadge} (${youtubeVideoId}) • ${slotLabel} ✅`;
+          clipStatus = `Uploaded SHORT (${youtubeVideoId}) • ${slotLabel} ✅`;
         } else {
           uploadError = ytRes.error || 'Token missing';
           clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
@@ -2110,7 +2038,7 @@ const startGoogleLogin = useCallback(() => {
       const readyClip = {
         id: `${Date.now()}-${Math.random()}`,
         title: aiMeta.title,
-        mediaFormat: activeFormat,
+        mediaFormat: 'short',
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
@@ -2143,7 +2071,7 @@ const startGoogleLogin = useCallback(() => {
     setIsSplitterModalOpen(false);
     setLoginError('');
     const count = Number(clipSplitCount) || 3;
-    setAutoPublishStatus(`Generating Thumbnails & Cutting ${count} Clips...`);
+    setAutoPublishStatus(`Generating Thumbnails & Cutting ${count} Shorts...`);
 
     const detectedTopic = detectTopicFromFile(file.name);
     const meta = await readVideoMetadata(file);
@@ -2160,14 +2088,6 @@ const startGoogleLogin = useCallback(() => {
       const endSec =
         i === count - 1 ? Math.floor(totalDur) : Math.min(Math.floor(totalDur), startSec + segDur);
       const clipLength = Math.max(1, endSec - startSec);
-      const segFmt = detectMediaFormat({
-        width: meta.width,
-        height: meta.height,
-        duration: clipLength
-      });
-      const activeFormat = videoOptionOn ? 'video' : shortsOptionOpen ? 'short' : segFmt.format;
-      const activeBadge = activeFormat === 'video' ? 'VIDEO' : 'SHORT';
-
       const durLabel = formatClockTime(clipLength);
       const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
       const partLabel = count > 1 ? `Part ${i + 1}/${count}` : '';
@@ -2177,8 +2097,7 @@ const startGoogleLogin = useCallback(() => {
         partLabel,
         watermark,
         durLabel,
-        hookLabel,
-        activeFormat
+        hookLabel
       );
       const thumb = await generateThumbnailBlob({
         hookText: hookLabel,
@@ -2190,22 +2109,22 @@ const startGoogleLogin = useCallback(() => {
       });
 
       let clipStatus = manualPostMode
-        ? `Cut Ready (${activeBadge}, ${timeRangeLabel}) • ${slotLabel}`
-        : `Scheduled (${activeBadge}) • ${slotLabel}`;
+        ? `Cut Ready (SHORT, ${timeRangeLabel}) • ${slotLabel}`
+        : `Scheduled (SHORT) • ${slotLabel}`;
       let youtubeVideoId = '';
       let uploadError = '';
 
       if (!manualPostMode && i < 4) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
-          mediaFormat: activeFormat,
+          mediaFormat: 'short',
           blob: file,
           thumbnailBlob: thumb.blob
         });
 
         if (ytRes.uploaded && ytRes.videoId) {
           youtubeVideoId = ytRes.videoId;
-          clipStatus = `Uploaded ${activeBadge} (${youtubeVideoId}) • ${slotLabel} ✅`;
+          clipStatus = `Uploaded SHORT (${youtubeVideoId}) • ${slotLabel} ✅`;
         } else {
           uploadError = ytRes.error || 'Token missing';
           clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
@@ -2216,7 +2135,7 @@ const startGoogleLogin = useCallback(() => {
       const clipItem = {
         id: `${Date.now()}-${Math.random()}-${i}`,
         title: aiMeta.title,
-        mediaFormat: activeFormat,
+        mediaFormat: 'short',
         hashtags: aiMeta.hashtags,
         description: aiMeta.description,
         watermarkText: aiMeta.watermarkText,
@@ -2329,7 +2248,7 @@ const startGoogleLogin = useCallback(() => {
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'Shorts option pehle open rehta hai aur Video option alag se ON/OFF kiya ja sakta hai.'
+        text: 'ShortsPilot abhi Shorts (#Shorts) mode par set hai.'
       }
     ]);
     setSupportInput('');
@@ -2342,7 +2261,7 @@ const startGoogleLogin = useCallback(() => {
       <DesktopSidebar
         activeTab={activeTab}
         onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
-        onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload')}
+        onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')}
         onOpenSplitter={() =>
           requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
         }
@@ -2414,7 +2333,7 @@ const startGoogleLogin = useCallback(() => {
                     <Crown className="w-6 h-6 text-amber-400 fill-amber-400 shrink-0" />
                     <div className="min-w-0">
                       <div className="text-xs lg:text-sm font-extrabold text-amber-300 truncate">
-                        Short + Video Mode Active
+                        Shorts Engine Active
                       </div>
                       <div className="text-[10px] lg:text-xs text-slate-200">
                         4 Daily Slots • 9:16 Thumb • shortspilot.in
@@ -2525,13 +2444,13 @@ const startGoogleLogin = useCallback(() => {
                   <div className="flex items-center justify-between gap-2">
                     <div className="max-w-[65%] space-y-1.5">
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-400/40 text-[9.5px] font-extrabold text-pink-300">
-                        <Zap className="w-3 h-3 text-pink-400" /> Shorts & Video Engine
+                        <Zap className="w-3 h-3 text-pink-400" /> Shorts Auto-Post Engine
                       </span>
                       <h2 className="text-[22px] lg:text-[26px] font-extrabold text-white leading-[1.15] tracking-tight">
                         Publish to <br />
                         YouTube{' '}
                         <span className="bg-gradient-to-r from-pink-400 to-cyan-400 bg-clip-text text-transparent">
-                          Shorts & Videos
+                          Shorts
                         </span>
                       </h2>
                       <p className="text-[10.5px] lg:text-xs text-slate-300 font-medium">
@@ -2541,7 +2460,7 @@ const startGoogleLogin = useCallback(() => {
 
                     <div
                       onClick={() =>
-                        requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload')
+                        requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')
                       }
                       className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-purple-600/30 to-pink-600/30 border border-purple-400/50 flex items-center justify-center relative cursor-pointer shadow-xl shrink-0 group"
                     >
@@ -2563,15 +2482,15 @@ const startGoogleLogin = useCallback(() => {
                   <button
                     type="button"
                     onClick={() =>
-                      requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload')
+                      requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')
                     }
                     className="w-full py-3 lg:py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs lg:text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(56,189,248,0.4)] border border-white/20 active:scale-95 transition-all cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-white" />
                     <span>
                       {manualPostMode
-                        ? 'Upload to Manual Vault'
-                        : 'Upload & Auto-Post (Short / Video)'}
+                        ? 'Upload Short to Manual Vault'
+                        : 'Upload & Auto-Post Shorts'}
                     </span>
                   </button>
                 </div>
@@ -2585,14 +2504,14 @@ const startGoogleLogin = useCallback(() => {
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <h3 className="text-sm lg:text-base font-extrabold text-white truncate">
-                            AI Engaging Clips
+                            AI Engaging Shorts Cutter
                           </h3>
                           <span className="px-1.5 py-0.5 rounded bg-pink-500/30 text-[8.5px] font-extrabold text-pink-200">
                             AUTO CUT
                           </span>
                         </div>
                         <p className="text-[10.5px] lg:text-xs text-slate-300">
-                          Cut 1, 3, or 5 clips • 4 daily slots (9 AM–9 PM)
+                          Cut 1, 3, or 5 Shorts • 4 daily slots (9 AM–9 PM)
                         </p>
                       </div>
                     </div>
@@ -2638,7 +2557,8 @@ const startGoogleLogin = useCallback(() => {
                   >
                     <Scissors className="w-3.5 h-3.5" />
                     <span>
-                      Select Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Clip' : 'Clips'} Now
+                      Select Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}{' '}
+                      Now
                     </span>
                   </button>
                 </div>
@@ -2671,42 +2591,16 @@ const startGoogleLogin = useCallback(() => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div className="p-3.5 rounded-[24px] bg-[#110c22] border border-emerald-500/45 flex items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-xs font-extrabold text-white">Shorts Option</h3>
-                      <p className="text-[10px] text-emerald-200 font-semibold">
-                        {shortsOptionOpen && !videoOptionOn ? 'Open (#Shorts)' : 'Standby'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleOpenShortsOption}
-                      className="px-3 py-1.5 rounded-full border border-emerald-400 bg-emerald-500/25 text-emerald-200 text-[11px] font-extrabold cursor-pointer active:scale-95"
-                    >
-                      ⚡ Open Shorts
-                    </button>
+                <div className="p-4 rounded-[24px] bg-[#110c22] border border-emerald-500/40 flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-white">Format Mode</h3>
+                    <p className="text-[10.5px] text-emerald-200 font-semibold">
+                      Shorts Only (#Shorts auto-added)
+                    </p>
                   </div>
-
-                  <div className="p-3.5 rounded-[24px] bg-[#110c22] border border-purple-500/45 flex items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-xs font-extrabold text-white">Video Option</h3>
-                      <p className="text-[10px] text-purple-200 font-semibold">
-                        {videoOptionOn ? 'ON (Video)' : 'OFF (Shorts)'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleToggleVideoOption}
-                      className={`px-3 py-1.5 rounded-full border text-[11px] font-extrabold cursor-pointer active:scale-95 ${
-                        videoOptionOn
-                          ? 'bg-purple-500/30 border-purple-400 text-purple-100'
-                          : 'bg-slate-800 border-slate-600 text-slate-300'
-                      }`}
-                    >
-                      {videoOptionOn ? '📹 Video ON' : '📹 Video OFF'}
-                    </button>
-                  </div>
+                  <span className="px-3.5 py-1.5 rounded-full border border-emerald-400/50 bg-emerald-500/20 text-emerald-200 text-[11px] font-extrabold">
+                    ⚡ Shorts Active
+                  </span>
                 </div>
 
                 <div className="p-4 rounded-[24px] bg-[#130c26] border border-purple-400/35 flex items-center justify-between">
@@ -2812,7 +2706,7 @@ const startGoogleLogin = useCallback(() => {
                   <div className="text-sm lg:text-lg font-extrabold text-white">
                     {totalPostedCount}
                   </div>
-                  <div className="text-[9px] lg:text-[11px] text-slate-400">Queued Items</div>
+                  <div className="text-[9px] lg:text-[11px] text-slate-400">Queued Shorts</div>
                 </div>
                 <div
                   onClick={() =>
@@ -2834,7 +2728,7 @@ const startGoogleLogin = useCallback(() => {
               <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between px-1">
                   <h3 className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-pink-400" /> Your Published & Cut Shorts / Videos
+                    <Clock className="w-4 h-4 text-pink-400" /> Your Published & Cut Shorts
                   </h3>
                   <button
                     type="button"
@@ -2885,7 +2779,7 @@ const startGoogleLogin = useCallback(() => {
                             </h4>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold uppercase">
-                                {clip.mediaFormat === 'video' ? 'VIDEO' : 'SHORT'}
+                                SHORT
                               </span>
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
                                 {clip.status}
@@ -2978,7 +2872,7 @@ const startGoogleLogin = useCallback(() => {
                   </b>
                 </div>
                 <div>
-                  Active Mode: <b className="text-cyan-300">{videoOptionOn ? 'VIDEO' : 'SHORTS'}</b>
+                  Active Mode: <b className="text-emerald-400">SHORTS ONLY (#Shorts)</b>
                 </div>
                 <div>
                   Daily Auto Slots: <b>09:00 AM, 01:30 PM, 05:30 PM, 09:00 PM</b>
@@ -2990,7 +2884,7 @@ const startGoogleLogin = useCallback(() => {
                   </b>
                 </div>
                 <div>
-                  Total Queued Items: <b>{totalPostedCount}</b>
+                  Total Queued Shorts: <b>{totalPostedCount}</b>
                 </div>
               </div>
             </div>
@@ -3021,7 +2915,7 @@ const startGoogleLogin = useCallback(() => {
                     onClick={() => fileInputRef.current?.click()}
                     className="px-5 py-2.5 rounded-xl bg-purple-600/30 border border-purple-400/40 text-xs font-bold text-purple-200 cursor-pointer"
                   >
-                    + Upload Short / Video
+                    + Upload Short
                   </button>
                 </div>
               ) : (
@@ -3062,8 +2956,7 @@ const startGoogleLogin = useCallback(() => {
                               {clip.title}
                             </div>
                             <div className="text-[10px] text-emerald-400 font-bold">
-                              {clip.mediaFormat === 'video' ? 'VIDEO' : 'SHORT'} • {clip.status} •{' '}
-                              {clip.duration}
+                              SHORT • {clip.status} • {clip.duration}
                             </div>
                           </div>
                         </div>
@@ -3199,7 +3092,7 @@ const startGoogleLogin = useCallback(() => {
         <MobileBottomNavBar
           activeTab={activeTab}
           onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
-          onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload')}
+          onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')}
         />
       </div>
 
@@ -3233,7 +3126,7 @@ const startGoogleLogin = useCallback(() => {
                 allowed hain.
               </p>
               <p>
-                <b className="text-white">2. YouTube & Third-Party Rules:</b> Videos YouTube ke
+                <b className="text-white">2. YouTube & Third-Party Rules:</b> Shorts YouTube ke
                 Community Guidelines aur Terms of Service ke mutabik publish kiye jaate hain;
                 platform moderation ya reach ki guarantee nahi deta.
               </p>
@@ -3437,10 +3330,10 @@ const startGoogleLogin = useCallback(() => {
             </button>
             <div className="flex items-center gap-2">
               <Scissors className="w-5 h-5 text-pink-400" />
-              <h3 className="text-base font-extrabold text-white">AI Engaging Clips Auto-Splitter</h3>
+              <h3 className="text-base font-extrabold text-white">AI Engaging Shorts Cutter</h3>
             </div>
             <p className="text-xs text-slate-300">
-              Select how many clips you want AI to cut from your video:
+              Select how many Shorts you want AI to cut from your video:
             </p>
             <div className="grid grid-cols-3 gap-2.5">
               {[1, 3, 5].map((count) => (
@@ -3454,7 +3347,7 @@ const startGoogleLogin = useCallback(() => {
                       : 'bg-[#130c26] border-slate-700 text-slate-300'
                   }`}
                 >
-                  {count} {count === 1 ? 'Clip' : 'Clips'}
+                  {count} {count === 1 ? 'Short' : 'Shorts'}
                 </button>
               ))}
             </div>
@@ -3463,7 +3356,7 @@ const startGoogleLogin = useCallback(() => {
               onClick={() => splitterInputRef.current?.click()}
               className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
             >
-              Select Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Clip' : 'Clips'}
+              Select Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}
             </button>
           </div>
         </div>
@@ -3620,7 +3513,7 @@ const startGoogleLogin = useCallback(() => {
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-pink-300 cursor-pointer"
                 >
-                  ✂️ AI Engaging Clips (1, 3, 5)
+                  ✂️ AI Engaging Shorts (1, 3, 5)
                 </button>
                 <button
                   type="button"
