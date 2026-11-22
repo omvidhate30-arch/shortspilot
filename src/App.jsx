@@ -582,7 +582,7 @@ const buildClipPackage = (
     .map((w) => `#${w.charAt(0).toUpperCase()}${w.slice(1)}`);
 
   const pool = tagPools[index % tagPools.length];
-  const combinedTags = Array.from(new Set([...words, ...pool])).slice(0, 5);
+  const combinedTags = Array.from(new Set(['#Shorts', ...words, ...pool])).slice(0, 5);
   const hashtags = combinedTags.join(' ');
 
   const openingLine = hookLines[index % hookLines.length];
@@ -595,7 +595,7 @@ const buildClipPackage = (
     .join(' • ');
 
   const description = [
-    title,
+    `${title} #Shorts`,
     '',
     openingLine,
     metaBits ? `\n${metaBits}` : '',
@@ -828,6 +828,10 @@ const GoogleVerificationGuideModal = React.memo(
     );
   }
 );
+
+
+
+
 
 const ClipActionShortcuts = React.memo(
   ({ clip, onPreview, onCopyDescription, onSendThumbAI }) => {
@@ -1548,7 +1552,10 @@ export default function App() {
       setTimeout(() => nextAction?.(), 50);
     }
   }, []);
-  const startGoogleLogin = useCallback(() => {
+
+
+
+const startGoogleLogin = useCallback(() => {
     setLoginError('');
     setIsLoggingIn(true);
     try {
