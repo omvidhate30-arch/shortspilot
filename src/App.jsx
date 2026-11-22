@@ -40,6 +40,19 @@ const IDB_STORE = 'clips';
 const RAZORPAY_MONTHLY_LINK = 'https://rzp.io/rzp/MwaHJEUU';
 const RAZORPAY_YEARLY_LINK = 'https://rzp.io/rzp/MwaHJEUU';
 
+const DAILY_AUTO_SLOTS = [
+  { hour: 9, minute: 0, label: '09:00 AM' },
+  { hour: 13, minute: 30, label: '01:30 PM' },
+  { hour: 17, minute: 30, label: '05:30 PM' },
+  { hour: 21, minute: 0, label: '09:00 PM' }
+];
+
+const getNextSlotLabel = (index = 0) => {
+  const safeIdx = Math.abs(Number(index) || 0) % DAILY_AUTO_SLOTS.length;
+  const slot = DAILY_AUTO_SLOTS[safeIdx];
+  return `${slot.label} (Slot ${safeIdx + 1}/4)`;
+};
+
 const SHORTSPILOT_400_URLS = Array.from({ length: 400 }, (_, idx) => {
   const num = idx + 1;
   if (num <= 100) {
@@ -1042,7 +1055,6 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
     </button>
   </nav>
 ));
-
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
@@ -1165,10 +1177,11 @@ export default function App() {
   const [thumbConcepts, setThumbConcepts] = useState(() => buildThumbnailConcepts('VIRAL'));
 
   const [selectedTimeSlot] = useState(() => {
-    const h = new Date().getHours();
-    if (h < 13) return '9:00 AM (Nearest VIP Slot)';
-    if (h < 18) return '2:00 PM (Nearest VIP Slot)';
-    return '7:30 PM (Nearest VIP Slot)';
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const upcoming =
+      DAILY_AUTO_SLOTS.find((s) => s.hour * 60 + s.minute > currentMinutes) || DAILY_AUTO_SLOTS[0];
+    return `${upcoming.label} • 4 Daily Slots`;
   });
 
   const [autoPublishStatus, setAutoPublishStatus] = useState('');
@@ -1179,7 +1192,7 @@ export default function App() {
     {
       id: 1,
       title: 'Auto Thumbnail + YouTube Upload Ready ✅',
-      desc: 'Dynamic descriptions, 9:16 thumbnails, and shortcuts are active.',
+      desc: '4 daily slots (9 AM, 1:30 PM, 5:30 PM, 9 PM), 9:16 thumbnails, and upload fix active.',
       unread: true
     }
   ]);
@@ -1508,6 +1521,33 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (manualPostMode || !isGoogleConnected) return;
+
+    const tickSlots = async () => {
+      const now = new Date();
+      const hh = now.getHours();
+      const mm = now.getMinutes();
+      const matchedSlot = DAILY_AUTO_SLOTS.find((s) => s.hour === hh && s.minute === mm);
+      if (!matchedSlot) return;
+
+      const dayKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}-${matchedSlot.hour}:${matchedSlot.minute}`;
+      const lastRunKey = localStorage.getItem('sp_last_auto_slot_run') || '';
+      if (lastRunKey === dayKey) return;
+
+      const pendingClip = videoQueue.find(
+        (c) => !c.youtubeVideoId && c.blob instanceof Blob && c.blob.size > 0
+      );
+      if (!pendingClip) return;
+
+      localStorage.setItem('sp_last_auto_slot_run', dayKey);
+      await handleRetryYouTubeUpload(pendingClip);
+    };
+
+    const timer = setInterval(tickSlots, 60000);
+    return () => clearInterval(timer);
+  }, [manualPostMode, isGoogleConnected, videoQueue, handleRetryYouTubeUpload]);
+
+  useEffect(() => {
     let active = true;
     idbGetAllClips().then((clips) => {
       if (active && clips.length > 0) {
@@ -1685,6 +1725,7 @@ export default function App() {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      const slotLabel = getNextSlotLabel(videoQueue.length + i);
       const detectedTopic = detectTopicFromFile(file.name);
       const meta = await readVideoMetadata(file);
       const durLabel = formatClockTime(meta.duration);
@@ -1700,8 +1741,8 @@ export default function App() {
       const objectUrl = URL.createObjectURL(file);
 
       let clipStatus = manualPostMode
-        ? 'Saved Locally (Manual Mode)'
-        : 'Not Uploaded (Login Required)';
+        ? `Manual • ${slotLabel}`
+        : `Queued • ${slotLabel}`;
       let youtubeVideoId = '';
       let uploadError = '';
 
@@ -1714,10 +1755,10 @@ export default function App() {
 
         if (ytRes.uploaded && ytRes.videoId) {
           youtubeVideoId = ytRes.videoId;
-          clipStatus = `Uploaded to YT (${youtubeVideoId}) ✅`;
+          clipStatus = `Uploaded (${youtubeVideoId}) • ${slotLabel} ✅`;
         } else {
           uploadError = ytRes.error || 'Token missing';
-          clipStatus = `Not Uploaded: ${uploadError}`;
+          clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
           setLoginError(`YouTube Upload Nahi Hua: ${uploadError}`);
         }
       }
@@ -1733,6 +1774,7 @@ export default function App() {
           selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
         thumbnailDataUrl: thumb.dataUrl,
         thumbnailBlob: thumb.blob,
+        slotLabel,
         youtubeVideoId,
         uploadError,
         status: clipStatus,
@@ -1768,6 +1810,7 @@ export default function App() {
     const generated = [];
 
     for (let i = 0; i < count; i++) {
+      const slotLabel = getNextSlotLabel(videoQueue.length + i);
       const startSec = Math.floor(i * segDur);
       const endSec =
         i === count - 1 ? Math.floor(totalDur) : Math.min(Math.floor(totalDur), startSec + segDur);
@@ -1791,12 +1834,12 @@ export default function App() {
       });
 
       let clipStatus = manualPostMode
-        ? `Cut Ready (${timeRangeLabel})`
-        : `Not Uploaded (${timeRangeLabel})`;
+        ? `Cut Ready (${timeRangeLabel}) • ${slotLabel}`
+        : `Scheduled (${slotLabel})`;
       let youtubeVideoId = '';
       let uploadError = '';
 
-      if (!manualPostMode) {
+      if (!manualPostMode && i < 4) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
           blob: file,
@@ -1805,10 +1848,10 @@ export default function App() {
 
         if (ytRes.uploaded && ytRes.videoId) {
           youtubeVideoId = ytRes.videoId;
-          clipStatus = `Uploaded (${youtubeVideoId}) ✅`;
+          clipStatus = `Uploaded (${youtubeVideoId}) • ${slotLabel} ✅`;
         } else {
           uploadError = ytRes.error || 'Token missing';
-          clipStatus = `Not Uploaded (${timeRangeLabel}): ${uploadError}`;
+          clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
           setLoginError(`YouTube Upload Nahi Hua: ${uploadError}`);
         }
       }
@@ -1824,6 +1867,7 @@ export default function App() {
           selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
         thumbnailDataUrl: thumb.dataUrl,
         thumbnailBlob: thumb.blob,
+        slotLabel,
         youtubeVideoId,
         uploadError,
         status: clipStatus,
@@ -1928,8 +1972,7 @@ export default function App() {
   };
 
   const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
-
-return (
+  return (
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
         activeTab={activeTab}
@@ -2009,7 +2052,7 @@ return (
                         Auto-Post + Thumbnail Active
                       </div>
                       <div className="text-[10px] lg:text-xs text-slate-200">
-                        Dynamic Desc • 9:16 Thumb • shortspilot.in
+                        4 Daily Slots • 9:16 Thumb • shortspilot.in
                       </div>
                     </div>
                   </div>
@@ -2127,7 +2170,7 @@ return (
                         </span>
                       </h2>
                       <p className="text-[10.5px] lg:text-xs text-slate-300 font-medium">
-                        Mode: {manualPostMode ? 'Manual Post' : selectedTimeSlot}
+                        {manualPostMode ? 'Mode: Manual Post' : `Next: ${selectedTimeSlot}`}
                       </p>
                     </div>
 
@@ -2182,7 +2225,7 @@ return (
                           </span>
                         </div>
                         <p className="text-[10.5px] lg:text-xs text-slate-300">
-                          Cut 1, 3, or 5 clips from any long video
+                          Cut 1, 3, or 5 clips • 4 daily slots (9 AM–9 PM)
                         </p>
                       </div>
                     </div>
@@ -2268,7 +2311,9 @@ return (
                     </div>
                     <div>
                       <h3 className="text-sm font-extrabold text-white">Posting Control</h3>
-                      <p className="text-[10.5px] text-slate-300">Auto-Post is ON by default</p>
+                      <p className="text-[10.5px] text-slate-300">
+                        Auto-Post ON • 09:00, 13:30, 17:30, 21:00
+                      </p>
                     </div>
                   </div>
 
@@ -2371,9 +2416,9 @@ return (
                   className="p-2.5 lg:p-4 rounded-2xl bg-[#0e0a1c] border border-purple-500/35 cursor-pointer text-center"
                 >
                   <div className="text-sm lg:text-lg font-extrabold text-purple-300">
-                    {clipSplitCount} Clips
+                    4 Slots/Day
                   </div>
-                  <div className="text-[9px] lg:text-[11px] text-slate-400">Split Mode</div>
+                  <div className="text-[9px] lg:text-[11px] text-slate-400">Auto Schedule</div>
                 </div>
                 <div className="p-2.5 lg:p-4 rounded-2xl bg-[#0e0a1c] border border-amber-500/35 text-center">
                   <div className="text-sm lg:text-lg font-extrabold text-amber-400">10/10</div>
@@ -2433,7 +2478,7 @@ return (
                             >
                               {clip.title}
                             </h4>
-                            <div className="flex items-center gap-2 mt-0.5">
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
                                 {clip.status}
                               </span>
@@ -2517,6 +2562,9 @@ return (
                   <b className={youtubeAccessToken ? 'text-emerald-400' : 'text-slate-400'}>
                     {youtubeAccessToken ? 'Active' : 'Not Issued'}
                   </b>
+                </div>
+                <div>
+                  Daily Auto Slots: <b>09:00 AM, 01:30 PM, 05:30 PM, 09:00 PM</b>
                 </div>
                 <div>
                   Instagram:{' '}
