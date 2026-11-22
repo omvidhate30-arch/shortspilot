@@ -1107,7 +1107,7 @@ export default function App() {
           monthlyOriginalPrice: '499',
           monthlyPrice: saved.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
-          yearlyPrice: saved.yearlyPrice || '3999',
+          yearlyPrice: saved.yearlyPrice || '1499',
           watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
           ownerAlertEmail: saved.ownerAlertEmail || '',
           paymentWebhookUrl: saved.paymentWebhookUrl || ''
@@ -1119,7 +1119,7 @@ export default function App() {
       monthlyOriginalPrice: '499',
       monthlyPrice: '99',
       yearlyOriginalPrice: '6999',
-      yearlyPrice: '3999',
+      yearlyPrice: '1499',
       couponCode: 'SAVE200',
       couponDiscount: '200',
       freeLimit: 3,
@@ -1352,21 +1352,27 @@ export default function App() {
         return {
           uploaded: false,
           videoId: '',
-          error: 'No YouTube access token — Google login complete karein'
-        };
-      }
-      if (!(clip?.blob instanceof Blob) || clip.blob.size === 0) {
-        return {
-          uploaded: false,
-          videoId: '',
-          error: 'Video file empty ya missing hai'
+          error: 'YouTube token nahi mila — Google login dobara karein'
         };
       }
 
+      const fileBlob = clip?.blob instanceof Blob ? clip.blob : null;
+      if (!fileBlob || fileBlob.size === 0) {
+        return {
+          uploaded: false,
+          videoId: '',
+          error: 'Video file missing ya empty hai'
+        };
+      }
+
+      const cleanTitle = `${String(clip?.title || 'Viral Short').trim()} #Shorts`
+        .replace(/\s+/g, ' ')
+        .slice(0, 100);
+
       const metadata = {
         snippet: {
-          title: `${clip.title} #Shorts`.slice(0, 100),
-          description: clip.description,
+          title: cleanTitle,
+          description: String(clip?.description || cleanTitle).slice(0, 4900),
           categoryId: '22'
         },
         status: {
@@ -1383,8 +1389,8 @@ export default function App() {
         );
         form.append(
           'file',
-          clip.blob,
-          `${String(clip.title || 'short').replace(/[^\w.-]+/g, '_')}.mp4`
+          fileBlob,
+          `${String(clip?.title || 'short').replace(/[^\w.-]+/g, '_') || 'short'}.mp4`
         );
 
         return fetch(
@@ -1397,48 +1403,108 @@ export default function App() {
         );
       };
 
-      let res = await sendUpload(token);
+      try {
+        let res = await sendUpload(token);
 
-      if (res.status === 401) {
-        const fresh = await refreshAccessToken();
-        if (fresh) {
-          res = await sendUpload(fresh);
+        if (res.status === 401) {
+          const fresh = await refreshAccessToken();
+          if (fresh) {
+            token = fresh;
+            res = await sendUpload(fresh);
+          }
         }
-      }
 
-      const data = await res.json().catch(() => ({}));
+        const rawText = await res.text();
+        let data = {};
+        try {
+          data = rawText ? JSON.parse(rawText) : {};
+        } catch {
+          data = {};
+        }
 
-      if (!res.ok || !data?.id) {
+        if (!res.ok || !data?.id) {
+          return {
+            uploaded: false,
+            videoId: '',
+            error:
+              data?.error?.message ||
+              data?.error_description ||
+              `YouTube API Error (${res.status})`
+          };
+        }
+
+        const videoId = String(data.id);
+
+        if (videoId && clip?.thumbnailBlob instanceof Blob && clip.thumbnailBlob.size > 0) {
+          try {
+            await fetch(
+              `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(
+                videoId
+              )}`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'image/png'
+                },
+                body: clip.thumbnailBlob
+              }
+            );
+          } catch {}
+        }
+
+        return { uploaded: true, videoId, error: '' };
+      } catch (err) {
         return {
           uploaded: false,
           videoId: '',
-          error: data?.error?.message || `HTTP ${res.status}: Upload incomplete`
+          error: err?.message || 'YouTube upload network error'
         };
       }
-
-      const videoId = String(data.id);
-
-      if (videoId && clip.thumbnailBlob instanceof Blob) {
-        try {
-          await fetch(
-            `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(
-              videoId
-            )}`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'image/png'
-              },
-              body: clip.thumbnailBlob
-            }
-          );
-        } catch {}
-      }
-
-      return { uploaded: true, videoId, error: '' };
     },
     [youtubeAccessToken, youtubeRefreshToken, refreshAccessToken]
+  );
+
+  const handleRetryYouTubeUpload = useCallback(
+    async (clip) => {
+      if (!clip?.id) return;
+      setLoginError('');
+      setAutoPublishStatus(`Uploading to YouTube: ${clip.title}...`);
+
+      setVideoQueue((prev) =>
+        prev.map((item) =>
+          item.id === clip.id ? { ...item, status: 'Uploading to YouTube...' } : item
+        )
+      );
+
+      const ytRes = await uploadClipToYouTube(clip);
+
+      setVideoQueue((prev) =>
+        prev.map((item) => {
+          if (item.id !== clip.id) return item;
+          if (ytRes.uploaded && ytRes.videoId) {
+            return {
+              ...item,
+              youtubeVideoId: ytRes.videoId,
+              uploadError: '',
+              status: `Uploaded (${ytRes.videoId}) ✅`
+            };
+          }
+          return {
+            ...item,
+            uploadError: ytRes.error || 'Upload failed',
+            status: `Not Uploaded: ${ytRes.error || 'Failed'}`
+          };
+        })
+      );
+
+      if (!ytRes.uploaded) {
+        setLoginError(`YouTube Upload Error: ${ytRes.error || 'Upload failed'}`);
+      }
+
+      setAutoPublishStatus('');
+    },
+    [uploadClipToYouTube]
   );
 
   useEffect(() => {
@@ -1456,10 +1522,55 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const oauthErr = params.get('error');
+    const queryToken = params.get('access_token') || '';
+    const queryRefresh = params.get('refresh_token') || '';
+    const oauthCode = params.get('code') || '';
+
     if (oauthErr) {
       setLoginError(`Google Auth Error: ${decodeURIComponent(oauthErr)}`);
       setIsLoggingIn(false);
+    }
+
+    if (queryToken || oauthErr) {
       window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (queryToken) {
+      setIsLoggingIn(true);
+      Promise.all([
+        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${queryToken}` }
+        }).then((r) => (r.ok ? r.json() : null)),
+        fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
+          headers: { Authorization: `Bearer ${queryToken}` }
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null)
+      ])
+        .then(([info, ytData]) => {
+          const ytItem = ytData?.items?.[0];
+          const ytChannel = ytItem?.snippet;
+          if (info?.email) {
+            applyConnectedGoogleProfile(
+              {
+                name: ytChannel?.title || info.name,
+                email: info.email,
+                avatar: ytChannel?.thumbnails?.default?.url || info.picture,
+                channelId: ytItem?.id || ''
+              },
+              { accessToken: queryToken, refreshToken: queryRefresh }
+            );
+          } else {
+            setLoginError('Google profile read nahi ho paya.');
+          }
+        })
+        .catch(() => setLoginError('Google profile fetch error.'))
+        .finally(() => setIsLoggingIn(false));
+    } else if (oauthCode && !window.location.hash.includes('access_token=')) {
+      setLoginError(
+        'OAuth code mila, par access_token redirect nahi hua. /api/youtube/callback check karein.'
+      );
+      setIsLoggingIn(false);
     }
 
     if (window.location.hash && window.location.hash.includes('access_token=')) {
@@ -1522,7 +1633,7 @@ export default function App() {
           monthlyOriginalPrice: '499',
           monthlyPrice: cfgData.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
-          yearlyPrice: cfgData.yearlyPrice || '3999',
+          yearlyPrice: cfgData.yearlyPrice || '1499',
           watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in'
         }));
       }
@@ -1592,6 +1703,7 @@ export default function App() {
         ? 'Saved Locally (Manual Mode)'
         : 'Not Uploaded (Login Required)';
       let youtubeVideoId = '';
+      let uploadError = '';
 
       if (!manualPostMode) {
         const ytRes = await uploadClipToYouTube({
@@ -1604,8 +1716,9 @@ export default function App() {
           youtubeVideoId = ytRes.videoId;
           clipStatus = `Uploaded to YT (${youtubeVideoId}) ✅`;
         } else {
-          clipStatus = `Not Uploaded: ${ytRes.error || 'Token missing'}`;
-          setLoginError(`YouTube Upload Nahi Hua: ${ytRes.error || 'Google token missing'}`);
+          uploadError = ytRes.error || 'Token missing';
+          clipStatus = `Not Uploaded: ${uploadError}`;
+          setLoginError(`YouTube Upload Nahi Hua: ${uploadError}`);
         }
       }
 
@@ -1621,6 +1734,7 @@ export default function App() {
         thumbnailDataUrl: thumb.dataUrl,
         thumbnailBlob: thumb.blob,
         youtubeVideoId,
+        uploadError,
         status: clipStatus,
         hookScore: aiMeta.hookScore,
         duration: durLabel,
@@ -1680,6 +1794,7 @@ export default function App() {
         ? `Cut Ready (${timeRangeLabel})`
         : `Not Uploaded (${timeRangeLabel})`;
       let youtubeVideoId = '';
+      let uploadError = '';
 
       if (!manualPostMode) {
         const ytRes = await uploadClipToYouTube({
@@ -1692,8 +1807,9 @@ export default function App() {
           youtubeVideoId = ytRes.videoId;
           clipStatus = `Uploaded (${youtubeVideoId}) ✅`;
         } else {
-          clipStatus = `Not Uploaded (${timeRangeLabel}): ${ytRes.error || 'Token missing'}`;
-          setLoginError(`YouTube Upload Nahi Hua: ${ytRes.error || 'Google token missing'}`);
+          uploadError = ytRes.error || 'Token missing';
+          clipStatus = `Not Uploaded (${timeRangeLabel}): ${uploadError}`;
+          setLoginError(`YouTube Upload Nahi Hua: ${uploadError}`);
         }
       }
 
@@ -1709,6 +1825,7 @@ export default function App() {
         thumbnailDataUrl: thumb.dataUrl,
         thumbnailBlob: thumb.blob,
         youtubeVideoId,
+        uploadError,
         status: clipStatus,
         hookScore: aiMeta.hookScore,
         duration: durLabel,
@@ -1763,7 +1880,7 @@ export default function App() {
 
     const amt =
       selectedBilling === 'yearly'
-        ? Number(globalConfig.yearlyPrice || 3999)
+        ? Number(globalConfig.yearlyPrice || 1499)
         : Number(globalConfig.monthlyPrice || 99);
 
     const targetUrl =
@@ -1811,7 +1928,8 @@ export default function App() {
   };
 
   const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
-  return (
+
+return (
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
         activeTab={activeTab}
@@ -1832,7 +1950,7 @@ export default function App() {
         isLoggingIn={isLoggingIn}
         googleUser={googleUser}
         monthlyPrice={globalConfig.monthlyPrice || '99'}
-        yearlyPrice={globalConfig.yearlyPrice || '3999'}
+        yearlyPrice={globalConfig.yearlyPrice || '1499'}
         videoCount={videoQueue.length}
       />
 
@@ -2217,12 +2335,12 @@ export default function App() {
                       Yearly VIP
                     </span>
                     <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-[8.5px] font-extrabold text-amber-300">
-                      43% OFF
+                      79% OFF
                     </span>
                   </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-base lg:text-2xl font-extrabold text-amber-400">
-                      ₹{globalConfig.yearlyPrice || '3999'}
+                      ₹{globalConfig.yearlyPrice || '1499'}
                     </span>
                     <span className="text-[11px] lg:text-sm text-slate-400 line-through">
                       ₹{globalConfig.yearlyOriginalPrice || '6999'}
@@ -2338,6 +2456,25 @@ export default function App() {
                       <div className="text-[9.5px] text-cyan-300/90 font-mono truncate bg-[#080512] px-2.5 py-1.5 rounded-lg border border-slate-800">
                         {clip.hashtags}
                       </div>
+                      {clip.uploadError && (
+                        <div className="text-[10px] text-rose-300 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-lg break-words">
+                          {clip.uploadError}
+                        </div>
+                      )}
+                      {!clip.youtubeVideoId && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            requireGoogleAuth(
+                              () => handleRetryYouTubeUpload(clip),
+                              'Retry YouTube Upload'
+                            )
+                          }
+                          className="w-full py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-[10.5px] font-extrabold cursor-pointer transition"
+                        >
+                          ↻ Retry YouTube Upload
+                        </button>
+                      )}
                       <ClipActionShortcuts
                         clip={clip}
                         onPreview={(c) => requireGoogleAuth(() => setPreviewClip(c), 'Watch Clip')}
@@ -2475,6 +2612,20 @@ export default function App() {
                       <pre className="text-[10px] text-slate-300 whitespace-pre-wrap font-sans bg-[#070412] p-2.5 rounded-xl border border-slate-800 max-h-28 overflow-y-auto">
                         {clip.description}
                       </pre>
+                      {clip.uploadError && (
+                        <div className="text-[10px] text-rose-300 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-lg break-words">
+                          {clip.uploadError}
+                        </div>
+                      )}
+                      {!clip.youtubeVideoId && (
+                        <button
+                          type="button"
+                          onClick={() => handleRetryYouTubeUpload(clip)}
+                          className="w-full py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-[10.5px] font-extrabold cursor-pointer transition"
+                        >
+                          ↻ Retry YouTube Upload
+                        </button>
+                      )}
                       <ClipActionShortcuts
                         clip={clip}
                         onPreview={setPreviewClip}
@@ -2904,7 +3055,7 @@ export default function App() {
                 <div className="text-[10px] font-extrabold text-amber-300">YEARLY VIP</div>
                 <div className="flex items-baseline gap-1.5 mt-1">
                   <span className="text-lg font-extrabold text-amber-400">
-                    ₹{globalConfig.yearlyPrice || '3999'}
+                    ₹{globalConfig.yearlyPrice || '1499'}
                   </span>
                   <span className="text-xs line-through text-slate-500">₹6999</span>
                 </div>
@@ -2937,7 +3088,7 @@ export default function App() {
               >
                 💳 Pay Instantly via Razorpay (₹
                 {selectedBilling === 'yearly'
-                  ? globalConfig.yearlyPrice || '3999'
+                  ? globalConfig.yearlyPrice || '1499'
                   : globalConfig.monthlyPrice || '99'}
                 )
               </button>
@@ -3022,7 +3173,7 @@ export default function App() {
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer"
                 >
-                  🔥 Offer Plans (₹99 / ₹3,999)
+                  🔥 Offer Plans (₹99 / ₹1,499)
                 </button>
                 <button
                   type="button"
