@@ -1,254 +1,145 @@
-export const DEFAULT_CUSTOM_AI_PROMPT = `Act as my Personal Viral Video SEO Expert, YouTube Shorts Growth Strategist and Short-Form Content Specialist.
-YOUR TASK:
-I will send you a video. You must carefully analyze the actual video context first. Then generate all titles, captions, hashtags and SEO content based ONLY on that specific video.
-IMPORTANT: Never give generic or random content. Every output must match the actual video.
-FOR EVERY VIDEO, GENERATE:
-1. BEST VIRAL TITLE (Create 3 catchy curiosity-driven titles and select the strongest as BEST TITLE)
-2. VIRAL CAPTION (Hook + natural call to action)
-3. TRENDING HASHTAGS (Mix niche-specific, popular and trending hashtags)
-4. SEO KEYWORDS (10-15 relevant searchable keywords)
-5. VIDEO DESCRIPTION (SEO-optimized YouTube Shorts description)
-6. BEST THUMBNAIL TEXT (3 short powerful options)
-7. VIRAL POTENTIAL ANALYSIS (Score 1 to 10 + retention analysis)`;
+const SHORTSPILOT_URLS = Array.from({ length: 400 }, (_, idx) => {
+  const num = idx + 1;
+  if (num <= 100) return `https://www.shortspilot.in/shorts/clip-${String(num).padStart(3, '0')}`;
+  if (num <= 200) return `https://www.shortspilot.in/thumbnails/preset-9x16-${String(num - 100).padStart(3, '0')}`;
+  if (num <= 300) return `https://www.shortspilot.in/templates/viral-hook-${String(num - 200).padStart(3, '0')}`;
+  return `https://www.shortspilot.in/redirect/auto-post-${String(num - 300).padStart(3, '0')}`;
+});
 
-export const inspectVideoProperties = (file) =>
-  new Promise((resolve) => {
-    if (!(file instanceof Blob)) {
-      return resolve({ duration: 15, width: 1080, height: 1920, isVerticalOrSquare: true, isAlreadyShort: false });
-    }
-    const url = URL.createObjectURL(file);
-    const vid = document.createElement('video');
-    vid.preload = 'metadata';
-    vid.src = url;
-    vid.onloadedmetadata = () => {
-      const duration = vid.duration || 15;
-      const width = vid.videoWidth || 1080;
-      const height = vid.videoHeight || 1920;
-      const isVerticalOrSquare = height >= width;
-      URL.revokeObjectURL(url);
-      resolve({ duration, width, height, isVerticalOrSquare, isAlreadyShort: isVerticalOrSquare && duration <= 185 });
-    };
-    vid.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve({ duration: 15, width: 1080, height: 1920, isVerticalOrSquare: true, isAlreadyShort: false });
-    };
-  });
+export const getShortsPilotUrlByIndex = (index = 0) =>
+  SHORTSPILOT_URLS[Math.abs(Number(index) || 0) % SHORTSPILOT_URLS.length];
 
-export const buildUniqueDynamicMetadata = ({
-  rawName,
-  clipIndex = 0,
-  country = 'IN',
-  selectedNiche = 'Gaming (Free Fire / BGMI / GTA)',
-  selectedCtaStyle = 'Comment Your Reaction 👇',
-  usedTitlesSet
-}) => {
-  const isIndia = country === 'IN';
-  let topic = (rawName || '')
-    .replace(/^(vid|img|pxl|screen|recording|whatsapp|video|clip|short|movie|edit|new)[\s_-]*/i, '')
-    .replace(/\b\d{5,}\b/g, '')
+export const detectTopicFromFile = (fileName = '') => {
+  const base = String(fileName || '')
+    .replace(/\.[^/.]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b(vid|video|screen|recording|record|clip|short|shorts|final|edit|hd|fhd|4k|1080p|720p|60fps|30fps|mp4|mov|mkv)\b/gi, ' ')
+    .replace(/\b\d{4,}\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  return base.length >= 2 ? base.replace(/\b\w/g, (ch) => ch.toUpperCase()) : 'Insane Viral Moment';
+};
 
-  if (!topic || topic.length < 3) {
-    if (selectedNiche.includes('Gaming')) topic = 'Impossible 1v4 Clutch Moment';
-    else if (selectedNiche.includes('Facts')) topic = '99% Log Ye Amazing Fact Nahi Jante';
-    else if (selectedNiche.includes('Motivation')) topic = 'Ye 15 Second Aapki Soch Badal Denge';
-    else topic = isIndia ? 'Aakhir Mein Jo Hua Shock Ho Jaoge' : 'Wait Until The Final Second';
-  }
+export const buildClipPackage = (
+  rawTopic,
+  index = 0,
+  partLabel = '',
+  watermarkText = 'Developed by shortspilot.in',
+  durationLabel = '',
+  hookText = ''
+) => {
+  const cleanTopic = (rawTopic || 'Insane Viral Moment').trim();
+  const title = partLabel ? `${cleanTopic} (${partLabel})` : cleanTopic;
 
-  const hookAngles = isIndia
-    ? [
-        `${topic} 😱 Wait For End!`,
-        `99% Log Ye Nahi Jante 🔥 ${topic}`,
-        `${topic} 🤯 Last Tak Dekho!`,
-        `Impossible Moment ⚡ ${topic}`,
-        `Kya Aapne Ye Notice Kiya? 👀 ${topic}`,
-        `${topic} 🎯 Pure Goosebumps!`
-      ]
-    : [
-        `Wait Until The End 😱 ${topic}`,
-        `99% Of People Missed This 🔥 ${topic}`,
-        `What Happens Next Is Insane 🤯 ${topic}`,
-        `Unbelievable Moment ⚡ ${topic}`
-      ];
+  const hookLines = [
+    `Watch till the end for ${cleanTopic} — this moment catches you completely off guard.`,
+    `High-retention highlight from ${cleanTopic} crafted for fast Shorts & feed discovery.`,
+    `Blink and you might miss what happens next in ${cleanTopic}.`,
+    `Pure highlight energy from ${cleanTopic} — clipped for quick mobile viewing.`,
+    `Unexpected turn in ${cleanTopic} that keeps viewers hooked till the final second.`
+  ];
 
-  const seed = (clipIndex + Math.floor(Math.random() * hookAngles.length)) % hookAngles.length;
-  let chosenTitle = hookAngles[seed];
-  if (usedTitlesSet && usedTitlesSet.has(chosenTitle.toLowerCase())) {
-    chosenTitle = `${hookAngles[(seed + 1) % hookAngles.length]}`;
-  }
-  if (usedTitlesSet) usedTitlesSet.add(chosenTitle.toLowerCase());
+  const tagPools = [
+    ['#Shorts', '#ViralShorts', '#TrendingNow'],
+    ['#YouTubeShorts', '#MustWatch', '#ShortClip'],
+    ['#ShortsFeed', '#ViralClip', '#ForYou']
+  ];
 
-  const nicheTags = selectedNiche.includes('Gaming')
-    ? ['#Shorts', '#GamingShorts', '#FreeFire', '#BGMI', '#ViralGaming']
-    : selectedNiche.includes('Facts')
-    ? ['#Shorts', '#AmazingFacts', '#FactsInHindi', '#DidYouKnow', '#TrendingShorts']
-    : ['#Shorts', '#YouTubeShorts', '#ViralShorts', '#TrendingIndia', '#ExplorePage'];
+  const words = cleanTopic
+    .replace(/[^a-zA-Z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 1)
+    .slice(0, 3)
+    .map((w) => `#${w.charAt(0).toUpperCase()}${w.slice(1)}`);
 
-  const combinedTags = nicheTags.join(' ');
+  const hashtags = Array.from(new Set(['#Shorts', ...words, ...tagPools[index % tagPools.length]]))
+    .slice(0, 5)
+    .join(' ');
 
-  const fallbackReport = `BEST TITLE: ${chosenTitle}
-VIRAL CAPTION: ${chosenTitle} — ${selectedCtaStyle}
-YOUTUBE SHORTS HASHTAGS: ${combinedTags}
-SEO KEYWORDS: ${topic}, ${selectedNiche}, YouTube Shorts India, Viral Shorts, Trending Shorts Feed
-VIDEO DESCRIPTION: ${chosenTitle}\n\n${selectedCtaStyle}\n\n${combinedTags}
-THUMBNAIL TEXT: 1) WAIT FOR END 😱  2) IMPOSSIBLE 🔥  3) WATCH TILL LAST 🤯
-VIRAL POTENTIAL SCORE: 9.8/10`;
+  const metaBits = [
+    partLabel ? `Segment: ${partLabel}` : '',
+    durationLabel ? `Length: ${durationLabel}` : '',
+    hookText ? `Hook: ${hookText}` : ''
+  ]
+    .filter(Boolean)
+    .join(' • ');
+
+  const description = [
+    `${title} #Shorts`,
+    '',
+    hookLines[index % hookLines.length],
+    metaBits ? `\n${metaBits}` : '',
+    '',
+    hashtags,
+    '',
+    watermarkText
+  ]
+    .filter((line) => line !== undefined)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 
   return {
-    title: chosenTitle.slice(0, 78),
-    hashtags: combinedTags,
-    description: `${chosenTitle}\n\n${selectedCtaStyle}\n\n${combinedTags}`,
-    keywords: [topic, 'Shorts', 'YouTubeShorts', 'ViralShorts', 'TrendingIndia'],
-    hookScore: '9.8/10',
-    fullSeoReport: fallbackReport
+    title,
+    category: 'Shorts',
+    mediaFormat: 'short',
+    hashtags,
+    description,
+    watermarkText,
+    websiteUrl: getShortsPilotUrlByIndex(index),
+    hookScore: `${Math.min(99, 88 + ((index * 3) % 10))}/100`
   };
 };
 
-export const renderVertical916Video = async ({
-  file,
-  clipId,
-  startRatio = 0,
-  maxClipSec = 12,
-  preserveFullShort = false,
-  tier = 'free',
-  watermarkText = 'Made with ShortsPilot',
-  onProgress
-}) => {
-  if (!(file instanceof Blob)) {
-    return { croppedUrl: '', clipLength: Math.round(maxClipSec), blob: null, hasAudio: false };
-  }
-  const videoUrl = URL.createObjectURL(file);
+export const buildMasterThumbnailPrompt = ({
+  clip = {},
+  customStyleNote = '',
+  watermarkText = 'Developed by shortspilot.in'
+} = {}) => {
+  const title = String(clip?.title || 'Viral Short').trim();
+  const hookText = String(clip?.thumbnailHook || 'WAIT FOR END 😱').trim();
+  const description = String(clip?.description || '').trim();
+  const hashtags = String(clip?.hashtags || '#Shorts #ViralShorts').trim();
+  const credit = String(watermarkText || clip?.watermarkText || 'Developed by shortspilot.in').trim();
+  const extraStyle = String(customStyleNote || '').trim()
+    ? `\n- Custom Style Note: ${String(customStyleNote).trim()}`
+    : '';
 
-  if (preserveFullShort) {
-    return { croppedUrl: videoUrl, clipLength: Math.round(maxClipSec), blob: file, hasAudio: true };
-  }
+  return [
+    'Create a high-CTR 9:16 vertical YouTube Shorts thumbnail/cover graphic (1080x1920) for this Short:',
+    '',
+    `- Title: ${title}`,
+    `- Hook Text: ${hookText}`,
+    `- Description: ${description}`,
+    `- Hashtags: ${hashtags}`,
+    `- Credit / Watermark: ${credit}${extraStyle}`,
+    '',
+    'Design Instructions:',
+    '1. Clean composition with a clear focal subject and no clutter.',
+    '2. Bold, high-contrast hook text with strong outline/glow so it is instantly readable on mobile screens.',
+    '3. Dramatic lighting, rich contrast, and energetic colors matching the title, description, and hashtags.',
+    `4. Keep on-image text punchy and readable; place "${credit}" cleanly and subtly near the bottom.`,
+    '5. Do not dump the full description or raw hashtag list as messy text on the image.'
+  ].join('\n');
+};
 
-  return new Promise((resolve) => {
-    const video = document.createElement('video');
-    video.src = videoUrl;
-    video.crossOrigin = 'anonymous';
-    video.playsInline = true;
-    video.setAttribute('playsinline', '');
-    video.muted = false;
-    video.volume = 0.05;
-
-    const safetyTimer = setTimeout(() => {
-      resolve({ croppedUrl: videoUrl, clipLength: Math.round(maxClipSec), blob: file, hasAudio: true });
-    }, 95000);
-
-    video.onloadedmetadata = () => {
-      const duration = video.duration || 12;
-      const startOffset = preserveFullShort ? 0 : Math.min(duration * startRatio, Math.max(0, duration - 5));
-      const clipLength = preserveFullShort ? duration : Math.min(maxClipSec, Math.max(3, duration - startOffset));
-
-      const canvas = document.createElement('canvas');
-      canvas.width = 480;
-      canvas.height = 854;
-      const ctx = canvas.getContext('2d');
-
-      let supportedMime = '';
-      if (window.MediaRecorder) {
-        const candidates = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm', 'video/mp4'];
-        supportedMime = candidates.find((m) => MediaRecorder.isTypeSupported(m)) || '';
-      }
-
-      if (!window.MediaRecorder || !canvas.captureStream || !supportedMime) {
-        clearTimeout(safetyTimer);
-        resolve({ croppedUrl: videoUrl, clipLength: Math.round(clipLength), blob: file, hasAudio: true });
-        return;
-      }
-
-      try {
-        const canvasStream = canvas.captureStream(24);
-        let combinedTracks = [...canvasStream.getVideoTracks()];
-        let audioCaptured = false;
-
-        try {
-          const vidStream = video.captureStream ? video.captureStream() : video.mozCaptureStream ? video.mozCaptureStream() : null;
-          if (vidStream && vidStream.getAudioTracks().length > 0) {
-            combinedTracks = [...combinedTracks, ...vidStream.getAudioTracks()];
-            audioCaptured = true;
-          }
-        } catch {}
-
-        const finalStream = new MediaStream(combinedTracks);
-        const chunks = [];
-        const recorder = new MediaRecorder(finalStream, { mimeType: supportedMime });
-
-        recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
-
-        recorder.onstop = () => {
-          clearTimeout(safetyTimer);
-          const croppedBlob = new Blob(chunks, { type: supportedMime });
-          resolve({
-            croppedUrl: URL.createObjectURL(croppedBlob),
-            clipLength: Math.round(clipLength),
-            blob: croppedBlob,
-            hasAudio: audioCaptured
-          });
-        };
-
-        video.currentTime = startOffset;
-        video.onseeked = () => {
-          recorder.start();
-          video.play().catch(() => {
-            video.muted = true;
-            video.play().catch(() => {
-              clearTimeout(safetyTimer);
-              resolve({ croppedUrl: videoUrl, clipLength: Math.round(clipLength), blob: file, hasAudio: false });
-            });
-          });
-
-          const drawFrame = () => {
-            if (video.paused || video.ended || (!preserveFullShort && video.currentTime >= startOffset + clipLength)) {
-              video.pause();
-              if (recorder.state !== 'inactive') recorder.stop();
-              return;
-            }
-            const vw = video.videoWidth || 1280;
-            const vh = video.videoHeight || 720;
-            const targetAspect = 9 / 16;
-            const sourceAspect = vw / vh;
-            let sx = 0, sy = 0, sWidth = vw, sHeight = vh;
-            if (sourceAspect > targetAspect) {
-              sWidth = vh * targetAspect;
-              sx = (vw - sWidth) / 2;
-            } else {
-              sHeight = vw / targetAspect;
-              sy = (vh - sHeight) / 2;
-            }
-            ctx.fillStyle = '#06080d';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
-
-            if (tier !== 'pro' && watermarkText) {
-              ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-              ctx.fillRect(canvas.width - 185, 24, 165, 28);
-              ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-              ctx.font = 'bold 12px sans-serif';
-              ctx.fillText(watermarkText.slice(0, 24), canvas.width - 175, 43);
-            }
-
-            const elapsed = video.currentTime - startOffset;
-            const pct = Math.min(95, Math.round(25 + (elapsed / clipLength) * 70));
-            if (pct % 5 === 0 && video._lastPct !== pct) {
-              video._lastPct = pct;
-              if (onProgress) onProgress(clipId, pct);
-            }
-            requestAnimationFrame(drawFrame);
-          };
-          drawFrame();
-        };
-      } catch {
-        clearTimeout(safetyTimer);
-        resolve({ croppedUrl: videoUrl, clipLength: Math.round(clipLength), blob: file, hasAudio: true });
-      }
-    };
-
-    video.onerror = () => {
-      clearTimeout(safetyTimer);
-      resolve({ croppedUrl: videoUrl, clipLength: Math.round(maxClipSec), blob: file, hasAudio: true });
-    };
-  });
+export const sendThumbnailPromptToAI = async ({
+  clip = {},
+  customStyleNote = '',
+  target = 'gemini',
+  watermarkText = 'Developed by shortspilot.in'
+} = {}) => {
+  const finalPrompt = buildMasterThumbnailPrompt({ clip, customStyleNote, watermarkText });
+  try {
+    if (typeof navigator !== 'undefined' && navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(finalPrompt);
+    }
+  } catch {}
+  const url =
+    target === 'chatgpt'
+      ? `https://chatgpt.com/?q=${encodeURIComponent(finalPrompt)}`
+      : `https://gemini.google.com/app?q=${encodeURIComponent(finalPrompt)}`;
+  if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
+  return finalPrompt;
 };
