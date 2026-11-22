@@ -38,7 +38,7 @@ const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
 
 const RAZORPAY_MONTHLY_LINK = 'https://rzp.io/rzp/MwaHJEUU';
-const RAZORPAY_YEARLY_LINK = 'https://rzp.io/rzp/MwaHJEUU';
+const RAZORPAY_YEARLY_LINK = 'https://rzp.io/rzp/uEfZhLC';
 
 const DAILY_AUTO_SLOTS = [
   { hour: 9, minute: 0, label: '09:00 AM' },
