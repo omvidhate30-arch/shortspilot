@@ -1,419 +1,245 @@
-export const USER_API_MAP_KEY = 'sp_gmail_api_registry';
-export const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
-export const GOOGLE_CLIENT_ID = '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
+import React from 'react';
+import { Lock, RefreshCw, Save, CreditCard, Database, CheckCircle2 } from 'lucide-react';
 
-const IDB_NAME = 'ShortsPilotClipsDB';
-const IDB_STORE = 'clips';
+export default function AdminConsole({
+  adminUnlocked = false,
+  setAdminUnlocked = () => {},
+  adminPinInput = '',
+  setAdminPinInput = () => {},
+  adminError = '',
+  setAdminError = () => {},
+  globalConfig = {},
+  setGlobalConfig = () => {},
+  liveDbUrl = '',
+  setLiveDbUrl = () => {},
+  transactions = [],
+  fetchFirebaseData = () => {},
+  dbBase = '',
+  setTier = () => {},
+  onSavedNotice = () => {}
+}) {
+  const handleSaveConfig = async () => {
+    try {
+      localStorage.setItem('sp_global_config', JSON.stringify(globalConfig));
+      localStorage.setItem('sp_firebase_url', liveDbUrl);
+    } catch {}
 
-export const emailToKey = (email = '') =>
-  String(email || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '_');
+    setTier?.('pro');
 
-export const sanitizeMediaUrl = (rawUrl = '') => {
-  if (!rawUrl || typeof rawUrl !== 'string') return '';
-  if (rawUrl.startsWith('blob:') || rawUrl.startsWith('data:image/')) return rawUrl;
-  try {
-    const parsed = new URL(rawUrl, typeof window !== 'undefined' ? window.location.origin : 'https://www.shortspilot.in');
-    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
-      return parsed.href;
+    if (dbBase) {
+      try {
+        await fetch(`${dbBase}/siteConfig.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(globalConfig)
+        });
+      } catch {}
     }
-  } catch {}
-  return '';
-};
 
-export const formatClockTime = (totalSeconds = 0) => {
-  const sec = Math.max(0, Math.floor(Number(totalSeconds) || 0));
-  const mins = Math.floor(sec / 60);
-  const rem = sec % 60;
-  return `${String(mins).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
-};
-
-export const readGmailApiRegistry = () => {
-  try {
-    const raw = JSON.parse(localStorage.getItem(USER_API_MAP_KEY) || '{}');
-    return raw && typeof raw === 'object' ? raw : {};
-  } catch {
-    return {};
-  }
-};
-
-export const saveGmailApiRecord = (email, record) => {
-  const cleanEmail = String(email || '').trim().toLowerCase();
-  if (!cleanEmail) return;
-  try {
-    const current = readGmailApiRegistry();
-    current[cleanEmail] = {
-      ...(current[cleanEmail] || {}),
-      ...record,
-      email: cleanEmail,
-      updatedAt: Date.now()
-    };
-    localStorage.setItem(USER_API_MAP_KEY, JSON.stringify(current));
-  } catch {}
-};
-
-export const removeGmailApiRecord = (email) => {
-  const cleanEmail = String(email || '').trim().toLowerCase();
-  if (!cleanEmail) return;
-  try {
-    const current = readGmailApiRegistry();
-    delete current[cleanEmail];
-    localStorage.setItem(USER_API_MAP_KEY, JSON.stringify(current));
-  } catch {}
-};
-
-let cachedDbPromise = null;
-const openClipsDB = () => {
-  if (cachedDbPromise) return cachedDbPromise;
-  cachedDbPromise = new Promise((resolve, reject) => {
-    if (typeof window === 'undefined' || !window.indexedDB) {
-      return reject(new Error('IndexedDB not supported'));
-    }
-    const req = window.indexedDB.open(IDB_NAME, 1);
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE, { keyPath: 'id' });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => {
-      cachedDbPromise = null;
-      reject(req.error);
-    };
-  });
-  return cachedDbPromise;
-};
-
-export const idbSaveClip = async (clipObj) => {
-  try {
-    const db = await openClipsDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      const { croppedUrl, ...persistable } = clipObj;
-      tx.objectStore(IDB_STORE).put({
-        ...persistable,
-        savedAt: Date.now()
-      });
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-    });
-  } catch {
-    return false;
-  }
-};
-
-export const idbGetAllClips = async () => {
-  try {
-    const db = await openClipsDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(IDB_STORE, 'readonly');
-      const req = tx.objectStore(IDB_STORE).getAll();
-      req.onsuccess = () => {
-        const items = (req.result || []).sort(
-          (a, b) => (b.savedAt || 0) - (a.savedAt || 0)
-        );
-        resolve(
-          items.map((item) => {
-            const baseUrl = item.blob instanceof Blob ? URL.createObjectURL(item.blob) : null;
-            const trimHash =
-              baseUrl && typeof item.startSec === 'number' && typeof item.endSec === 'number'
-                ? `#t=${Math.floor(item.startSec)},${Math.floor(item.endSec)}`
-                : '';
-            return {
-              ...item,
-              croppedUrl: baseUrl ? `${baseUrl}${trimHash}` : ''
-            };
-          })
-        );
-      };
-      req.onerror = () => resolve([]);
-    });
-  } catch {
-    return [];
-  }
-};
-
-export const idbDeleteClip = async (clipId) => {
-  try {
-    const db = await openClipsDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).delete(clipId);
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-    });
-  } catch {
-    return false;
-  }
-};
-
-export const idbClearAllClips = async () => {
-  try {
-    const db = await openClipsDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).clear();
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-    });
-  } catch {
-    return false;
-  }
-};
-
-export const analyzeVideoDeeply = (file) =>
-  new Promise((resolve) => {
-    if (!(file instanceof Blob)) {
-      return resolve({
-        duration: 30,
-        width: 1080,
-        height: 1920,
-        orientation: '9:16'
-      });
-    }
-    const url = URL.createObjectURL(file);
-    const vid = document.createElement('video');
-    vid.preload = 'auto';
-    vid.muted = true;
-    vid.playsInline = true;
-    vid.src = url;
-
-    const finish = (info) => {
-      URL.revokeObjectURL(url);
-      resolve(info);
-    };
-
-    vid.onloadedmetadata = () => {
-      const rawDur = vid.duration;
-      const duration = Number.isFinite(rawDur) && rawDur > 0 ? rawDur : 30;
-      const width = vid.videoWidth || 1080;
-      const height = vid.videoHeight || 1920;
-      const orientation = height >= width ? '9:16' : '16:9';
-      finish({ duration, width, height, orientation });
-    };
-
-    vid.onerror = () => {
-      finish({
-        duration: 30,
-        width: 1080,
-        height: 1920,
-        orientation: '9:16'
-      });
-    };
-  });
-
-export const buildDeepAiVideoPackage = (
-  rawName,
-  _videoAnalysis = {},
-  clipIndex = 0,
-  partLabel = '',
-  watermarkLabel = 'Developed by shortspilot.in'
-) => {
-  const cleanName = (rawName || '')
-    .replace(/\.[^/.]+$/, '')
-    .replace(
-      /^(vid|img|pxl|screen|recording|whatsapp|video|clip|short|movie|edit|new|output|compressed|final)[\s_-]*/gi,
-      ''
-    )
-    .replace(/\b\d{5,}\b/g, '')
-    .replace(/[-_]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const lower = cleanName.toLowerCase();
-  const displayTopic = cleanName.length > 1 ? cleanName : 'Viral Moment';
-  const partNote = partLabel ? ` (${partLabel})` : '';
-
-  let category = 'Viral';
-  let hookTitle = '';
-  let storyBody = '';
-  let tagList = [];
-
-  if (/\bgta\s?6\b/i.test(lower)) {
-    category = 'GTA 6';
-    const gta6Titles = [
-      `GTA 6 Gameplay Looks Insane! 😱🔥${partNote} #Shorts`,
-      `Next-Level GTA 6 Action You Can't Miss ⚡${partNote} #Shorts`,
-      `GTA 6 Viral Moment — Watch Till End 😱${partNote} #Shorts`
-    ];
-    hookTitle = gta6Titles[clipIndex % gta6Titles.length];
-    storyBody =
-      'Crazy GTA 6 action and next-gen details in action. Drop your thoughts in the comments below and subscribe for more daily Shorts!';
-    tagList = [
-      '#GTA6',
-      '#GrandTheftAuto6',
-      '#GTA6Gameplay',
-      '#RockstarGames',
-      '#GTA',
-      '#GamingShorts',
-      '#OpenWorldGames',
-      '#NextGenGaming',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
-    ];
-  } else if (/(free\s?fire|\bff\b|booyah|headshot|clash\s?squad)/i.test(lower)) {
-    category = 'Free Fire';
-    const ffTitles = [
-      `Insane Free Fire Headshot & Clutch! 🔥⚡${partNote} #Shorts`,
-      `One Tap Madness in Free Fire 😱🔥${partNote} #Shorts`
-    ];
-    hookTitle = ffTitles[clipIndex % ffTitles.length];
-    storyBody =
-      'Fast-paced Free Fire gameplay highlights with clean shots and intense moments. Comment your favorite moment below!';
-    tagList = [
-      '#FreeFire',
-      '#FreeFireIndia',
-      '#FreeFireShorts',
-      '#FFShorts',
-      '#Headshot',
-      '#GamingShorts',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
-    ];
-  } else if (/(bgmi|pubg|clutch|squad)/i.test(lower)) {
-    category = 'BGMI';
-    hookTitle = `Wild BGMI Squad Wipe & Clutch! 😱🔥${partNote} #Shorts`;
-    storyBody =
-      'High-pressure BGMI fight and clutch gameplay. Like and subscribe for daily gaming Shorts!';
-    tagList = [
-      '#BGMI',
-      '#BGMIShorts',
-      '#BGMIIndia',
-      '#PUBGM',
-      '#ClutchMoment',
-      '#GamingShorts',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
-    ];
-  } else if (/(anime|naruto|goku|luffy|gojo|sukuna|amv|otaku|edit)/i.test(lower)) {
-    category = 'Anime';
-    hookTitle = `Chills Every Time in This ${displayTopic} Scene 😭🔥${partNote} #Shorts`;
-    storyBody = `Unforgettable ${displayTopic} moment edited for pure hype and emotion. Comment your favorite character below!`;
-    tagList = [
-      '#Anime',
-      '#AnimeEdit',
-      '#AnimeShorts',
-      '#AMV',
-      '#AnimeIndia',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
-    ];
-  } else if (
-    /(car|bmw|supra|gtr|lamborghini|ferrari|porsche|bike|zx10r|kawasaki|duke|thar|scorpio|drift|exhaust)/i.test(
-      lower
-    )
-  ) {
-    category = 'Automobiles';
-    hookTitle = `Listen To That ${displayTopic} Sound 🔊🔥${partNote} #Shorts`;
-    storyBody = `Clean shots of ${displayTopic} turning heads everywhere. Which ride is your pick? Comment below!`;
-    tagList = [
-      '#Cars',
-      '#Supercars',
-      '#CarShorts',
-      '#Superbikes',
-      '#CarLovers',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
-    ];
-  } else if (
-    /(tech|ai|mobile|iphone|android|laptop|coding|app|website|gadget|trick|tips)/i.test(
-      lower
-    )
-  ) {
-    category = 'Tech';
-    hookTitle = `Smart ${displayTopic} Trick You Should Try Today ⚡${partNote} #Shorts`;
-    storyBody = `Helpful ${displayTopic} tip made simple in under a minute. Save and share with a friend!`;
-    tagList = [
-      '#Tech',
-      '#TechShorts',
-      '#TechTips',
-      '#AITools',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
-    ];
-  } else {
-    category = 'Viral';
-    const viralTitles = [
-      `${displayTopic} 😱 Wait For The End!${partNote} #Shorts`,
-      `You Won't Expect What Happens Next 🔥${partNote} #Shorts`,
-      `Best Moment From ${displayTopic} ⚡${partNote} #Shorts`
-    ];
-    hookTitle = viralTitles[clipIndex % viralTitles.length];
-    storyBody = `Watch ${displayTopic} till the end and share your reaction in the comments!`;
-    tagList = [
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts',
-      '#Trending',
-      '#MustWatch',
-      '#Viral'
-    ];
-  }
-
-  const finalTitle = hookTitle.slice(0, 90);
-  const hashtagsString = tagList.join(' ');
-  const brandCredit = (watermarkLabel || 'Developed by shortspilot.in').trim();
-
-  const cleanDescription = [
-    storyBody,
-    '',
-    'Website: https://shortspilot.in',
-    brandCredit,
-    '',
-    hashtagsString
-  ].join('\n');
-
-  return {
-    category,
-    title: finalTitle,
-    hashtags: hashtagsString,
-    tagArray: tagList.map((t) => t.replace(/^#/, '')),
-    description: cleanDescription,
-    watermarkText: brandCredit,
-    websiteUrl: 'https://shortspilot.in',
-    hookScore: clipIndex === 0 ? '9.9/10' : clipIndex === 1 ? '9.8/10' : '9.6/10'
+    onSavedNotice?.('✅ Admin Config Saved & Synced');
   };
-};
 
-export const buildShortsThumbnailConcepts = (topicInput) => {
-  const base = (topicInput || '').trim() || 'GTA 6';
-  const upperTopic = base.toUpperCase().slice(0, 24);
-  return [
-    {
-      id: 't1',
-      hookText: 'WAIT FOR END 😱',
-      subText: upperTopic,
-      badge: '9:16 VIRAL HOOK',
-      gradient: 'from-pink-600 via-purple-900 to-slate-950',
-      accentText: 'text-amber-300',
-      ctrScore: '9.9/10 CTR'
-    },
-    {
-      id: 't2',
-      hookText: 'INSANE MOMENT 🔥',
-      subText: upperTopic,
-      badge: 'HIGH CONTRAST',
-      gradient: 'from-amber-500 via-rose-800 to-slate-950',
-      accentText: 'text-cyan-300',
-      ctrScore: '9.7/10 CTR'
-    },
-    {
-      id: 't3',
-      hookText: 'WATCH TILL END ⚡',
-      subText: upperTopic,
-      badge: 'SHORTS FEED PRO',
-      gradient: 'from-cyan-500 via-indigo-900 to-slate-950',
-      accentText: 'text-pink-300',
-      ctrScore: '9.6/10 CTR'
-    }
-  ];
-};
+  if (!adminUnlocked) {
+    return (
+      <div className="rounded-3xl bg-[#110c22] border border-purple-500/40 p-5 space-y-3.5 text-xs">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-purple-600/25 border border-purple-400/40 flex items-center justify-center">
+            <Lock className="w-4 h-4 text-purple-300" />
+          </div>
+          <div>
+            <div className="text-sm font-extrabold text-white">Owner Admin Console</div>
+            <div className="text-[11px] text-slate-400">
+              Enter Owner PIN to manage pricing, UPI & RTDB
+            </div>
+          </div>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (String(adminPinInput || '').trim() === String(globalConfig?.adminPin || '9767905729')) {
+              setAdminUnlocked(true);
+              setAdminError('');
+              fetchFirebaseData?.();
+            } else {
+              setAdminError('Invalid Admin PIN.');
+            }
+          }}
+          className="space-y-2.5"
+        >
+          <input
+            type="password"
+            value={adminPinInput}
+            onChange={(e) => setAdminPinInput(e.target.value)}
+            placeholder="Enter Admin PIN"
+            className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+          />
+          {adminError && <p className="text-xs text-rose-400 font-bold">{adminError}</p>}
+          <button
+            type="submit"
+            className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer transition"
+          >
+            Unlock Admin Console
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3.5 text-xs">
+      <div className="p-4 rounded-2xl bg-[#120d24] border border-purple-500/35 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 font-extrabold text-cyan-300">
+            <CreditCard className="w-4 h-4" />
+            <span>Pricing, Offer & Brand Config</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => fetchFirebaseData?.()}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 text-[10.5px] font-extrabold cursor-pointer transition"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Sync RTDB</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="space-y-1">
+            <label className="text-[10px] text-slate-400 font-semibold">Monthly Price (₹)</label>
+            <input
+              type="text"
+              value={globalConfig?.monthlyPrice || ''}
+              onChange={(e) =>
+                setGlobalConfig((prev) => ({ ...prev, monthlyPrice: e.target.value }))
+              }
+              placeholder="99"
+              className="w-full px-2.5 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-slate-400 font-semibold">Yearly Price (₹)</label>
+            <input
+              type="text"
+              value={globalConfig?.yearlyPrice || ''}
+              onChange={(e) =>
+                setGlobalConfig((prev) => ({ ...prev, yearlyPrice: e.target.value }))
+              }
+              placeholder="3999"
+              className="w-full px-2.5 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="space-y-1">
+            <label className="text-[10px] text-slate-400 font-semibold">Coupon Code</label>
+            <input
+              type="text"
+              value={globalConfig?.couponCode || ''}
+              onChange={(e) =>
+                setGlobalConfig((prev) => ({ ...prev, couponCode: e.target.value }))
+              }
+              placeholder="SAVE200"
+              className="w-full px-2.5 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white font-mono"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-slate-400 font-semibold">Coupon Discount (₹)</label>
+            <input
+              type="text"
+              value={globalConfig?.couponDiscount || ''}
+              onChange={(e) =>
+                setGlobalConfig((prev) => ({ ...prev, couponDiscount: e.target.value }))
+              }
+              placeholder="200"
+              className="w-full px-2.5 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[10px] text-slate-400 font-semibold">Watermark / Credit</label>
+          <input
+            type="text"
+            value={globalConfig?.watermarkText || ''}
+            onChange={(e) =>
+              setGlobalConfig((prev) => ({ ...prev, watermarkText: e.target.value }))
+            }
+            placeholder="Developed by shortspilot.in"
+            className="w-full px-2.5 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[10px] text-slate-400 font-semibold">Receiver UPI ID</label>
+          <input
+            type="text"
+            value={globalConfig?.receiverUpi || ''}
+            onChange={(e) =>
+              setGlobalConfig((prev) => ({ ...prev, receiverUpi: e.target.value }))
+            }
+            placeholder="9767905729@paytm"
+            className="w-full px-2.5 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white font-mono"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+            <Database className="w-3 h-3 text-purple-300" />
+            <span>Firebase RTDB URL</span>
+          </label>
+          <input
+            type="text"
+            value={liveDbUrl || ''}
+            onChange={(e) => setLiveDbUrl(e.target.value)}
+            placeholder="https://shortspilot-live-default-rtdb.firebaseio.com"
+            className="w-full px-2.5 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white font-mono"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSaveConfig}
+          className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition"
+        >
+          <Save className="w-4 h-4" />
+          <span>Save Config & Sync</span>
+        </button>
+      </div>
+
+      <div className="p-4 rounded-2xl bg-[#120d24] border border-slate-800 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <span className="font-extrabold text-amber-300">
+            Transactions ({Array.isArray(transactions) ? transactions.length : 0})
+          </span>
+          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
+            <CheckCircle2 className="w-3 h-3" /> Live Feed
+          </span>
+        </div>
+
+        {!Array.isArray(transactions) || transactions.length === 0 ? (
+          <div className="text-[11px] text-slate-400 py-2">No transactions found yet.</div>
+        ) : (
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+            {transactions.slice(0, 15).map((t, idx) => (
+              <div
+                key={t.firebaseKey || t.id || idx}
+                className="p-2.5 rounded-xl bg-[#080512] border border-slate-800 flex items-center justify-between gap-2 text-[11px]"
+              >
+                <div className="min-w-0 truncate">
+                  <b className="text-white">{t.user || 'creator@shortspilot.in'}</b> •{' '}
+                  <span className="text-emerald-300 font-bold">{t.amount}</span> • ID:{' '}
+                  <span className="font-mono text-cyan-300">{t.id}</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-bold text-[10px] shrink-0">
+                  {t.status || 'Checkout Opened'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
