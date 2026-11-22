@@ -27,6 +27,7 @@ import {
   FileText,
   Lock
 } from 'lucide-react';
+import { sendThumbnailPromptToAI } from './thumbnailPrompt';
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 const GOOGLE_CLIENT_ID =
@@ -38,7 +39,7 @@ const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
 
 const RAZORPAY_MONTHLY_LINK = 'https://rzp.io/rzp/MwaHJEUU';
-const RAZORPAY_YEARLY_LINK = 'https://rzp.io/rzp/uEfZhLC';
+const RAZORPAY_YEARLY_LINK = '';
 
 const DAILY_AUTO_SLOTS = [
   { hour: 9, minute: 0, label: '09:00 AM' },
@@ -120,7 +121,9 @@ const generateThumbnailBlob = async ({
   hookText = 'WAIT FOR END 😱',
   subText = 'VIRAL SHORT',
   watermarkText = 'Developed by shortspilot.in',
-  palette = ['#db2777', '#581c87', '#020617']
+  palette = ['#ec4899', '#22d3ee', '#070510'],
+  videoBlob = null,
+  seekSec = 2
 }) => {
   try {
     if (typeof document === 'undefined') return { blob: null, dataUrl: '' };
@@ -130,40 +133,198 @@ const generateThumbnailBlob = async ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return { blob: null, dataUrl: '' };
 
-    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    grad.addColorStop(0, palette[0] || '#db2777');
-    grad.addColorStop(0.55, palette[1] || '#581c87');
-    grad.addColorStop(1, palette[2] || '#020617');
-    ctx.fillStyle = grad;
+    const accentA = palette[0] || '#ec4899';
+    const accentB = palette[1] || '#22d3ee';
+    const baseDark = palette[2] || '#070510';
+
+    let videoEl = null;
+    let vidUrl = '';
+
+    if (videoBlob instanceof Blob && videoBlob.size > 0) {
+      try {
+        vidUrl = URL.createObjectURL(videoBlob);
+        const vid = document.createElement('video');
+        vid.muted = true;
+        vid.playsInline = true;
+        vid.preload = 'auto';
+        vid.src = vidUrl;
+
+        await new Promise((resolve) => {
+          const timer = setTimeout(resolve, 2600);
+          vid.onloadedmetadata = () => {
+            const targetTime = Math.min(
+              Math.max(0.6, Number(seekSec) || 2),
+              Math.max(0.6, (vid.duration || 6) * 0.3)
+            );
+            vid.currentTime = targetTime;
+          };
+          vid.onseeked = () => {
+            clearTimeout(timer);
+            resolve();
+          };
+          vid.onerror = () => {
+            clearTimeout(timer);
+            resolve();
+          };
+        });
+
+        if (vid.videoWidth > 0 && vid.videoHeight > 0) {
+          videoEl = vid;
+        } else {
+          URL.revokeObjectURL(vidUrl);
+          vidUrl = '';
+        }
+      } catch {
+        if (vidUrl) URL.revokeObjectURL(vidUrl);
+        vidUrl = '';
+      }
+    }
+
+    if (videoEl) {
+      ctx.save();
+      ctx.filter = 'blur(18px) brightness(0.45) saturate(1.35)';
+      const bgScale = Math.max(canvas.width / videoEl.videoWidth, canvas.height / videoEl.videoHeight);
+      const bgW = videoEl.videoWidth * bgScale;
+      const bgH = videoEl.videoHeight * bgScale;
+      ctx.drawImage(videoEl, (canvas.width - bgW) / 2, (canvas.height - bgH) / 2, bgW, bgH);
+      ctx.restore();
+    } else {
+      const bgGrad = ctx.createRadialGradient(540, 650, 120, 540, 960, 1250);
+      bgGrad.addColorStop(0, '#2b1055');
+      bgGrad.addColorStop(0.5, '#120826');
+      bgGrad.addColorStop(1, baseDark);
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    const orbLeft = ctx.createRadialGradient(180, 380, 20, 180, 380, 480);
+    orbLeft.addColorStop(0, `${accentA}55`);
+    orbLeft.addColorStop(1, 'transparent');
+    ctx.fillStyle = orbLeft;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    const orbRight = ctx.createRadialGradient(900, 1380, 20, 900, 1380, 520);
+    orbRight.addColorStop(0, `${accentB}4d`);
+    orbRight.addColorStop(1, 'transparent');
+    ctx.fillStyle = orbRight;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    const pillGrad = ctx.createLinearGradient(76, 92, 366, 158);
+    pillGrad.addColorStop(0, '#ff1e56');
+    pillGrad.addColorStop(1, '#ff7700');
+    ctx.fillStyle = pillGrad;
+    ctx.beginPath();
+    ctx.roundRect(76, 92, 290, 64, 32);
+    ctx.fill();
+
+    ctx.font = '900 30px sans-serif';
+    ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.fillText('⚡ TRENDING SHORT', 221, 125);
+    ctx.restore();
 
-    ctx.font = '900 96px sans-serif';
+    const frameX = 64;
+    const frameY = 235;
+    const frameW = 952;
+    const frameH = 780;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+    ctx.shadowBlur = 40;
+    ctx.shadowOffsetY = 18;
+    ctx.beginPath();
+    ctx.roundRect(frameX, frameY, frameW, frameH, 36);
+    ctx.fillStyle = '#090d16';
+    ctx.fill();
+    ctx.clip();
+
+    if (videoEl) {
+      const fScale = Math.max(frameW / videoEl.videoWidth, frameH / videoEl.videoHeight);
+      const fW = videoEl.videoWidth * fScale;
+      const fH = videoEl.videoHeight * fScale;
+      ctx.drawImage(videoEl, frameX + (frameW - fW) / 2, frameY + (frameH - fH) / 2, fW, fH);
+    } else {
+      const cardGrad = ctx.createLinearGradient(frameX, frameY, frameX + frameW, frameY + frameH);
+      cardGrad.addColorStop(0, '#1e1b4b');
+      cardGrad.addColorStop(0.5, '#3b0764');
+      cardGrad.addColorStop(1, '#0f172a');
+      ctx.fillStyle = cardGrad;
+      ctx.fillRect(frameX, frameY, frameW, frameH);
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.roundRect(frameX, frameY, frameW, frameH, 36);
+    ctx.stroke();
+    ctx.restore();
+
+    const hookTextClean = String(hookText || 'WAIT FOR END 😱').trim().toUpperCase().slice(0, 22);
+    const subTextClean = String(subText || 'VIRAL HIGHLIGHT').trim().toUpperCase().slice(0, 28);
+
+    ctx.save();
+    const bannerGrad = ctx.createLinearGradient(76, 1110, 1004, 1255);
+    bannerGrad.addColorStop(0, '#fde047');
+    bannerGrad.addColorStop(0.5, '#facc15');
+    bannerGrad.addColorStop(1, '#fb923c');
+
+    ctx.shadowColor = 'rgba(250, 204, 21, 0.35)';
+    ctx.shadowBlur = 28;
+    ctx.fillStyle = bannerGrad;
+    ctx.beginPath();
+    ctx.roundRect(76, 1115, 928, 128, 28);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.font = '900 64px sans-serif';
+    ctx.fillStyle = '#070912';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(hookTextClean, 540, 1181);
+    ctx.restore();
+
+    ctx.save();
+    ctx.font = '900 54px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
     ctx.lineWidth = 14;
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-    ctx.strokeText(String(hookText).toUpperCase(), canvas.width / 2, canvas.height * 0.44);
+    ctx.strokeStyle = 'rgba(5, 7, 17, 0.95)';
+    ctx.strokeText(subTextClean, 540, 1345);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(String(hookText).toUpperCase(), canvas.width / 2, canvas.height * 0.44);
+    ctx.fillText(subTextClean, 540, 1345);
+    ctx.restore();
 
-    ctx.font = '800 58px sans-serif';
+    ctx.save();
+    ctx.font = '700 28px monospace';
+    ctx.fillStyle = 'rgba(226, 232, 240, 0.72)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(watermarkText, 540, 1815);
+    ctx.restore();
+
+    ctx.save();
+    const edgeGrad = ctx.createLinearGradient(0, 0, 1080, 1920);
+    edgeGrad.addColorStop(0, accentB);
+    edgeGrad.addColorStop(0.5, accentA);
+    edgeGrad.addColorStop(1, '#facc15');
+    ctx.strokeStyle = edgeGrad;
     ctx.lineWidth = 10;
-    ctx.strokeText(
-      String(subText).toUpperCase().slice(0, 24),
-      canvas.width / 2,
-      canvas.height * 0.54
-    );
-    ctx.fillStyle = '#fde047';
-    ctx.fillText(
-      String(subText).toUpperCase().slice(0, 24),
-      canvas.width / 2,
-      canvas.height * 0.54
-    );
+    ctx.beginPath();
+    ctx.roundRect(14, 14, canvas.width - 28, canvas.height - 28, 48);
+    ctx.stroke();
+    ctx.restore();
 
-    ctx.font = '700 32px monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillText(watermarkText, canvas.width / 2, canvas.height * 0.92);
+    if (vidUrl) {
+      try {
+        URL.revokeObjectURL(vidUrl);
+      } catch {}
+    }
 
     const dataUrl = canvas.toDataURL('image/png');
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
@@ -406,7 +567,7 @@ const buildThumbnailConcepts = (topic = 'VIRAL') => {
       accentText: 'text-amber-300',
       ctrScore: '9.6 CTR',
       gradient: 'from-pink-600 via-purple-900 to-slate-950',
-      palette: ['#db2777', '#581c87', '#020617']
+      palette: ['#db2777', '#22d3ee', '#070510']
     },
     {
       id: 't2',
@@ -416,7 +577,7 @@ const buildThumbnailConcepts = (topic = 'VIRAL') => {
       accentText: 'text-cyan-300',
       ctrScore: '9.4 CTR',
       gradient: 'from-cyan-600 via-blue-950 to-slate-950',
-      palette: ['#0891b2', '#172554', '#020617']
+      palette: ['#0891b2', '#ec4899', '#070510']
     },
     {
       id: 't3',
@@ -426,7 +587,7 @@ const buildThumbnailConcepts = (topic = 'VIRAL') => {
       accentText: 'text-rose-300',
       ctrScore: '9.2 CTR',
       gradient: 'from-amber-500 via-rose-900 to-slate-950',
-      palette: ['#f59e0b', '#881337', '#020617']
+      palette: ['#f59e0b', '#a855f7', '#070510']
     }
   ];
 };
@@ -601,47 +762,68 @@ const GoogleVerificationGuideModal = React.memo(
   }
 );
 
-const ClipActionShortcuts = React.memo(({ clip, onPreview, onCopyDescription }) => {
-  const youtubeShortUrl = clip?.youtubeVideoId
-    ? `https://www.youtube.com/shorts/${clip.youtubeVideoId}`
-    : 'https://studio.youtube.com/channel/UC/videos/short';
+const ClipActionShortcuts = React.memo(
+  ({ clip, onPreview, onCopyDescription, onSendThumbAI }) => {
+    const youtubeShortUrl = clip?.youtubeVideoId
+      ? `https://www.youtube.com/shorts/${clip.youtubeVideoId}`
+      : 'https://studio.youtube.com/channel/UC/videos/short';
 
-  return (
-    <div className="pt-2 mt-1 border-t border-white/10 flex items-center justify-between gap-2 flex-wrap">
-      <button
-        type="button"
-        onClick={() => onPreview?.(clip)}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 border border-purple-400/40 text-purple-200 text-[10.5px] font-extrabold cursor-pointer transition"
-      >
-        <Play className="w-3 h-3 fill-purple-200" />
-        <span>Watch Clip</span>
-      </button>
+    return (
+      <div className="pt-2 mt-1 border-t border-white/10 space-y-1.5">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => onPreview?.(clip)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 border border-purple-400/40 text-purple-200 text-[10.5px] font-extrabold cursor-pointer transition"
+          >
+            <Play className="w-3 h-3 fill-purple-200" />
+            <span>Watch Clip</span>
+          </button>
 
-      <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => onCopyDescription?.(clip)}
-          title="Copy Description & #Tags"
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-cyan-300 text-[10.5px] font-bold cursor-pointer transition"
-        >
-          <Copy className="w-3 h-3" />
-          <span>Copy Desc</span>
-        </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onCopyDescription?.(clip)}
+              title="Copy Description & #Tags"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-cyan-300 text-[10.5px] font-bold cursor-pointer transition"
+            >
+              <Copy className="w-3 h-3" />
+              <span>Copy Desc</span>
+            </button>
 
-        <a
-          href={youtubeShortUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-400/40 text-red-200 text-[10.5px] font-extrabold transition"
-        >
-          <Youtube className="w-3.5 h-3.5 text-red-400" />
-          <span>{clip?.youtubeVideoId ? 'Open Short' : 'YT Shorts'}</span>
-          <ExternalLink className="w-3 h-3 opacity-80" />
-        </a>
+            <a
+              href={youtubeShortUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-400/40 text-red-200 text-[10.5px] font-extrabold transition"
+            >
+              <Youtube className="w-3.5 h-3.5 text-red-400" />
+              <span>{clip?.youtubeVideoId ? 'Open Short' : 'YT Shorts'}</span>
+              <ExternalLink className="w-3 h-3 opacity-80" />
+            </a>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => onSendThumbAI?.(clip, 'gemini')}
+            className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 text-cyan-200 text-[10px] font-extrabold cursor-pointer transition"
+          >
+            <span>✨ Gemini Thumb</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSendThumbAI?.(clip, 'chatgpt')}
+            className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 text-emerald-200 text-[10px] font-extrabold cursor-pointer transition"
+          >
+            <span>🤖 ChatGPT Thumb</span>
+          </button>
+        </div>
       </div>
-    </div>
-  );
-});
+    );
+  }
+);
 
 const ChannelAvatarBadge = React.memo(({ googleUser, sizeClass = 'w-10 h-10' }) => {
   const safeAvatar = sanitizeMediaUrl(googleUser?.avatar);
@@ -1055,6 +1237,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
     </button>
   </nav>
 ));
+
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
@@ -1192,7 +1375,7 @@ export default function App() {
     {
       id: 1,
       title: 'Auto Thumbnail + YouTube Upload Ready ✅',
-      desc: '4 daily slots (9 AM, 1:30 PM, 5:30 PM, 9 PM), 9:16 thumbnails, and upload fix active.',
+      desc: '4 daily slots (9 AM, 1:30 PM, 5:30 PM, 9 PM), studio 9:16 thumbnails, and upload fix active.',
       unread: true
     }
   ]);
@@ -1237,6 +1420,18 @@ export default function App() {
       navigator.clipboard.writeText(clip.description).catch(() => {});
     }
   }, []);
+
+  const handleSendThumbAI = useCallback(
+    (clip, target = 'gemini') => {
+      sendThumbnailPromptToAI({
+        clip,
+        customStyleNote: '',
+        target,
+        watermarkText: globalConfig.watermarkText || 'Developed by shortspilot.in'
+      });
+    },
+    [globalConfig.watermarkText]
+  );
 
   const applyConnectedGoogleProfile = useCallback((profile, tokens = {}) => {
     const userPayload = {
@@ -1736,13 +1931,13 @@ export default function App() {
         hookText: hookLabel,
         subText: detectedTopic,
         watermarkText: watermark,
-        palette: selectedThumbConcept?.palette
+        palette: selectedThumbConcept?.palette,
+        videoBlob: file,
+        seekSec: 2
       });
       const objectUrl = URL.createObjectURL(file);
 
-      let clipStatus = manualPostMode
-        ? `Manual • ${slotLabel}`
-        : `Queued • ${slotLabel}`;
+      let clipStatus = manualPostMode ? `Manual • ${slotLabel}` : `Queued • ${slotLabel}`;
       let youtubeVideoId = '';
       let uploadError = '';
 
@@ -1830,7 +2025,9 @@ export default function App() {
         hookText: hookLabel,
         subText: `${detectedTopic} ${partLabel}`.trim(),
         watermarkText: watermark,
-        palette: selectedThumbConcept?.palette
+        palette: selectedThumbConcept?.palette,
+        videoBlob: file,
+        seekSec: startSec + 1
       });
 
       let clipStatus = manualPostMode
@@ -1929,6 +2126,12 @@ export default function App() {
 
     const targetUrl =
       selectedBilling === 'yearly' ? RAZORPAY_YEARLY_LINK : RAZORPAY_MONTHLY_LINK;
+
+    if (!targetUrl) {
+      return setCheckoutError(
+        '₹1,499 Yearly plan ki alag Razorpay link abhi set nahi hai.'
+      );
+    }
 
     const loggedTxn = {
       id: `RZP-${Date.now()}`,
@@ -2526,6 +2729,12 @@ export default function App() {
                         onCopyDescription={(c) =>
                           requireGoogleAuth(() => handleCopyDescription(c), 'Copy Description')
                         }
+                        onSendThumbAI={(c, target) =>
+                          requireGoogleAuth(
+                            () => handleSendThumbAI(c, target),
+                            'AI Thumbnail Prompt'
+                          )
+                        }
                       />
                     </div>
                   ))}
@@ -2678,6 +2887,7 @@ export default function App() {
                         clip={clip}
                         onPreview={setPreviewClip}
                         onCopyDescription={handleCopyDescription}
+                        onSendThumbAI={handleSendThumbAI}
                       />
                     </div>
                   ))}
@@ -3380,6 +3590,7 @@ export default function App() {
               clip={previewClip}
               onPreview={setPreviewClip}
               onCopyDescription={handleCopyDescription}
+              onSendThumbAI={handleSendThumbAI}
             />
           </div>
         </div>
