@@ -522,27 +522,30 @@ const idbClearAllClips = async () => {
   }
 };
 
-const readVideoMetadata = (file) =>
-  new Promise((resolve) => {
-    try {
-      if (!(file instanceof Blob)) return resolve({ duration: 30 });
-      const url = URL.createObjectURL(file);
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 30;
-        URL.revokeObjectURL(url);
-        resolve({ duration: dur });
-      };
-      video.onerror = () => {
-        URL.revokeObjectURL(url);
-        resolve({ duration: 30 });
-      };
-      video.src = url;
-    } catch {
-      resolve({ duration: 30 });
-    }
-  });
+const detectMediaFormat = (meta = {}) => {
+  const vw = Number(meta?.width) || 0;
+  const vh = Number(meta?.height) || 0;
+  const duration = Number(meta?.duration) || 0;
+
+  const isVertical = vw > 0 && vh > 0 ? vh >= vw : true;
+  const isShortDuration = duration > 0 ? duration <= 60 : true;
+
+  if (isVertical && isShortDuration) {
+    return {
+      format: 'short',
+      badge: 'SHORT',
+      label: 'YouTube Short',
+      category: 'Shorts'
+    };
+  }
+
+  return {
+    format: 'video',
+    badge: 'VIDEO',
+    label: 'YouTube Video',
+    category: 'Videos'
+  };
+};
 
 const buildClipPackage = (
   rawTopic,
@@ -1986,19 +1989,29 @@ export default function App() {
       const file = files[i];
       const slotLabel = getNextSlotLabel(videoQueue.length + i);
       const detectedTopic = detectTopicFromFile(file.name);
-      const meta = await readVideoMetadata(file);
-      const durLabel = formatClockTime(meta.duration);
-      const hookLabel = selectedThumbConcept?.hookText || 'WAIT FOR END 😱';
-      const watermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
-      const aiMeta = buildClipPackage(detectedTopic, i, '', watermark, durLabel, hookLabel);
-      const thumb = await generateThumbnailBlob({
-        hookText: hookLabel,
-        subText: detectedTopic,
-        watermarkText: watermark,
-        palette: selectedThumbConcept?.palette,
-        videoBlob: file,
-        seekSec: 2
-      });
+const readVideoMetadata = (file) =>
+  new Promise((resolve) => {
+    try {
+      if (!(file instanceof Blob)) return resolve({ duration: 30, width: 1080, height: 1920 });
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 30;
+        const width = video.videoWidth || 1080;
+        const height = video.videoHeight || 1920;
+        URL.revokeObjectURL(url);
+        resolve({ duration: dur, width, height });
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve({ duration: 30, width: 1080, height: 1920 });
+      };
+      video.src = url;
+    } catch {
+      resolve({ duration: 30, width: 1080, height: 1920 });
+    }
+  });
       const objectUrl = URL.createObjectURL(file);
 
       let clipStatus = manualPostMode ? `Manual • ${slotLabel}` : `Queued • ${slotLabel}`;
