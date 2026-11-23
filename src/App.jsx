@@ -496,9 +496,7 @@ const idbGetAllClips = async () => {
       const tx = db.transaction(IDB_STORE, 'readonly');
       const req = tx.objectStore(IDB_STORE).getAll();
       req.onsuccess = () => {
-        const items = (req.result || []).sort(
-          (a, b) => (b.savedAt || 0) - (a.savedAt || 0)
-        );
+        const items = (req.result || []).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
         resolve(
           items.map((item) => {
             const baseUrl = item.blob instanceof Blob ? URL.createObjectURL(item.blob) : '';
@@ -660,13 +658,7 @@ const buildThumbnailConcepts = (topic = 'VIRAL') => {
 };
 
 const GoogleVerificationGuideModal = React.memo(
-  ({
-    isOpen,
-    onClose,
-    onConnectGoogle,
-    isLoggingIn,
-    blockedOptionName = ''
-  }) => {
+  ({ isOpen, onClose, onConnectGoogle, isLoggingIn, blockedOptionName = '' }) => {
     const [stepIndex, setStepIndex] = useState(0);
 
     useEffect(() => {
@@ -680,8 +672,8 @@ const GoogleVerificationGuideModal = React.memo(
         badge: 'STEP 1 OF 3 • CLICK ADVANCED',
         title: '1. Warning Screen Par "Advanced" Dabaye',
         desc: blockedOptionName
-          ? `"${blockedOptionName}" use karne ke liye Google login karein. Google verification pending hone par screen par "Advanced" option dikhega — uspe click karein.`
-          : 'Google verification pending hone ki wajah se login screen par warning dikh sakti hai. Neeche left mein "Advanced" par click karein.',
+          ? `"${blockedOptionName}" use karne ke liye Google login karein. Screen par "Advanced" option dikhega — uspe click karein.`
+          : 'Login screen par warning dikhne par neeche left mein "Advanced" par click karein.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2.5 select-none">
             <div className="flex items-center gap-2">
@@ -804,9 +796,7 @@ const GoogleVerificationGuideModal = React.memo(
 
             <button
               type="button"
-              onClick={() =>
-                setStepIndex((prev) => Math.min(guideSteps.length - 1, prev + 1))
-              }
+              onClick={() => setStepIndex((prev) => Math.min(guideSteps.length - 1, prev + 1))}
               disabled={stepIndex === guideSteps.length - 1}
               className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-cyan-300 disabled:opacity-35 cursor-pointer"
             >
@@ -1008,7 +998,7 @@ const DesktopSidebar = React.memo(
           className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-95 transition-all"
         >
           <Plus className="w-4 h-4" />
-          <span>Upload & Auto-Post Shorts</span>
+          <span>Upload &amp; Auto-Post Shorts</span>
         </button>
 
         <div className="space-y-1.5 text-xs font-bold">
@@ -1069,7 +1059,7 @@ const DesktopSidebar = React.memo(
             }`}
           >
             <Settings className="w-4 h-4" />
-            <span>Profile & Settings</span>
+            <span>Control &amp; Settings</span>
           </button>
 
           <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">
@@ -1136,7 +1126,7 @@ const DesktopSidebar = React.memo(
           className="w-full py-1.5 px-3 rounded-xl text-slate-400 hover:text-cyan-300 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition"
         >
           <FileText className="w-3.5 h-3.5" />
-          <span>Terms & Conditions</span>
+          <span>Terms &amp; Conditions</span>
         </button>
 
         <div className="text-[9.5px] text-center text-slate-500 font-mono">
@@ -1304,7 +1294,6 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
     </button>
   </nav>
 ));
-
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
@@ -1369,10 +1358,11 @@ export default function App() {
           monthlyOriginalPrice: '499',
           monthlyPrice: saved.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
-          yearlyPrice: saved.yearlyPrice || '1499',
+          yearlyPrice: saved.yearlyPrice || '3999',
           watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
           ownerAlertEmail: saved.ownerAlertEmail || '',
-          paymentWebhookUrl: saved.paymentWebhookUrl || ''
+          paymentWebhookUrl: saved.paymentWebhookUrl || '',
+          ytAutoUploadActive: saved.ytAutoUploadActive !== false
         };
       }
     } catch {}
@@ -1381,7 +1371,7 @@ export default function App() {
       monthlyOriginalPrice: '499',
       monthlyPrice: '99',
       yearlyOriginalPrice: '6999',
-      yearlyPrice: '1499',
+      yearlyPrice: '3999',
       couponCode: 'SAVE200',
       couponDiscount: '200',
       freeLimit: 3,
@@ -1441,8 +1431,8 @@ export default function App() {
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Shorts Mode Active ✅',
-      desc: 'All uploads and AI clips are set to Shorts (#Shorts) mode.',
+      title: 'Auto-Post & Shorts Mode Active ✅',
+      desc: 'Auto-posting is enabled by default for #Shorts.',
       unread: true
     }
   ]);
@@ -1451,7 +1441,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! ShortsPilot abhi Shorts (#Shorts) mode par set hai.'
+      text: 'Namaste! ShortsPilot auto-post by default aur #Shorts mode par set hai.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -1549,7 +1539,7 @@ export default function App() {
     }
   }, []);
 
-const startGoogleLogin = useCallback(() => {
+  const startGoogleLogin = useCallback(() => {
     setLoginError('');
     setIsLoggingIn(true);
     try {
@@ -1936,7 +1926,7 @@ const startGoogleLogin = useCallback(() => {
           monthlyOriginalPrice: '499',
           monthlyPrice: cfgData.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
-          yearlyPrice: cfgData.yearlyPrice || '1499',
+          yearlyPrice: cfgData.yearlyPrice || '3999',
           watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in'
         }));
       }
@@ -2164,7 +2154,6 @@ const startGoogleLogin = useCallback(() => {
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
-
   const handleGenerateThumbnails = (e) => {
     e.preventDefault();
     const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
@@ -2202,16 +2191,14 @@ const startGoogleLogin = useCallback(() => {
 
     const amt =
       selectedBilling === 'yearly'
-        ? Number(globalConfig.yearlyPrice || 1499)
+        ? Number(globalConfig.yearlyPrice || 3999)
         : Number(globalConfig.monthlyPrice || 99);
 
     const targetUrl =
       selectedBilling === 'yearly' ? RAZORPAY_YEARLY_LINK : RAZORPAY_MONTHLY_LINK;
 
     if (!targetUrl) {
-      return setCheckoutError(
-        'Yearly plan ki alag Razorpay link abhi set nahi hai.'
-      );
+      return setCheckoutError('Yearly plan ki alag Razorpay link abhi set nahi hai.');
     }
 
     const loggedTxn = {
@@ -2249,7 +2236,7 @@ const startGoogleLogin = useCallback(() => {
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'ShortsPilot abhi Shorts (#Shorts) mode par set hai.'
+        text: 'ShortsPilot auto-post by default aur #Shorts mode par set hai.'
       }
     ]);
     setSupportInput('');
@@ -2278,7 +2265,7 @@ const startGoogleLogin = useCallback(() => {
         isLoggingIn={isLoggingIn}
         googleUser={googleUser}
         monthlyPrice={globalConfig.monthlyPrice || '99'}
-        yearlyPrice={globalConfig.yearlyPrice || '1499'}
+        yearlyPrice={globalConfig.yearlyPrice || '3999'}
         videoCount={videoQueue.length}
       />
 
@@ -2328,6 +2315,13 @@ const startGoogleLogin = useCallback(() => {
         <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-3 lg:pt-6 pb-32 lg:pb-12 space-y-4 lg:space-y-6">
           {activeTab === 'home' && (
             <>
+              <div className="flex justify-center">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#120c24] border border-purple-400/35 text-[11px] font-bold text-slate-200 shadow-md">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>Built for YouTube #Shorts Creators • 4 Daily Auto Slots</span>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
                 <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-purple-600/20 to-pink-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -2369,7 +2363,7 @@ const startGoogleLogin = useCallback(() => {
                       <ChannelAvatarBadge googleUser={googleUser} sizeClass="w-10 h-10" />
                       <div className="min-w-0">
                         <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
-                          <span>Google & YouTube</span>
+                          <span>Google &amp; YouTube</span>
                           <span className="px-1.5 py-0.5 rounded bg-cyan-500/25 text-cyan-300 text-[9px] font-extrabold">
                             AUTO
                           </span>
@@ -2558,8 +2552,8 @@ const startGoogleLogin = useCallback(() => {
                   >
                     <Scissors className="w-3.5 h-3.5" />
                     <span>
-                      Select Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}{' '}
-                      Now
+                      Select Video &amp; Cut {clipSplitCount}{' '}
+                      {clipSplitCount === 1 ? 'Short' : 'Shorts'} Now
                     </span>
                   </button>
                 </div>
@@ -2680,12 +2674,12 @@ const startGoogleLogin = useCallback(() => {
                       Yearly VIP
                     </span>
                     <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-[8.5px] font-extrabold text-amber-300">
-                      79% OFF
+                      VIP OFFER
                     </span>
                   </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-base lg:text-2xl font-extrabold text-amber-400">
-                      ₹{globalConfig.yearlyPrice || '1499'}
+                      ₹{globalConfig.yearlyPrice || '3999'}
                     </span>
                     <span className="text-[11px] lg:text-sm text-slate-400 line-through">
                       ₹{globalConfig.yearlyOriginalPrice || '6999'}
@@ -2729,7 +2723,7 @@ const startGoogleLogin = useCallback(() => {
               <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between px-1">
                   <h3 className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-pink-400" /> Your Published & Cut Shorts
+                    <Clock className="w-4 h-4 text-pink-400" /> Your Published &amp; Cut Shorts
                   </h3>
                   <button
                     type="button"
@@ -2850,7 +2844,7 @@ const startGoogleLogin = useCallback(() => {
                   }
                   className="text-cyan-300 hover:underline font-bold cursor-pointer"
                 >
-                  Terms & Conditions
+                  Terms &amp; Conditions
                 </button>
               </footer>
             </>
@@ -3000,83 +2994,235 @@ const startGoogleLogin = useCallback(() => {
           )}
 
           {activeTab === 'settings' && isGoogleConnected && (
-            <div className="space-y-4 pt-2 max-w-2xl mx-auto">
-              <h2 className="text-base lg:text-xl font-extrabold text-white">
-                Profile & Settings
-              </h2>
-
-              <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/40 flex items-center justify-between gap-3">
-                <div className="text-xs text-slate-300">
-                  Google Connected ✅ ({googleUser?.email})
+            <div className="space-y-4 pt-2 max-w-4xl mx-auto">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-base lg:text-xl font-extrabold text-white">
+                    Master Control &amp; Settings Dashboard
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Control accounts, auto-post slots, clip cutter, and branding from one place
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openGoogleGuidePopup(startGoogleLogin, 'Switch Google')}
-                  disabled={isLoggingIn}
-                  className="px-4 py-2 rounded-xl bg-[#4285F4] text-white text-xs font-extrabold cursor-pointer shrink-0 disabled:opacity-60"
-                >
-                  {isLoggingIn ? 'Connecting...' : 'Switch Google'}
-                </button>
+                <span className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-xs font-extrabold">
+                  ● Live Control Ready
+                </span>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#110c22] border border-pink-500/35 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-full bg-pink-500/20 border border-pink-400/40 flex items-center justify-center shrink-0">
-                    <Instagram className="w-5 h-5 text-pink-300" />
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                <div className="p-3 rounded-2xl bg-[#110c22] border border-purple-500/30">
+                  <div className="text-base font-black text-white">{videoQueue.length}</div>
+                  <div className="text-[10px] text-slate-400">Total Shorts</div>
+                </div>
+                <div className="p-3 rounded-2xl bg-[#110c22] border border-emerald-500/30">
+                  <div className="text-base font-black text-emerald-400">
+                    {videoQueue.filter((c) => c.youtubeVideoId).length}
                   </div>
+                  <div className="text-[10px] text-slate-400">Uploaded Live</div>
+                </div>
+                <div className="p-3 rounded-2xl bg-[#110c22] border border-cyan-500/30">
+                  <div className="text-base font-black text-cyan-300">
+                    {manualPostMode ? 'MANUAL' : 'AUTO ON'}
+                  </div>
+                  <div className="text-[10px] text-slate-400">Posting Mode</div>
+                </div>
+                <div className="p-3 rounded-2xl bg-[#110c22] border border-amber-500/30">
+                  <div className="text-base font-black text-amber-300">
+                    ₹{globalConfig.yearlyPrice || '3999'}
+                  </div>
+                  <div className="text-[10px] text-slate-400">Yearly VIP Price</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/40 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-cyan-300">
+                      Google &amp; YouTube Account
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                      Connected ✅
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <ChannelAvatarBadge googleUser={googleUser} sizeClass="w-11 h-11" />
+                    <div className="min-w-0 text-xs">
+                      <div className="font-extrabold text-white truncate">
+                        {googleUser?.name || 'YouTube Creator'}
+                      </div>
+                      <div className="text-slate-300 truncate">{googleUser?.email}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        Token:{' '}
+                        <b className={youtubeAccessToken ? 'text-emerald-400' : 'text-rose-400'}>
+                          {youtubeAccessToken ? 'Active' : 'Reconnect Needed'}
+                        </b>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => openGoogleGuidePopup(startGoogleLogin, 'Switch Google')}
+                      disabled={isLoggingIn}
+                      className="flex-1 py-2 rounded-xl bg-[#4285F4] text-white text-xs font-extrabold cursor-pointer disabled:opacity-60"
+                    >
+                      {isLoggingIn ? 'Connecting...' : 'Switch Google'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={logoutGoogle}
+                      className="px-3 py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold cursor-pointer"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-[#110c22] border border-pink-500/35 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-pink-300">Instagram Sync</span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        igData.connected
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-amber-500/20 text-amber-300'
+                      }`}
+                    >
+                      {igData.connected ? 'Connected ✅' : 'Pending ⏳'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-300 space-y-1">
+                    <div>
+                      Handle: <b className="text-white">{igData.username || 'Not set'}</b>
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Save token anytime to keep Instagram profile synced locally.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsIgModalOpen(true)}
+                    className="w-full py-2 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-xs font-extrabold cursor-pointer"
+                  >
+                    {igData.connected ? 'Update Instagram Token' : 'Add Instagram Token'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/35 space-y-3 text-xs">
+                <div className="font-extrabold text-sm text-white">Studio &amp; Posting Controls</div>
+
+                <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#080512] border border-slate-800">
+                  <div>
+                    <div className="font-bold text-white">Auto-Post Scheduler (4 Slots/Day)</div>
+                    <div className="text-[11px] text-slate-400">
+                      09:00 AM • 01:30 PM • 05:30 PM • 09:00 PM
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setManualPostMode(!manualPostMode)}
+                    className={`px-3.5 py-1.5 rounded-full font-extrabold cursor-pointer ${
+                      manualPostMode
+                        ? 'bg-amber-500/25 border border-amber-400 text-amber-300'
+                        : 'bg-emerald-500/25 border border-emerald-400 text-emerald-300'
+                    }`}
+                  >
+                    {manualPostMode ? '⚡ Manual Post Active' : '🤖 Auto-Post ON'}
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[#080512] border border-slate-800">
+                  <div>
+                    <div className="font-bold text-white">Default AI Clip Cutter</div>
+                    <div className="text-[11px] text-slate-400">
+                      Choose 1, 3, or 5 vertical Shorts per video
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {[1, 3, 5].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setClipSplitCount(num)}
+                        className={`px-3 py-1.5 rounded-lg border font-extrabold cursor-pointer ${
+                          clipSplitCount === num
+                            ? 'bg-pink-600 border-pink-400 text-white'
+                            : 'bg-[#120c24] border-slate-700 text-slate-300'
+                        }`}
+                      >
+                        {num}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#080512] border border-slate-800">
                   <div className="min-w-0">
-                    <div className="text-xs lg:text-sm font-extrabold text-white truncate">
-                      {igData.connected ? igData.username : 'Instagram Token Connect'}
-                    </div>
-                    <div className="text-[10px] lg:text-xs text-slate-400 truncate">
-                      {igData.connected
-                        ? 'Connected ✅'
-                        : 'Pending ⏳ — add token easily anytime'}
+                    <div className="font-bold text-white">9:16 Thumbnail Preset</div>
+                    <div className="text-[11px] text-amber-300 truncate">
+                      {selectedThumbConcept?.hookText} ({selectedThumbConcept?.ctrScore})
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsThumbnailModalOpen(true)}
+                    className="px-3.5 py-1.5 rounded-xl bg-cyan-500 text-black font-extrabold cursor-pointer shrink-0"
+                  >
+                    Choose Style
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsIgModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-pink-600 text-white text-xs font-extrabold cursor-pointer shrink-0"
-                >
-                  {igData.connected ? 'Update Token' : 'Add Token'}
-                </button>
+
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[11px] text-slate-400 font-bold">
+                    Brand Watermark / Credit
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={globalConfig.watermarkText || ''}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, watermarkText: e.target.value }))
+                      }
+                      className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        localStorage.setItem('sp_global_config', JSON.stringify(globalConfig))
+                      }
+                      className="px-4 py-2 rounded-xl bg-emerald-500 text-black font-extrabold cursor-pointer"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsTermsOpen(true)}
-                className="w-full py-3 rounded-2xl bg-[#110c22] border border-cyan-500/35 text-cyan-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <FileText className="w-4 h-4" />
-                <span>Terms & Conditions</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={logoutGoogle}
-                className="w-full py-3 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Disconnect Google Account</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsPricingOpen(true)}
-                className="w-full py-3 rounded-2xl bg-amber-500 text-black text-xs font-extrabold cursor-pointer shadow-lg"
-              >
-                🔥 View Offer Plans (₹{globalConfig.monthlyPrice}/mo & ₹{globalConfig.yearlyPrice}/yr)
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsAdminOpen(true)}
-                className="w-full py-3 rounded-2xl bg-purple-600/25 border border-purple-500/40 text-purple-300 text-xs font-extrabold cursor-pointer shadow-lg"
-              >
-                🔐 Open Owner Master Admin Console
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setIsPricingOpen(true)}
+                  className="py-3 px-4 rounded-2xl bg-amber-500 text-black font-extrabold cursor-pointer shadow-lg"
+                >
+                  🔥 Plans (₹{globalConfig.monthlyPrice}/mo • ₹{globalConfig.yearlyPrice}/yr)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAdminOpen(true)}
+                  className="py-3 px-4 rounded-2xl bg-purple-600/25 border border-purple-500/40 text-purple-300 font-extrabold cursor-pointer"
+                >
+                  🔐 Owner Admin Console
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsTermsOpen(true)}
+                  className="py-3 px-4 rounded-2xl bg-[#110c22] border border-cyan-500/35 text-cyan-300 font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Terms &amp; Conditions</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -3118,7 +3264,7 @@ const startGoogleLogin = useCallback(() => {
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-base font-extrabold text-white">Terms & Conditions</h3>
+            <h3 className="text-base font-extrabold text-white">Terms &amp; Conditions</h3>
             <p className="text-[11px] text-slate-400">Service: ShortsPilot AI (shortspilot.in)</p>
             <div className="space-y-2 leading-relaxed">
               <p>
@@ -3127,17 +3273,17 @@ const startGoogleLogin = useCallback(() => {
                 allowed hain.
               </p>
               <p>
-                <b className="text-white">2. YouTube & Third-Party Rules:</b> Shorts YouTube ke
+                <b className="text-white">2. YouTube &amp; Third-Party Rules:</b> Shorts YouTube ke
                 Community Guidelines aur Terms of Service ke mutabik publish kiye jaate hain;
                 platform moderation ya reach ki guarantee nahi deta.
               </p>
               <p>
-                <b className="text-white">3. Subscriptions & Payments:</b> Plans (Monthly / Yearly)
+                <b className="text-white">3. Subscriptions &amp; Payments:</b> Plans (Monthly / Yearly)
                 digital automation access ke liye hain; Razorpay payment complete hone ke baad plan
                 active hota hai.
               </p>
               <p>
-                <b className="text-white">4. Local Storage & Tokens:</b> Clips local IndexedDB mein
+                <b className="text-white">4. Local Storage &amp; Tokens:</b> Clips local IndexedDB mein
                 aur account/token details aapke browser storage mein save rehte hain; public ya
                 shared devices par logout karein.
               </p>
@@ -3196,7 +3342,7 @@ const startGoogleLogin = useCallback(() => {
               type="submit"
               className="w-full py-3 rounded-2xl bg-[#4285F4] text-white font-extrabold text-xs cursor-pointer"
             >
-              Save & Connect Google
+              Save &amp; Connect Google
             </button>
           </form>
         </div>
@@ -3239,7 +3385,7 @@ const startGoogleLogin = useCallback(() => {
               type="submit"
               className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
             >
-              Save & Connect Instagram
+              Save &amp; Connect Instagram
             </button>
           </form>
         </div>
@@ -3357,7 +3503,7 @@ const startGoogleLogin = useCallback(() => {
               onClick={() => splitterInputRef.current?.click()}
               className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
             >
-              Select Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}
+              Select Video &amp; Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}
             </button>
           </div>
         </div>
@@ -3416,7 +3562,7 @@ const startGoogleLogin = useCallback(() => {
                 <div className="text-[10px] font-extrabold text-amber-300">YEARLY VIP</div>
                 <div className="flex items-baseline gap-1.5 mt-1">
                   <span className="text-lg font-extrabold text-amber-400">
-                    ₹{globalConfig.yearlyPrice || '1499'}
+                    ₹{globalConfig.yearlyPrice || '3999'}
                   </span>
                   <span className="text-xs line-through text-slate-500">₹6999</span>
                 </div>
@@ -3449,7 +3595,7 @@ const startGoogleLogin = useCallback(() => {
               >
                 💳 Pay Instantly via Razorpay (₹
                 {selectedBilling === 'yearly'
-                  ? globalConfig.yearlyPrice || '1499'
+                  ? globalConfig.yearlyPrice || '3999'
                   : globalConfig.monthlyPrice || '99'}
                 )
               </button>
@@ -3534,7 +3680,7 @@ const startGoogleLogin = useCallback(() => {
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer"
                 >
-                  🔥 Offer Plans (₹99 / ₹1,499)
+                  🔥 Offer Plans (₹99 / ₹3,999)
                 </button>
                 <button
                   type="button"
@@ -3554,7 +3700,7 @@ const startGoogleLogin = useCallback(() => {
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
                 >
-                  📄 Terms & Conditions
+                  📄 Terms &amp; Conditions
                 </button>
                 <button
                   type="button"
@@ -3683,7 +3829,7 @@ const startGoogleLogin = useCallback(() => {
             </div>
 
             <div className="space-y-1.5 text-left">
-              <div className="text-[10px] font-extrabold text-pink-300">Description & #Tags:</div>
+              <div className="text-[10px] font-extrabold text-pink-300">Description &amp; #Tags:</div>
               <pre className="text-[10px] text-slate-200 whitespace-pre-wrap font-sans bg-[#06040c] p-2.5 rounded-xl border border-slate-800 max-h-36 overflow-y-auto">
                 {previewClip.description}
               </pre>
@@ -3743,7 +3889,7 @@ const startGoogleLogin = useCallback(() => {
             ) : (
               <div className="space-y-3 text-xs">
                 <div className="p-3 rounded-xl bg-[#120d24] border border-slate-800 space-y-2">
-                  <div className="font-bold text-cyan-300">Pricing & UPI</div>
+                  <div className="font-bold text-cyan-300">Pricing &amp; UPI</div>
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="text"
@@ -3812,9 +3958,12 @@ const startGoogleLogin = useCallback(() => {
                       className="p-2.5 rounded-xl bg-[#120d24] border border-slate-800 flex items-center justify-between text-[11px]"
                     >
                       <div className="truncate">
-                        <b>{t.user}</b> • {t.amount} • ID: <span className="font-mono">{t.id}</span>
+                        <b>{t.user}</b> • {t.amount} • ID:{' '}
+                        <span className="font-mono">{t.id}</span>
                       </div>
-                      <span className="text-amber-300 font-bold ml-2">{t.status || 'Checkout Opened'}</span>
+                      <span className="text-amber-300 font-bold ml-2">
+                        {t.status || 'Checkout Opened'}
+                      </span>
                     </div>
                   ))}
                 </div>
