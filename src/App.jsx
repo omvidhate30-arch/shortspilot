@@ -1117,9 +1117,6 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
     </button>
   </nav>
 ));
-
-
-
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
@@ -2004,10 +2001,7 @@ export default function App() {
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
-
-
-
-const handleOpenRazorpayCheckout = useCallback(async () => {
+  const handleOpenRazorpayCheckout = useCallback(async () => {
     setCheckoutError('');
     setCheckoutPendingMsg('');
 
