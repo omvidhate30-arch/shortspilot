@@ -5,6 +5,8 @@ import {
   Youtube,
   X,
   Trash2,
+  Calendar,
+  Clock,
   Bot,
   Crown,
   Bell,
@@ -25,8 +27,6 @@ import {
   FileText,
   Lock
 } from 'lucide-react';
-import AdminConsoleModal from './AdminConsoleModal';
-import { detectTopicFromFile, buildClipPackage, sendThumbnailPromptToAI } from './aiSeoEngine';
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 const GOOGLE_CLIENT_ID =
@@ -51,6 +51,25 @@ const getNextSlotLabel = (index = 0) => {
   const safeIdx = Math.abs(Number(index) || 0) % DAILY_AUTO_SLOTS.length;
   const slot = DAILY_AUTO_SLOTS[safeIdx];
   return `${slot.label} (Slot ${safeIdx + 1}/4)`;
+};
+
+const SHORTSPILOT_400_URLS = Array.from({ length: 400 }, (_, idx) => {
+  const num = idx + 1;
+  if (num <= 100) {
+    return `https://www.shortspilot.in/shorts/clip-${String(num).padStart(3, '0')}`;
+  }
+  if (num <= 200) {
+    return `https://www.shortspilot.in/thumbnails/preset-9x16-${String(num - 100).padStart(3, '0')}`;
+  }
+  if (num <= 300) {
+    return `https://www.shortspilot.in/templates/viral-hook-${String(num - 200).padStart(3, '0')}`;
+  }
+  return `https://www.shortspilot.in/redirect/auto-post-${String(num - 300).padStart(3, '0')}`;
+});
+
+const getShortsPilotUrlByIndex = (index = 0) => {
+  const safeIndex = Math.abs(Number(index) || 0) % SHORTSPILOT_400_URLS.length;
+  return SHORTSPILOT_400_URLS[safeIndex];
 };
 
 const emailToKey = (email = '') =>
@@ -79,6 +98,24 @@ const formatClockTime = (seconds = 0) => {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
+const detectTopicFromFile = (fileName = '') => {
+  const base = String(fileName || '')
+    .replace(/\.[^/.]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(
+      /\b(vid|video|screen|recording|record|clip|short|shorts|final|edit|hd|fhd|4k|1080p|720p|60fps|30fps|mp4|mov|mkv)\b/gi,
+      ' '
+    )
+    .replace(/\b\d{4,}\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!base || base.length < 2) {
+    return 'Insane Viral Moment';
+  }
+  return base.replace(/\b\w/g, (ch) => ch.toUpperCase());
+};
+
 const readVideoMetadata = (file) =>
   new Promise((resolve) => {
     try {
@@ -104,6 +141,71 @@ const readVideoMetadata = (file) =>
       resolve({ duration: 30, width: 1080, height: 1920 });
     }
   });
+
+const buildMasterThumbnailPrompt = ({
+  clip = {},
+  customStyleNote = '',
+  watermarkText = 'Developed by shortspilot.in'
+} = {}) => {
+  const title = String(clip?.title || 'Viral Short').trim();
+  const hookText = String(clip?.thumbnailHook || 'WAIT FOR END 😱').trim();
+  const description = String(clip?.description || '').trim();
+  const hashtags = String(clip?.hashtags || '#Shorts #ViralShorts').trim();
+  const credit = String(
+    watermarkText || clip?.watermarkText || 'Developed by shortspilot.in'
+  ).trim();
+
+  const extraStyle = String(customStyleNote || '').trim()
+    ? `\n- Custom Style Note: ${String(customStyleNote).trim()}`
+    : '';
+
+  return [
+    'Create a high-CTR 9:16 vertical YouTube Shorts thumbnail/cover graphic (1080x1920) for this Short:',
+    '',
+    `- Title: ${title}`,
+    `- Hook Text: ${hookText}`,
+    `- Description: ${description}`,
+    `- Hashtags: ${hashtags}`,
+    `- Credit / Watermark: ${credit}${extraStyle}`,
+    '',
+    'Design Instructions:',
+    '1. Clean composition with a clear focal subject and no clutter.',
+    '2. Bold, high-contrast hook text with strong outline/glow so it is instantly readable on mobile screens.',
+    '3. Dramatic lighting, rich contrast, and energetic colors matching the title, description, and hashtags.',
+    `4. Keep on-image text punchy and readable; place "${credit}" cleanly and subtly near the bottom.`,
+    '5. Do not dump the full description or raw hashtag list as messy text on the image.'
+  ].join('\n');
+};
+
+const sendThumbnailPromptToAI = async ({
+  clip = {},
+  customStyleNote = '',
+  target = 'gemini',
+  watermarkText = 'Developed by shortspilot.in'
+} = {}) => {
+  const finalPrompt = buildMasterThumbnailPrompt({
+    clip,
+    customStyleNote,
+    watermarkText
+  });
+
+  try {
+    if (typeof navigator !== 'undefined' && navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(finalPrompt);
+    }
+  } catch {}
+
+  const url =
+    target === 'chatgpt'
+      ? `https://chatgpt.com/?q=${encodeURIComponent(finalPrompt)}`
+      : `https://gemini.google.com/app?q=${encodeURIComponent(finalPrompt)}`;
+
+  if (typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  return finalPrompt;
+};
 
 const generateThumbnailBlob = async ({
   hookText = 'WAIT FOR END 😱',
@@ -394,7 +496,9 @@ const idbGetAllClips = async () => {
       const tx = db.transaction(IDB_STORE, 'readonly');
       const req = tx.objectStore(IDB_STORE).getAll();
       req.onsuccess = () => {
-        const items = (req.result || []).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+        const items = (req.result || []).sort(
+          (a, b) => (b.savedAt || 0) - (a.savedAt || 0)
+        );
         resolve(
           items.map((item) => {
             const baseUrl = item.blob instanceof Blob ? URL.createObjectURL(item.blob) : '';
@@ -444,6 +548,81 @@ const idbClearAllClips = async () => {
   }
 };
 
+const buildClipPackage = (
+  rawTopic,
+  index = 0,
+  partLabel = '',
+  watermarkText = 'Developed by shortspilot.in',
+  durationLabel = '',
+  hookText = ''
+) => {
+  const cleanTopic = (rawTopic || 'Insane Viral Moment').trim();
+  const title = partLabel ? `${cleanTopic} (${partLabel})` : cleanTopic;
+
+  const hookLines = [
+    `Watch till the end for ${cleanTopic} — this moment catches you completely off guard.`,
+    `High-retention highlight from ${cleanTopic} crafted for fast Shorts & feed discovery.`,
+    `Blink and you might miss what happens next in ${cleanTopic}.`,
+    `Pure highlight energy from ${cleanTopic} — clipped for quick mobile viewing.`,
+    `Unexpected turn in ${cleanTopic} that keeps viewers hooked till the final second.`
+  ];
+
+  const tagPools = [
+    ['#Shorts', '#ViralShorts', '#TrendingNow'],
+    ['#YouTubeShorts', '#MustWatch', '#ShortClip'],
+    ['#ShortsFeed', '#ViralClip', '#ForYou']
+  ];
+
+  const words = cleanTopic
+    .replace(/[^a-zA-Z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 1)
+    .slice(0, 3)
+    .map((w) => `#${w.charAt(0).toUpperCase()}${w.slice(1)}`);
+
+  const pool = tagPools[index % tagPools.length];
+  const combinedTags = Array.from(new Set(['#Shorts', ...words, ...pool])).slice(0, 5);
+  const hashtags = combinedTags.join(' ');
+
+  const openingLine = hookLines[index % hookLines.length];
+  const metaBits = [
+    partLabel ? `Segment: ${partLabel}` : '',
+    durationLabel ? `Length: ${durationLabel}` : '',
+    hookText ? `Hook: ${hookText}` : ''
+  ]
+    .filter(Boolean)
+    .join(' • ');
+
+  const description = [
+    `${title} #Shorts`,
+    '',
+    openingLine,
+    metaBits ? `\n${metaBits}` : '',
+    '',
+    hashtags,
+    '',
+    watermarkText
+  ]
+    .filter((line) => line !== undefined)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  const hookScore = `${Math.min(99, 88 + ((index * 3) % 10))}/100`;
+
+  return {
+    title,
+    category: 'Shorts',
+    mediaFormat: 'short',
+    hashtags,
+    description,
+    watermarkText,
+    websiteUrl: getShortsPilotUrlByIndex(index),
+    hookScore
+  };
+};
+
 const buildThumbnailConcepts = (topic = 'VIRAL') => {
   const clean = (topic || 'VIRAL').trim().toUpperCase().slice(0, 18);
   return [
@@ -481,7 +660,13 @@ const buildThumbnailConcepts = (topic = 'VIRAL') => {
 };
 
 const GoogleVerificationGuideModal = React.memo(
-  ({ isOpen, onClose, onConnectGoogle, isLoggingIn, blockedOptionName = '' }) => {
+  ({
+    isOpen,
+    onClose,
+    onConnectGoogle,
+    isLoggingIn,
+    blockedOptionName = ''
+  }) => {
     const [stepIndex, setStepIndex] = useState(0);
 
     useEffect(() => {
@@ -495,8 +680,8 @@ const GoogleVerificationGuideModal = React.memo(
         badge: 'STEP 1 OF 3 • CLICK ADVANCED',
         title: '1. Warning Screen Par "Advanced" Dabaye',
         desc: blockedOptionName
-          ? `"${blockedOptionName}" use karne ke liye Google login karein. Screen par "Advanced" option dikhega — uspe click karein.`
-          : 'Login screen par warning dikhne par neeche left mein "Advanced" par click karein.',
+          ? `"${blockedOptionName}" use karne ke liye Google login karein. Google verification pending hone par screen par "Advanced" option dikhega — uspe click karein.`
+          : 'Google verification pending hone ki wajah se login screen par warning dikh sakti hai. Neeche left mein "Advanced" par click karein.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2.5 select-none">
             <div className="flex items-center gap-2">
@@ -619,7 +804,9 @@ const GoogleVerificationGuideModal = React.memo(
 
             <button
               type="button"
-              onClick={() => setStepIndex((prev) => Math.min(guideSteps.length - 1, prev + 1))}
+              onClick={() =>
+                setStepIndex((prev) => Math.min(guideSteps.length - 1, prev + 1))
+              }
               disabled={stepIndex === guideSteps.length - 1}
               className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-cyan-300 disabled:opacity-35 cursor-pointer"
             >
@@ -882,7 +1069,7 @@ const DesktopSidebar = React.memo(
             }`}
           >
             <Settings className="w-4 h-4" />
-            <span>Profile &amp; Settings</span>
+            <span>Profile & Settings</span>
           </button>
 
           <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">
@@ -949,7 +1136,7 @@ const DesktopSidebar = React.memo(
           className="w-full py-1.5 px-3 rounded-xl text-slate-400 hover:text-cyan-300 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition"
         >
           <FileText className="w-3.5 h-3.5" />
-          <span>Terms &amp; Conditions</span>
+          <span>Terms & Conditions</span>
         </button>
 
         <div className="text-[9.5px] text-center text-slate-500 font-mono">
@@ -1117,6 +1304,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
     </button>
   </nav>
 ));
+
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
@@ -1181,14 +1369,10 @@ export default function App() {
           monthlyOriginalPrice: '499',
           monthlyPrice: saved.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
-          yearlyPrice: saved.yearlyPrice || '3999',
+          yearlyPrice: saved.yearlyPrice || '1499',
           watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
           ownerAlertEmail: saved.ownerAlertEmail || '',
-          paymentWebhookUrl: saved.paymentWebhookUrl || '',
-          blockedEmails: Array.isArray(saved.blockedEmails) ? saved.blockedEmails : [],
-          maintenanceMode: Boolean(saved.maintenanceMode),
-          shortsOnlyMode: saved.shortsOnlyMode !== false,
-          announcementBanner: saved.announcementBanner || ''
+          paymentWebhookUrl: saved.paymentWebhookUrl || ''
         };
       }
     } catch {}
@@ -1197,7 +1381,7 @@ export default function App() {
       monthlyOriginalPrice: '499',
       monthlyPrice: '99',
       yearlyOriginalPrice: '6999',
-      yearlyPrice: '3999',
+      yearlyPrice: '1499',
       couponCode: 'SAVE200',
       couponDiscount: '200',
       freeLimit: 3,
@@ -1205,10 +1389,6 @@ export default function App() {
       ownerAlertEmail: '',
       paymentWebhookUrl: '',
       ytAutoUploadActive: true,
-      shortsOnlyMode: true,
-      maintenanceMode: false,
-      announcementBanner: '',
-      blockedEmails: [],
       adminPin: '9767905729'
     };
   });
@@ -1261,8 +1441,8 @@ export default function App() {
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Auto-Post & Shorts Mode Active ✅',
-      desc: 'Auto-posting is enabled by default for #Shorts.',
+      title: 'Shorts Mode Active ✅',
+      desc: 'All uploads and AI clips are set to Shorts (#Shorts) mode.',
       unread: true
     }
   ]);
@@ -1271,7 +1451,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! ShortsPilot auto-post by default aur #Shorts mode par set hai.'
+      text: 'Namaste! ShortsPilot abhi Shorts (#Shorts) mode par set hai.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -1301,14 +1481,6 @@ export default function App() {
   const splitterInputRef = useRef(null);
 
   const dbBase = (liveDbUrl || DEFAULT_FIREBASE_URL).trim().replace(/\/$/, '');
-
-  const isCurrentUserBlocked = useMemo(() => {
-    const em = String(googleUser?.email || '').trim().toLowerCase();
-    const blocked = Array.isArray(globalConfig?.blockedEmails)
-      ? globalConfig.blockedEmails.map((x) => String(x).trim().toLowerCase())
-      : [];
-    return Boolean(em && blocked.includes(em));
-  }, [googleUser?.email, globalConfig?.blockedEmails]);
 
   const handleCopyDescription = useCallback((clip) => {
     if (clip?.description && navigator.clipboard) {
@@ -1377,7 +1549,7 @@ export default function App() {
     }
   }, []);
 
-  const startGoogleLogin = useCallback(() => {
+const startGoogleLogin = useCallback(() => {
     setLoginError('');
     setIsLoggingIn(true);
     try {
@@ -1612,7 +1784,7 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (manualPostMode || !isGoogleConnected || globalConfig?.ytAutoUploadActive === false) return;
+    if (manualPostMode || !isGoogleConnected) return;
 
     const tickSlots = async () => {
       const now = new Date();
@@ -1636,13 +1808,7 @@ export default function App() {
 
     const timer = setInterval(tickSlots, 60000);
     return () => clearInterval(timer);
-  }, [
-    manualPostMode,
-    isGoogleConnected,
-    globalConfig?.ytAutoUploadActive,
-    videoQueue,
-    handleRetryYouTubeUpload
-  ]);
+  }, [manualPostMode, isGoogleConnected, videoQueue, handleRetryYouTubeUpload]);
 
   useEffect(() => {
     let active = true;
@@ -1770,11 +1936,8 @@ export default function App() {
           monthlyOriginalPrice: '499',
           monthlyPrice: cfgData.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
-          yearlyPrice: cfgData.yearlyPrice || '3999',
-          watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in',
-          blockedEmails: Array.isArray(cfgData.blockedEmails)
-            ? cfgData.blockedEmails
-            : prev.blockedEmails || []
+          yearlyPrice: cfgData.yearlyPrice || '1499',
+          watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in'
         }));
       }
       const txnData = await txnRes.json();
@@ -1855,7 +2018,7 @@ export default function App() {
       let youtubeVideoId = '';
       let uploadError = '';
 
-      if (!manualPostMode && globalConfig?.ytAutoUploadActive !== false) {
+      if (!manualPostMode) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
           mediaFormat: 'short',
@@ -1952,7 +2115,7 @@ export default function App() {
       let youtubeVideoId = '';
       let uploadError = '';
 
-      if (!manualPostMode && globalConfig?.ytAutoUploadActive !== false && i < 4) {
+      if (!manualPostMode && i < 4) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
           mediaFormat: 'short',
@@ -2001,6 +2164,33 @@ export default function App() {
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
+
+  const handleGenerateThumbnails = (e) => {
+    e.preventDefault();
+    const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
+    setThumbConcepts(updated);
+    setSelectedThumbConcept(updated[0]);
+  };
+
+  const handleDeleteClip = async (clipId) => {
+    const target = videoQueue.find((c) => c.id === clipId);
+    if (target?.croppedUrl && target.croppedUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(target.croppedUrl.split('#')[0]);
+    }
+    setVideoQueue((prev) => prev.filter((item) => item.id !== clipId));
+    await idbDeleteClip(clipId);
+  };
+
+  const handleClearAllClips = async () => {
+    videoQueue.forEach((c) => {
+      if (c.croppedUrl && c.croppedUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(c.croppedUrl.split('#')[0]);
+      }
+    });
+    setVideoQueue([]);
+    await idbClearAllClips();
+  };
+
   const handleOpenRazorpayCheckout = useCallback(async () => {
     setCheckoutError('');
     setCheckoutPendingMsg('');
@@ -2012,14 +2202,16 @@ export default function App() {
 
     const amt =
       selectedBilling === 'yearly'
-        ? Number(globalConfig.yearlyPrice || 3999)
+        ? Number(globalConfig.yearlyPrice || 1499)
         : Number(globalConfig.monthlyPrice || 99);
 
     const targetUrl =
       selectedBilling === 'yearly' ? RAZORPAY_YEARLY_LINK : RAZORPAY_MONTHLY_LINK;
 
     if (!targetUrl) {
-      return setCheckoutError('Yearly plan ki alag Razorpay link abhi set nahi hai.');
+      return setCheckoutError(
+        'Yearly plan ki alag Razorpay link abhi set nahi hai.'
+      );
     }
 
     const loggedTxn = {
@@ -2048,44 +2240,29 @@ export default function App() {
     window.open(targetUrl, '_blank', 'noopener,noreferrer');
   }, [checkoutEmail, googleUser?.email, selectedBilling, globalConfig, dbBase]);
 
-  const unreadCount = useMemo(
-    () => notificationsList.filter((n) => n.unread).length,
-    [notificationsList]
-  );
+  const handleSendSupport = (e) => {
+    e.preventDefault();
+    if (!supportInput.trim()) return;
+    const msg = supportInput.trim();
+    setSupportMessages((prev) => [
+      ...prev,
+      { role: 'user', text: msg },
+      {
+        role: 'ai',
+        text: 'ShortsPilot abhi Shorts (#Shorts) mode par set hai.'
+      }
+    ]);
+    setSupportInput('');
+  };
 
-  const displayedClips = useMemo(() => videoQueue.slice(0, 12), [videoQueue]);
-  const currentMonthlyPrice = globalConfig.monthlyPrice || '99';
-  const currentYearlyPrice = globalConfig.yearlyPrice || '3999';
-  const currentWatermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
-
-  if (!isAdminOpen && (globalConfig?.maintenanceMode || isCurrentUserBlocked)) {
-    return (
-      <div className="min-h-screen w-full bg-[#05030a] text-white flex items-center justify-center p-6 text-center">
-        <div className="max-w-md rounded-3xl bg-[#110c22] border border-rose-500/40 p-6 space-y-3">
-          <h2 className="text-lg font-extrabold text-rose-300">
-            {isCurrentUserBlocked ? 'Access Restricted' : 'Site Under Maintenance'}
-          </h2>
-          <p className="text-xs text-slate-300">
-            {isCurrentUserBlocked
-              ? 'Aapka account owner admin dwara block kiya gaya hai.'
-              : globalConfig?.announcementBanner || 'Website abhi maintenance mode mein hai.'}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
 
   return (
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
         activeTab={activeTab}
-        onSelectTab={(tab) => {
-          if (tab === 'home') return setActiveTab('home');
-          requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`);
-        }}
-        onTriggerUpload={() =>
-          requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload & Auto-Post Shorts')
-        }
+        onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
+        onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')}
         onOpenSplitter={() =>
           requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
         }
@@ -2094,46 +2271,40 @@ export default function App() {
         }
         onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
         onOpenAdmin={() => requireGoogleAuth(() => setIsAdminOpen(true), 'Owner Admin Console')}
-        onOpenTerms={() => setIsTermsOpen(true)}
-        onGoogleLogin={startGoogleLogin}
+        onOpenTerms={() => requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions')}
+        onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
         onGoogleLogout={logoutGoogle}
         isGoogleConnected={isGoogleConnected}
         isLoggingIn={isLoggingIn}
         googleUser={googleUser}
-        monthlyPrice={currentMonthlyPrice}
-        yearlyPrice={currentYearlyPrice}
+        monthlyPrice={globalConfig.monthlyPrice || '99'}
+        yearlyPrice={globalConfig.yearlyPrice || '1499'}
         videoCount={videoQueue.length}
       />
 
       <div className="flex-1 min-h-screen bg-[#070510] text-white flex flex-col">
         <TopHeader
           tier={tier}
-          hasUnread={unreadCount > 0}
+          hasUnread={notificationsList.some((n) => n.unread)}
           googleUser={googleUser}
           isGoogleConnected={isGoogleConnected}
           isLoggingIn={isLoggingIn}
           onOpenDrawer={() => setIsSettingsDrawerOpen(true)}
           onGoHome={() => setActiveTab('home')}
           onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
-          onOpenNotifications={() => {
-            setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
-            setIsNotificationOpen(true);
-          }}
-          onGoogleLogin={startGoogleLogin}
-          onGoogleLogout={logoutGoogle}
-          onOpenSettings={() =>
-            requireGoogleAuth(() => setActiveTab('settings'), 'Profile & Settings')
+          onOpenNotifications={() =>
+            requireGoogleAuth(() => {
+              setIsNotificationOpen(true);
+              setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
+            }, 'Notifications')
           }
+          onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
+          onGoogleLogout={logoutGoogle}
+          onOpenSettings={() => requireGoogleAuth(() => setActiveTab('settings'), 'Settings')}
         />
 
-        {globalConfig?.announcementBanner && (
-          <div className="mx-4 lg:mx-8 mt-2 px-3.5 py-2 rounded-xl bg-cyan-500/15 border border-cyan-400/40 text-xs text-cyan-200 font-bold">
-            {globalConfig.announcementBanner}
-          </div>
-        )}
-
         {loginError && (
-          <div className="mx-4 lg:mx-8 mt-2 px-3.5 py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-xs text-rose-300 font-bold">
+          <div className="mx-4 lg:mx-8 mt-2 px-3 py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-xs text-rose-300 font-bold">
             {loginError}
           </div>
         )}
@@ -2154,115 +2325,167 @@ export default function App() {
           className="hidden"
         />
 
-        <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-4 pb-28 space-y-4">
+        <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-3 lg:pt-6 pb-32 lg:pb-12 space-y-4 lg:space-y-6">
           {activeTab === 'home' && (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div
-                  onClick={() =>
-                    requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail')
-                  }
-                  className="p-3.5 rounded-2xl bg-[#110c22] border border-amber-500/35 flex items-center justify-between cursor-pointer hover:border-amber-400/60 transition"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center shrink-0">
-                      <Sparkles className="w-5 h-5 text-amber-300" />
-                    </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
+                <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-purple-600/20 to-pink-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Crown className="w-6 h-6 text-amber-400 fill-amber-400 shrink-0" />
                     <div className="min-w-0">
-                      <div className="text-xs font-extrabold text-white truncate">
+                      <div className="text-xs lg:text-sm font-extrabold text-amber-300 truncate">
                         Shorts Engine Active
                       </div>
-                      <div className="text-[10.5px] text-slate-400 truncate">
-                        4 Daily Slots • 9:16 Thumb
+                      <div className="text-[10px] lg:text-xs text-slate-200">
+                        4 Daily Slots • 9:16 Thumb • shortspilot.in
                       </div>
                     </div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-300 text-[10px] font-extrabold shrink-0">
-                    #Shorts
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                    PRO
                   </span>
                 </div>
 
-                <div
-                  onClick={() =>
-                    requireGoogleAuth(() => setActiveTab('analytics'), 'Channel Analytics')
-                  }
-                  className="p-3.5 rounded-2xl bg-[#110c22] border border-red-500/35 flex items-center justify-between cursor-pointer hover:border-red-400/60 transition"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-400/30 flex items-center justify-center shrink-0">
-                      <Youtube className="w-5 h-5 text-red-400" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-extrabold text-white truncate">
-                        {isGoogleConnected ? googleUser.email : 'YouTube Shorts'}
-                      </div>
-                      <div className="text-[10.5px] text-slate-400 truncate">
-                        {isGoogleConnected ? 'Auto-Upload Ready ✅' : 'Connect Google Account'}
+                {isGoogleConnected ? (
+                  <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-emerald-600/20 via-purple-600/20 to-cyan-600/20 border border-emerald-400/50 flex items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <ChannelAvatarBadge googleUser={googleUser} sizeClass="w-10 h-10" />
+                      <div className="min-w-0">
+                        <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
+                          <span>{googleUser?.name || 'Google Account'}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 text-[9.5px] font-extrabold">
+                            Connected ✅
+                          </span>
+                        </div>
+                        <div className="text-[10px] lg:text-xs text-slate-300 truncate">
+                          {googleUser?.email}
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-xl bg-red-500/15 text-red-300 text-[10px] font-extrabold shrink-0">
-                    {isGoogleConnected ? 'Live' : 'Login'}
-                  </span>
-                </div>
+                ) : (
+                  <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-amber-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <ChannelAvatarBadge googleUser={googleUser} sizeClass="w-10 h-10" />
+                      <div className="min-w-0">
+                        <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
+                          <span>Google & YouTube</span>
+                          <span className="px-1.5 py-0.5 rounded bg-cyan-500/25 text-cyan-300 text-[9px] font-extrabold">
+                            AUTO
+                          </span>
+                        </div>
+                        <div className="text-[10px] lg:text-xs text-slate-300 truncate">
+                          3-step login guide before connect
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openGoogleGuidePopup(startGoogleLogin, 'Google Connect')}
+                      disabled={isLoggingIn}
+                      className="px-3.5 py-1.5 rounded-xl bg-[#4285F4] hover:bg-blue-500 text-white text-[11px] lg:text-xs font-extrabold cursor-pointer shrink-0 shadow-lg disabled:opacity-60"
+                    >
+                      {isLoggingIn ? 'Connecting...' : 'Connect Google'}
+                    </button>
+                  </div>
+                )}
 
-                <div
-                  onClick={() =>
-                    requireGoogleAuth(() => {
-                      setIgUsernameDraft(igData.username || '');
-                      setIgTokenDraft(igData.token || '');
-                      setIsIgModalOpen(true);
-                    }, 'Instagram Token')
-                  }
-                  className="p-3.5 rounded-2xl bg-[#110c22] border border-pink-500/35 flex items-center justify-between cursor-pointer hover:border-pink-400/60 transition"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-pink-500/15 border border-pink-400/30 flex items-center justify-center shrink-0">
-                      <Instagram className="w-5 h-5 text-pink-400" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-extrabold text-white truncate">
-                        {igData.connected ? igData.username : 'Instagram Token'}
+                {igData.connected ? (
+                  <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-pink-600/20 via-purple-600/20 to-amber-500/15 border border-pink-400/50 flex items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-pink-500/20 border border-pink-400/40 flex items-center justify-center shrink-0">
+                        <Instagram className="w-5 h-5 text-pink-300" />
                       </div>
-                      <div className="text-[10.5px] text-slate-400 truncate">
-                        {igData.connected ? 'Token Saved' : 'Optional Reel Sync'}
+                      <div className="min-w-0">
+                        <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
+                          <span>{igData.username}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 text-[9.5px] font-extrabold">
+                            Connected ✅
+                          </span>
+                        </div>
+                        <div className="text-[10px] lg:text-xs text-pink-200/80 truncate">
+                          Token saved
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-xl bg-pink-500/20 text-pink-300 text-[10px] font-extrabold shrink-0">
-                    {igData.connected ? 'Connected' : 'Add Token'}
-                  </span>
-                </div>
+                ) : (
+                  <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-fuchsia-600/15 via-pink-600/15 to-amber-500/15 border border-pink-500/35 flex items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-pink-500/20 border border-pink-400/40 flex items-center justify-center shrink-0">
+                        <Instagram className="w-5 h-5 text-pink-300" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
+                          <span>Instagram</span>
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9.5px] font-extrabold">
+                            Pending ⏳
+                          </span>
+                        </div>
+                        <div className="text-[10px] lg:text-xs text-slate-400 truncate">
+                          Add token anytime with minimal setup
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        requireGoogleAuth(() => setIsIgModalOpen(true), 'Instagram Token Connect')
+                      }
+                      className="px-3 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-[10.5px] font-extrabold cursor-pointer shrink-0"
+                    >
+                      Add Token
+                    </button>
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-[28px] p-5 bg-gradient-to-br from-[#2a104e] via-[#150a2e] to-[#0c071d] border border-purple-500/40 space-y-3 shadow-lg">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-400/40 text-[9.5px] font-extrabold text-pink-300">
-                    <Zap className="w-3 h-3" /> Shorts Auto-Post Engine (#Shorts)
-                  </span>
-                  <h2 className="text-2xl font-extrabold text-white leading-tight">
-                    Publish to YouTube <span className="text-pink-400">Shorts</span>
-                  </h2>
-                  <p className="text-xs text-slate-300">
-                    Next Slot: <b className="text-cyan-300">{selectedTimeSlot}</b> •{' '}
-                    <span className="text-emerald-300 font-bold">
-                      {manualPostMode ? 'Manual Vault Mode' : 'Auto-Post Enabled'}
-                    </span>
-                  </p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
+                <div className="rounded-[28px] p-5 lg:p-6 bg-gradient-to-br from-[#2a104e] via-[#150a2e] to-[#0c071d] border border-purple-500/40 shadow-[0_0_30px_rgba(168,85,247,0.2)] relative overflow-hidden flex flex-col justify-between space-y-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="max-w-[65%] space-y-1.5">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-400/40 text-[9.5px] font-extrabold text-pink-300">
+                        <Zap className="w-3 h-3 text-pink-400" /> Shorts Auto-Post Engine
+                      </span>
+                      <h2 className="text-[22px] lg:text-[26px] font-extrabold text-white leading-[1.15] tracking-tight">
+                        Publish to <br />
+                        YouTube{' '}
+                        <span className="bg-gradient-to-r from-pink-400 to-cyan-400 bg-clip-text text-transparent">
+                          Shorts
+                        </span>
+                      </h2>
+                      <p className="text-[10.5px] lg:text-xs text-slate-300 font-medium">
+                        {manualPostMode ? 'Mode: Manual Post' : `Next: ${selectedTimeSlot}`}
+                      </p>
+                    </div>
+
+                    <div
+                      onClick={() =>
+                        requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')
+                      }
+                      className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-purple-600/30 to-pink-600/30 border border-purple-400/50 flex items-center justify-center relative cursor-pointer shadow-xl shrink-0 group"
+                    >
+                      <span className="absolute -top-1 right-0 px-2 py-0.5 rounded-md bg-cyan-500 text-[9px] font-extrabold text-black">
+                        AUTO
+                      </span>
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-orange-500 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                        <Play className="w-7 h-7 text-white fill-white ml-0.5" />
+                      </div>
+                    </div>
+                  </div>
+
                   {autoPublishStatus && (
-                    <div className="p-2 rounded-xl bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 text-xs font-bold text-center">
+                    <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-300 text-xs font-bold text-center animate-pulse">
                       {autoPublishStatus}
                     </div>
                   )}
+
                   <button
                     type="button"
                     onClick={() =>
-                      requireGoogleAuth(
-                        () => fileInputRef.current?.click(),
-                        'Upload & Auto-Post Shorts'
-                      )
+                      requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')
                     }
-                    className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer hover:opacity-95 active:scale-95 transition-all"
+                    className="w-full py-3 lg:py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs lg:text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(56,189,248,0.4)] border border-white/20 active:scale-95 transition-all cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-white" />
                     <span>
@@ -2273,325 +2496,496 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="rounded-[28px] p-5 bg-gradient-to-br from-[#231042] via-[#150b29] to-[#0c1428] border border-pink-500/50 space-y-3 shadow-lg">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                      <Scissors className="w-4 h-4 text-pink-300" />
-                      <span>AI Engaging Shorts Cutter</span>
-                    </h3>
+                <div className="p-4 lg:p-6 rounded-[28px] bg-gradient-to-br from-[#231042] via-[#150b29] to-[#0c1428] border border-pink-500/50 flex flex-col justify-between space-y-3 shadow-[0_0_25px_rgba(236,72,153,0.22)]">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-10 h-10 lg:w-11 lg:h-11 rounded-2xl bg-pink-500/25 border border-pink-400/50 flex items-center justify-center shrink-0">
+                        <Scissors className="w-5 h-5 text-pink-300" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="text-sm lg:text-base font-extrabold text-white truncate">
+                            AI Engaging Shorts Cutter
+                          </h3>
+                          <span className="px-1.5 py-0.5 rounded bg-pink-500/30 text-[8.5px] font-extrabold text-pink-200">
+                            AUTO CUT
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] lg:text-xs text-slate-300">
+                          Cut 1, 3, or 5 Shorts • 4 daily slots (9 AM–9 PM)
+                        </p>
+                      </div>
+                    </div>
                     <button
                       type="button"
                       onClick={() =>
                         requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
                       }
-                      className="px-3 py-1 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-xs font-extrabold cursor-pointer"
+                      className="px-3 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-[11px] font-extrabold cursor-pointer shadow-md shrink-0"
                     >
                       Open Cutter
                     </button>
                   </div>
-                  <p className="text-xs text-slate-300">
-                    Split any video into 1, 3, or 5 vertical Shorts with #Shorts metadata &amp; 9:16 hook.
-                  </p>
+
                   <div className="grid grid-cols-3 gap-2">
                     {[1, 3, 5].map((num) => (
                       <button
                         key={num}
                         type="button"
-                        onClick={() => setClipSplitCount(num)}
-                        className={`py-2 rounded-xl border text-xs font-extrabold cursor-pointer transition ${
+                        onClick={() =>
+                          requireGoogleAuth(() => setClipSplitCount(num), `${num} Clips Mode`)
+                        }
+                        className={`py-2 lg:py-2.5 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
                           clipSplitCount === num
-                            ? 'bg-pink-500/30 border-pink-400 text-pink-200'
-                            : 'bg-[#0b0718] border-slate-800 text-slate-400 hover:text-white'
+                            ? 'bg-pink-500/30 border-pink-400 text-pink-200 shadow-[0_0_12px_rgba(236,72,153,0.35)]'
+                            : 'bg-[#0b0718] border-slate-800 text-slate-400'
                         }`}
                       >
-                        {num} {num === 1 ? 'Short' : 'Shorts'}
+                        {num} {num === 1 ? 'Clip' : 'Clips'}
                       </button>
                     ))}
                   </div>
+
                   <button
                     type="button"
                     onClick={() =>
                       requireGoogleAuth(
                         () => splitterInputRef.current?.click(),
-                        'Cut Video into Shorts'
+                        'Long Video Clip Cutter'
                       )
                     }
-                    className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 hover:opacity-95 text-white font-extrabold text-xs cursor-pointer"
+                    className="w-full py-2.5 lg:py-3.5 px-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-extrabold text-xs lg:text-sm flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
                   >
-                    Select Video &amp; Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}
+                    <Scissors className="w-3.5 h-3.5" />
+                    <span>
+                      Select Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}{' '}
+                      Now
+                    </span>
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/40 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-extrabold text-white">9:16 Thumbnail Preset</div>
-                    <div className="text-xs text-amber-300 font-bold truncate">
-                      Active Hook: {selectedThumbConcept?.hookText} • {selectedThumbConcept?.ctrScore}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
+                <div className="p-4 rounded-[24px] bg-gradient-to-r from-[#0e1a2b] to-[#1a0c2e] border border-cyan-500/40 flex items-center justify-between shadow-lg">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center">
+                      <ImageIcon className="w-5 h-5 text-cyan-300" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white">9:16 Auto Thumbnail</h3>
+                      <p className="text-[10.5px] text-slate-300">
+                        Active Hook:{' '}
+                        <span className="text-amber-300 font-bold">
+                          {selectedThumbConcept?.hookText}
+                        </span>
+                      </p>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() =>
-                      requireGoogleAuth(
-                        () => setIsThumbnailModalOpen(true),
-                        '9:16 Thumbnail Preset'
-                      )
+                      requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset')
                     }
-                    className="px-3.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-extrabold cursor-pointer shrink-0"
+                    className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-[11px] font-extrabold cursor-pointer shadow-md"
                   >
-                    Customize
+                    Choose Style
                   </button>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/35 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-extrabold text-white">Posting Control</div>
-                    <div className="text-xs text-slate-300 truncate">
-                      Auto-Post 09:00, 13:30, 17:30, 21:00 • #Shorts
+                <div className="p-4 rounded-[24px] bg-[#110c22] border border-emerald-500/40 flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-white">Format Mode</h3>
+                    <p className="text-[10.5px] text-emerald-200 font-semibold">
+                      Shorts Only (#Shorts auto-added)
+                    </p>
+                  </div>
+                  <span className="px-3.5 py-1.5 rounded-full border border-emerald-400/50 bg-emerald-500/20 text-emerald-200 text-[11px] font-extrabold">
+                    ⚡ Shorts Active
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-[24px] bg-[#130c26] border border-purple-400/35 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-purple-600/25 border border-purple-400/40 flex items-center justify-center">
+                      <Calendar className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white">Posting Control</h3>
+                      <p className="text-[10.5px] text-slate-300">
+                        Auto-Post ON • 09:00, 13:30, 17:30, 21:00
+                      </p>
                     </div>
                   </div>
+
                   <button
                     type="button"
                     onClick={() =>
-                      requireGoogleAuth(() => setManualPostMode(!manualPostMode), 'Posting Mode')
+                      requireGoogleAuth(() => setManualPostMode(!manualPostMode), 'Posting Control')
                     }
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold cursor-pointer shrink-0 ${
+                    className={`px-3 py-1.5 rounded-full border text-[11px] font-extrabold cursor-pointer transition-all ${
                       manualPostMode
-                        ? 'bg-amber-500/25 text-amber-300 border border-amber-400/40'
-                        : 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/40'
+                        ? 'bg-amber-500/25 border-amber-400 text-amber-300'
+                        : 'bg-emerald-500/25 border-emerald-400 text-emerald-300'
                     }`}
                   >
-                    {manualPostMode ? '⚡ Manual' : '🤖 Auto-Post ON'}
+                    {manualPostMode ? '⚡ Manual Post Active' : '🤖 Auto-Post ON'}
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5 lg:gap-5">
                 <div
-                  onClick={() => {
-                    setSelectedBilling('monthly');
-                    requireGoogleAuth(() => setIsPricingOpen(true), 'Monthly Plan');
-                  }}
-                  className="p-4 rounded-2xl bg-[#120d24] border border-purple-500/35 hover:border-cyan-400/60 cursor-pointer transition space-y-1"
-                >
-                  <div className="text-[10px] font-extrabold text-cyan-300 uppercase">
-                    MONTHLY PRO
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xl font-black text-white">₹{currentMonthlyPrice}</span>
-                    <span className="text-xs text-slate-500 line-through">₹499</span>
-                    <span className="text-[10px] text-slate-400">/mo</span>
-                  </div>
-                  <div className="text-[11px] text-emerald-300 font-bold">
-                    Unlimited Shorts Auto-Post &amp; AI Metadata
-                  </div>
-                </div>
-
-                <div
-                  onClick={() => {
-                    setSelectedBilling('yearly');
-                    requireGoogleAuth(() => setIsPricingOpen(true), 'Yearly VIP Plan');
-                  }}
-                  className="p-4 rounded-2xl bg-gradient-to-br from-[#23123d] to-[#120c24] border border-amber-400/50 hover:border-amber-300 cursor-pointer transition space-y-1"
+                  onClick={() =>
+                    requireGoogleAuth(() => {
+                      setSelectedBilling('monthly');
+                      setIsPricingOpen(true);
+                    }, 'Monthly Pro Plan')
+                  }
+                  className="p-3.5 lg:p-5 rounded-2xl bg-gradient-to-b from-[#16102b] to-[#0c0818] border border-cyan-500/50 space-y-2 cursor-pointer hover:border-cyan-400 transition-all"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-extrabold text-amber-300 uppercase">
-                      YEARLY VIP
+                    <span className="text-[10px] lg:text-xs font-extrabold text-cyan-300 uppercase">
+                      Monthly Pro
                     </span>
-                    <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[9px] font-extrabold">
-                      BEST VALUE
+                    <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-[8.5px] font-extrabold text-cyan-300">
+                      80% OFF
                     </span>
                   </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xl font-black text-white">₹{currentYearlyPrice}</span>
-                    <span className="text-xs text-slate-500 line-through">₹6999</span>
-                    <span className="text-[10px] text-slate-400">/yr</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-base lg:text-2xl font-extrabold text-white">
+                      ₹{globalConfig.monthlyPrice || '99'}
+                    </span>
+                    <span className="text-[11px] lg:text-sm text-slate-400 line-through">
+                      ₹{globalConfig.monthlyOriginalPrice || '499'}
+                    </span>
+                    <span className="text-[9px] lg:text-xs text-slate-400">/mo</span>
                   </div>
-                  <div className="text-[11px] text-amber-200 font-bold">
-                    Priority Slots + Custom Watermark &amp; Support
+                  <div className="text-xs lg:text-sm font-extrabold text-emerald-400 flex items-center gap-1">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    <span>50K+ Views</span>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() =>
+                    requireGoogleAuth(() => {
+                      setSelectedBilling('yearly');
+                      setIsPricingOpen(true);
+                    }, 'Yearly VIP Plan')
+                  }
+                  className="p-3.5 lg:p-5 rounded-2xl bg-gradient-to-b from-[#221033] to-[#11081f] border border-amber-500/60 space-y-2 shadow-lg cursor-pointer hover:border-amber-400 transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] lg:text-xs font-extrabold text-amber-300 uppercase">
+                      Yearly VIP
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-[8.5px] font-extrabold text-amber-300">
+                      79% OFF
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-base lg:text-2xl font-extrabold text-amber-400">
+                      ₹{globalConfig.yearlyPrice || '1499'}
+                    </span>
+                    <span className="text-[11px] lg:text-sm text-slate-400 line-through">
+                      ₹{globalConfig.yearlyOriginalPrice || '6999'}
+                    </span>
+                    <span className="text-[9px] lg:text-xs text-slate-400">/yr</span>
+                  </div>
+                  <div className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1">
+                    <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                    <span>100K+ Views</span>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
-                <div className="p-3 rounded-2xl bg-[#110c22] border border-purple-500/25 text-center">
-                  <div className="text-sm font-extrabold text-white">{videoQueue.length}</div>
-                  <div className="text-[10px] text-slate-400">Queued Shorts</div>
+              <div className="grid grid-cols-3 gap-2">
+                <div
+                  onClick={() => requireGoogleAuth(() => setActiveTab('projects'), 'Queue Vault')}
+                  className="p-2.5 lg:p-4 rounded-2xl bg-[#0e0a1c] border border-blue-500/35 cursor-pointer text-center"
+                >
+                  <div className="text-sm lg:text-lg font-extrabold text-white">
+                    {totalPostedCount}
+                  </div>
+                  <div className="text-[9px] lg:text-[11px] text-slate-400">Queued Shorts</div>
                 </div>
-                <div className="p-3 rounded-2xl bg-[#110c22] border border-purple-500/25 text-center">
-                  <div className="text-sm font-extrabold text-cyan-300">9:16</div>
-                  <div className="text-[10px] text-slate-400">Shorts Format</div>
+                <div
+                  onClick={() =>
+                    requireGoogleAuth(() => setActiveTab('analytics'), 'Channel Analytics')
+                  }
+                  className="p-2.5 lg:p-4 rounded-2xl bg-[#0e0a1c] border border-purple-500/35 cursor-pointer text-center"
+                >
+                  <div className="text-sm lg:text-lg font-extrabold text-purple-300">
+                    4 Slots/Day
+                  </div>
+                  <div className="text-[9px] lg:text-[11px] text-slate-400">Auto Schedule</div>
                 </div>
-                <div className="p-3 rounded-2xl bg-[#110c22] border border-purple-500/25 text-center">
-                  <div className="text-sm font-extrabold text-emerald-400">10/10</div>
-                  <div className="text-[10px] text-slate-400">SEO Hook Score</div>
+                <div className="p-2.5 lg:p-4 rounded-2xl bg-[#0e0a1c] border border-amber-500/35 text-center">
+                  <div className="text-sm lg:text-lg font-extrabold text-amber-400">10/10</div>
+                  <div className="text-[9px] lg:text-[11px] text-slate-400">Pro Score</div>
                 </div>
               </div>
 
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-pink-400" />
-                    <span>Your Published &amp; Cut Shorts ({videoQueue.length})</span>
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="text-xs lg:text-sm font-extrabold text-white flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-pink-400" /> Your Published & Cut Shorts
                   </h3>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('projects')}
-                    className="text-xs text-cyan-300 hover:underline font-bold cursor-pointer"
+                    onClick={() => requireGoogleAuth(() => setActiveTab('projects'), 'Queue Vault')}
+                    className="text-[11px] lg:text-xs font-bold text-cyan-300 cursor-pointer"
                   >
-                    View Vault →
+                    View Vault ({videoQueue.length}) →
                   </button>
                 </div>
 
-                {displayedClips.length === 0 ? (
-                  <div className="p-6 rounded-2xl bg-[#110c22] border border-purple-500/25 text-center space-y-2">
-                    <p className="text-xs text-slate-300 font-semibold">
-                      Abhi koi Short queue mein nahi hai.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Short')
-                      }
-                      className="px-4 py-2 rounded-xl bg-pink-600 text-white text-xs font-extrabold cursor-pointer"
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
+                  {videoQueue.slice(0, 6).map((clip) => (
+                    <div
+                      key={clip.id}
+                      className="p-3.5 rounded-2xl bg-[#120c24] border border-purple-500/35 space-y-2"
                     >
-                      + Upload First Short
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    {displayedClips.map((clip) => (
-                      <div
-                        key={clip.id}
-                        className="p-3.5 rounded-2xl bg-[#120c24] border border-purple-500/35 space-y-2"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div
-                              onClick={() => setPreviewClip(clip)}
-                              className="w-11 h-14 rounded-lg bg-slate-900 border border-purple-400/40 overflow-hidden shrink-0 cursor-pointer"
+                      <div className="flex items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            onClick={() => requireGoogleAuth(() => setPreviewClip(clip), 'Watch Clip')}
+                            className={`w-12 h-16 rounded-xl bg-gradient-to-b ${
+                              clip.thumbnailGradient || 'from-pink-600 to-slate-950'
+                            } border border-purple-400/40 flex flex-col items-center justify-center shrink-0 cursor-pointer p-1 text-center overflow-hidden`}
+                          >
+                            {clip.thumbnailDataUrl ? (
+                              <img
+                                src={sanitizeMediaUrl(clip.thumbnailDataUrl)}
+                                alt={clip.title}
+                                className="w-full h-full object-cover rounded-lg"
+                              />
+                            ) : (
+                              <>
+                                <span className="text-[6.5px] font-black text-white leading-tight uppercase">
+                                  {clip.thumbnailHook || 'SHORT'}
+                                </span>
+                                <Play className="w-3.5 h-3.5 text-white fill-white mt-0.5" />
+                              </>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h4
+                              onClick={() =>
+                                requireGoogleAuth(() => setPreviewClip(clip), 'Watch Clip')
+                              }
+                              className="text-xs font-extrabold text-white truncate cursor-pointer hover:text-pink-300"
                             >
-                              {clip.thumbnailDataUrl && (
-                                <img
-                                  src={sanitizeMediaUrl(clip.thumbnailDataUrl)}
-                                  alt={clip.title}
-                                  className="w-full h-full object-cover"
-                                />
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <h4
-                                onClick={() => setPreviewClip(clip)}
-                                className="text-xs font-extrabold text-white truncate cursor-pointer"
-                              >
-                                {clip.title}
-                              </h4>
-                              <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                                <span className="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[9px] font-extrabold">
-                                  SHORT
-                                </span>
-                                <span className="text-[10px] text-emerald-300 font-bold truncate">
-                                  {clip.status}
-                                </span>
-                              </div>
-                              <div className="text-[10px] text-slate-400 mt-0.5">
-                                Len: {clip.duration} • Hook: {clip.hookScore}
-                              </div>
+                              {clip.title}
+                            </h4>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold uppercase">
+                                SHORT
+                              </span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
+                                {clip.status}
+                              </span>
+                              <span className="text-[9px] text-amber-300 font-bold">
+                                Hook: {clip.hookScore}
+                              </span>
                             </div>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              setVideoQueue((p) => p.filter((x) => x.id !== clip.id));
-                              await idbDeleteClip(clip.id);
-                            }}
-                            className="p-1.5 text-rose-400 hover:text-rose-300 cursor-pointer shrink-0"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </div>
-
-                        <div className="text-[9.5px] text-cyan-300 font-mono truncate bg-[#080512] px-2.5 py-1.5 rounded-lg">
-                          {clip.hashtags}
-                        </div>
-
-                        {!clip.youtubeVideoId && (
-                          <button
-                            type="button"
-                            onClick={() => handleRetryYouTubeUpload(clip)}
-                            className="w-full py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-[10.5px] font-extrabold cursor-pointer transition"
-                          >
-                            ↻ Retry YouTube Upload
-                          </button>
-                        )}
-
-                        <ClipActionShortcuts
-                          clip={clip}
-                          onPreview={setPreviewClip}
-                          onCopyDescription={handleCopyDescription}
-                          onSendThumbAI={handleSendThumbAI}
-                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            requireGoogleAuth(() => handleDeleteClip(clip.id), 'Delete Clip')
+                          }
+                          className="p-1.5 text-rose-400 cursor-pointer shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <div className="text-[9.5px] text-cyan-300/90 font-mono truncate bg-[#080512] px-2.5 py-1.5 rounded-lg border border-slate-800">
+                        {clip.hashtags}
+                      </div>
+                      {clip.uploadError && (
+                        <div className="text-[10px] text-rose-300 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-lg break-words">
+                          {clip.uploadError}
+                        </div>
+                      )}
+                      {!clip.youtubeVideoId && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            requireGoogleAuth(
+                              () => handleRetryYouTubeUpload(clip),
+                              'Retry YouTube Upload'
+                            )
+                          }
+                          className="w-full py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-[10.5px] font-extrabold cursor-pointer transition"
+                        >
+                          ↻ Retry YouTube Upload
+                        </button>
+                      )}
+                      <ClipActionShortcuts
+                        clip={clip}
+                        onPreview={(c) => requireGoogleAuth(() => setPreviewClip(c), 'Watch Clip')}
+                        onCopyDescription={(c) =>
+                          requireGoogleAuth(() => handleCopyDescription(c), 'Copy Description')
+                        }
+                        onSendThumbAI={(c, target) =>
+                          requireGoogleAuth(
+                            () => handleSendThumbAI(c, target),
+                            'AI Thumbnail Prompt'
+                          )
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              <footer className="pt-2 pb-1 flex flex-wrap items-center justify-between gap-2 text-[10.5px] text-slate-400 border-t border-white/10">
+                <span>Developed by shortspilot.in</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions')
+                  }
+                  className="text-cyan-300 hover:underline font-bold cursor-pointer"
+                >
+                  Terms & Conditions
+                </button>
+              </footer>
             </>
           )}
 
-          {activeTab === 'projects' && (
-            <div className="space-y-3">
+          {activeTab === 'analytics' && isGoogleConnected && (
+            <div className="space-y-4 pt-2 max-w-3xl mx-auto">
+              <h2 className="text-base lg:text-xl font-extrabold text-white">Channel Analytics</h2>
+              <div className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-1.5 text-xs">
+                <div>
+                  Google Account: <b>{googleUser?.email || 'Not Connected'}</b>
+                </div>
+                <div>
+                  Google Status: <b className="text-emerald-400">Connected ✅</b>
+                </div>
+                <div>
+                  YouTube Token:{' '}
+                  <b className={youtubeAccessToken ? 'text-emerald-400' : 'text-slate-400'}>
+                    {youtubeAccessToken ? 'Active' : 'Not Issued'}
+                  </b>
+                </div>
+                <div>
+                  Active Mode: <b className="text-emerald-400">SHORTS ONLY (#Shorts)</b>
+                </div>
+                <div>
+                  Daily Auto Slots: <b>09:00 AM, 01:30 PM, 05:30 PM, 09:00 PM</b>
+                </div>
+                <div>
+                  Instagram:{' '}
+                  <b className={igData.connected ? 'text-emerald-400' : 'text-amber-300'}>
+                    {igData.connected ? `Connected ✅ (${igData.username})` : 'Pending ⏳'}
+                  </b>
+                </div>
+                <div>
+                  Total Queued Shorts: <b>{totalPostedCount}</b>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'projects' && isGoogleConnected && (
+            <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-extrabold text-white">
+                <h2 className="text-base lg:text-xl font-extrabold text-white">
                   Queue Vault ({videoQueue.length})
                 </h2>
                 {videoQueue.length > 0 && (
                   <button
                     type="button"
-                    onClick={async () => {
-                      setVideoQueue([]);
-                      await idbClearAllClips();
-                    }}
-                    className="text-xs text-rose-400 hover:underline font-bold cursor-pointer"
+                    onClick={handleClearAllClips}
+                    className="text-xs text-rose-400 underline cursor-pointer"
                   >
-                    Clear All Vault
+                    Clear All
                   </button>
                 )}
               </div>
 
               {videoQueue.length === 0 ? (
-                <div className="p-6 rounded-2xl bg-[#110c22] border border-purple-500/30 text-center text-xs text-slate-400">
-                  Vault is empty. Upload or cut Shorts to see them here.
+                <div className="p-10 rounded-3xl bg-[#110c22] border border-dashed border-purple-500/30 text-center space-y-3">
+                  <p className="text-xs lg:text-sm text-slate-400">Queue Vault is currently empty.</p>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-5 py-2.5 rounded-xl bg-purple-600/30 border border-purple-400/40 text-xs font-bold text-purple-200 cursor-pointer"
+                  >
+                    + Upload Short
+                  </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
                   {videoQueue.map((clip) => (
                     <div
                       key={clip.id}
-                      className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-2"
+                      className="p-4 rounded-2xl bg-[#110c22] border border-purple-500/30 space-y-2.5"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs font-extrabold text-white truncate">
-                          {clip.title}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            onClick={() => setPreviewClip(clip)}
+                            className={`w-11 h-14 rounded-lg bg-gradient-to-b ${
+                              clip.thumbnailGradient || 'from-pink-600 to-slate-950'
+                            } border border-purple-400/30 flex flex-col items-center justify-center shrink-0 cursor-pointer p-1 text-center overflow-hidden`}
+                          >
+                            {clip.thumbnailDataUrl ? (
+                              <img
+                                src={sanitizeMediaUrl(clip.thumbnailDataUrl)}
+                                alt={clip.title}
+                                className="w-full h-full object-cover rounded-md"
+                              />
+                            ) : (
+                              <>
+                                <span className="text-[6px] font-black text-white leading-tight uppercase">
+                                  {clip.thumbnailHook || 'SHORT'}
+                                </span>
+                                <Play className="w-3 h-3 text-white fill-white mt-0.5" />
+                              </>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div
+                              onClick={() => setPreviewClip(clip)}
+                              className="text-xs lg:text-sm font-bold text-white truncate cursor-pointer"
+                            >
+                              {clip.title}
+                            </div>
+                            <div className="text-[10px] text-emerald-400 font-bold">
+                              SHORT • {clip.status} • {clip.duration}
+                            </div>
+                          </div>
                         </div>
                         <button
                           type="button"
-                          onClick={async () => {
-                            setVideoQueue((p) => p.filter((x) => x.id !== clip.id));
-                            await idbDeleteClip(clip.id);
-                          }}
-                          className="text-rose-400 hover:text-rose-300 cursor-pointer"
+                          onClick={() => handleDeleteClip(clip.id)}
+                          className="p-1.5 text-rose-400 cursor-pointer shrink-0"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                      <div className="text-[10px] text-emerald-400 font-bold">{clip.status}</div>
-                      <pre className="text-[10px] text-slate-300 whitespace-pre-wrap bg-[#070412] p-2.5 rounded-xl border border-slate-800">
+                      <pre className="text-[10px] text-slate-300 whitespace-pre-wrap font-sans bg-[#070412] p-2.5 rounded-xl border border-slate-800 max-h-28 overflow-y-auto">
                         {clip.description}
                       </pre>
+                      {clip.uploadError && (
+                        <div className="text-[10px] text-rose-300 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-lg break-words">
+                          {clip.uploadError}
+                        </div>
+                      )}
+                      {!clip.youtubeVideoId && (
+                        <button
+                          type="button"
+                          onClick={() => handleRetryYouTubeUpload(clip)}
+                          className="w-full py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-[10.5px] font-extrabold cursor-pointer transition"
+                        >
+                          ↻ Retry YouTube Upload
+                        </button>
+                      )}
                       <ClipActionShortcuts
                         clip={clip}
                         onPreview={setPreviewClip}
@@ -2605,193 +2999,176 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === 'analytics' && (
-            <div className="p-5 rounded-3xl bg-[#110c22] border border-cyan-500/35 space-y-3">
-              <h2 className="text-base font-extrabold text-white">Channel &amp; Shorts Analytics</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
-                <div className="p-3 rounded-2xl bg-[#080512] border border-slate-800">
-                  <div className="text-base font-black text-pink-400">{videoQueue.length}</div>
-                  <div className="text-[10px] text-slate-400">Total Shorts</div>
-                </div>
-                <div className="p-3 rounded-2xl bg-[#080512] border border-slate-800">
-                  <div className="text-base font-black text-emerald-400">
-                    {videoQueue.filter((c) => c.youtubeVideoId).length}
-                  </div>
-                  <div className="text-[10px] text-slate-400">Uploaded Live</div>
-                </div>
-                <div className="p-3 rounded-2xl bg-[#080512] border border-slate-800">
-                  <div className="text-base font-black text-cyan-300">4 / Day</div>
-                  <div className="text-[10px] text-slate-400">Auto Slots</div>
-                </div>
-                <div className="p-3 rounded-2xl bg-[#080512] border border-slate-800">
-                  <div className="text-base font-black text-amber-300">9:16</div>
-                  <div className="text-[10px] text-slate-400">Aspect Ratio</div>
-                </div>
-              </div>
-              <p className="text-xs text-slate-300">
-                Connected Account:{' '}
-                <b className="text-cyan-300">{googleUser?.email || 'Not Connected'}</b>
-              </p>
-            </div>
-          )}
+          {activeTab === 'settings' && isGoogleConnected && (
+            <div className="space-y-4 pt-2 max-w-2xl mx-auto">
+              <h2 className="text-base lg:text-xl font-extrabold text-white">
+                Profile & Settings
+              </h2>
 
-          {activeTab === 'settings' && (
-            <div className="p-5 rounded-3xl bg-[#110c22] border border-amber-500/35 space-y-3.5 text-xs">
-              <h2 className="text-base font-extrabold text-white">Profile &amp; Studio Settings</h2>
-              <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#080512] border border-slate-800">
-                <ChannelAvatarBadge googleUser={googleUser} sizeClass="w-12 h-12" />
-                <div className="min-w-0">
-                  <div className="font-extrabold text-white truncate">
-                    {googleUser?.name || 'Creator'}
-                  </div>
-                  <div className="text-[11px] text-cyan-300 truncate">
-                    {googleUser?.email || 'Google not connected'}
-                  </div>
+              <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/40 flex items-center justify-between gap-3">
+                <div className="text-xs text-slate-300">
+                  Google Connected ✅ ({googleUser?.email})
                 </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-400 font-semibold">Watermark / Credit</label>
-                <input
-                  type="text"
-                  value={currentWatermark}
-                  onChange={(e) =>
-                    setGlobalConfig((prev) => ({ ...prev, watermarkText: e.target.value }))
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                {isGoogleConnected ? (
-                  <button
-                    type="button"
-                    onClick={logoutGoogle}
-                    className="px-4 py-2 rounded-xl bg-rose-600 text-white font-extrabold cursor-pointer"
-                  >
-                    Disconnect Google
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={startGoogleLogin}
-                    className="px-4 py-2 rounded-xl bg-[#4285F4] text-white font-extrabold cursor-pointer"
-                  >
-                    Connect Google
-                  </button>
-                )}
                 <button
                   type="button"
-                  onClick={() => setIsAdminOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-purple-600 text-white font-extrabold cursor-pointer"
+                  onClick={() => openGoogleGuidePopup(startGoogleLogin, 'Switch Google')}
+                  disabled={isLoggingIn}
+                  className="px-4 py-2 rounded-xl bg-[#4285F4] text-white text-xs font-extrabold cursor-pointer shrink-0 disabled:opacity-60"
                 >
-                  Open Admin Console
+                  {isLoggingIn ? 'Connecting...' : 'Switch Google'}
                 </button>
               </div>
+
+              <div className="p-4 rounded-2xl bg-[#110c22] border border-pink-500/35 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-full bg-pink-500/20 border border-pink-400/40 flex items-center justify-center shrink-0">
+                    <Instagram className="w-5 h-5 text-pink-300" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs lg:text-sm font-extrabold text-white truncate">
+                      {igData.connected ? igData.username : 'Instagram Token Connect'}
+                    </div>
+                    <div className="text-[10px] lg:text-xs text-slate-400 truncate">
+                      {igData.connected
+                        ? 'Connected ✅'
+                        : 'Pending ⏳ — add token easily anytime'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsIgModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-pink-600 text-white text-xs font-extrabold cursor-pointer shrink-0"
+                >
+                  {igData.connected ? 'Update Token' : 'Add Token'}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsTermsOpen(true)}
+                className="w-full py-3 rounded-2xl bg-[#110c22] border border-cyan-500/35 text-cyan-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Terms & Conditions</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={logoutGoogle}
+                className="w-full py-3 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Disconnect Google Account</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsPricingOpen(true)}
+                className="w-full py-3 rounded-2xl bg-amber-500 text-black text-xs font-extrabold cursor-pointer shadow-lg"
+              >
+                🔥 View Offer Plans (₹{globalConfig.monthlyPrice}/mo & ₹{globalConfig.yearlyPrice}/yr)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsAdminOpen(true)}
+                className="w-full py-3 rounded-2xl bg-purple-600/25 border border-purple-500/40 text-purple-300 text-xs font-extrabold cursor-pointer shadow-lg"
+              >
+                🔐 Open Owner Master Admin Console
+              </button>
             </div>
           )}
         </div>
 
         <button
           type="button"
-          onClick={() => setShowAiSupport(true)}
+          onClick={() => requireGoogleAuth(() => setShowAiSupport(true), 'AI Support Chat')}
           aria-label="Floating AI Support"
-          className="fixed bottom-24 lg:bottom-6 right-4 lg:right-6 z-20 w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 text-white shadow-xl border border-white/20 flex items-center justify-center cursor-pointer"
+          className="fixed bottom-24 lg:bottom-6 right-4 lg:right-6 z-20 w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 text-white shadow-xl border border-white/20 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform"
         >
           <Bot className="w-6 h-6" />
         </button>
 
         <MobileBottomNavBar
           activeTab={activeTab}
-          onSelectTab={(tab) => {
-            if (tab === 'home') return setActiveTab('home');
-            requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`);
-          }}
-          onTriggerUpload={() =>
-            requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload & Auto-Post Shorts')
-          }
+          onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
+          onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')}
         />
       </div>
 
-      {isSettingsDrawerOpen && (
-        <div
-          onClick={() => setIsSettingsDrawerOpen(false)}
-          className="fixed inset-0 z-50 lg:hidden bg-black/80 flex"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-72 max-w-[82vw] h-full bg-[#090614] border-r border-purple-500/30 p-5 flex flex-col justify-between text-xs"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-extrabold text-sm text-white">ShortsPilot Menu</span>
-                <button
-                  type="button"
-                  onClick={() => setIsSettingsDrawerOpen(false)}
-                  className="text-slate-400 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSettingsDrawerOpen(false);
-                  setActiveTab('home');
-                }}
-                className="w-full py-2.5 px-3 rounded-xl bg-white/5 text-left font-bold cursor-pointer"
-              >
-                Dashboard
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSettingsDrawerOpen(false);
-                  requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter');
-                }}
-                className="w-full py-2.5 px-3 rounded-xl bg-white/5 text-left font-bold text-pink-300 cursor-pointer"
-              >
-                AI Clip Cutter (1, 3, 5)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSettingsDrawerOpen(false);
-                  requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans');
-                }}
-                className="w-full py-2.5 px-3 rounded-xl bg-white/5 text-left font-bold text-amber-300 cursor-pointer"
-              >
-                Plans (₹{currentMonthlyPrice}/mo • ₹{currentYearlyPrice}/yr)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSettingsDrawerOpen(false);
-                  requireGoogleAuth(() => setIsAdminOpen(true), 'Owner Admin Console');
-                }}
-                className="w-full py-2.5 px-3 rounded-xl bg-purple-600/25 text-left font-extrabold text-purple-300 cursor-pointer"
-              >
-                🔐 Owner Admin Console
-              </button>
-            </div>
-            <div className="text-[10px] text-slate-500 font-mono text-center">
-              {currentWatermark}
-            </div>
-          </div>
-        </div>
-      )}
-
       <GoogleVerificationGuideModal
         isOpen={isAuthGateModalOpen}
-        onClose={() => setIsAuthGateModalOpen(false)}
+        onClose={() => {
+          pendingActionRef.current = null;
+          setIsAuthGateModalOpen(false);
+        }}
         onConnectGoogle={startGoogleLogin}
         isLoggingIn={isLoggingIn}
         blockedOptionName={blockedOptionName}
       />
 
+      {isTermsOpen && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-3 max-h-[85vh] overflow-y-auto text-xs text-slate-300">
+            <button
+              type="button"
+              onClick={() => setIsTermsOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-extrabold text-white">Terms & Conditions</h3>
+            <p className="text-[11px] text-slate-400">Service: ShortsPilot AI (shortspilot.in)</p>
+            <div className="space-y-2 leading-relaxed">
+              <p>
+                <b className="text-white">1. Content Rights:</b> Aap sirf wahi videos upload/cut aur
+                publish karein jinke rights aapke paas hain ya jo copyright guidelines ke anusaar
+                allowed hain.
+              </p>
+              <p>
+                <b className="text-white">2. YouTube & Third-Party Rules:</b> Shorts YouTube ke
+                Community Guidelines aur Terms of Service ke mutabik publish kiye jaate hain;
+                platform moderation ya reach ki guarantee nahi deta.
+              </p>
+              <p>
+                <b className="text-white">3. Subscriptions & Payments:</b> Plans (Monthly / Yearly)
+                digital automation access ke liye hain; Razorpay payment complete hone ke baad plan
+                active hota hai.
+              </p>
+              <p>
+                <b className="text-white">4. Local Storage & Tokens:</b> Clips local IndexedDB mein
+                aur account/token details aapke browser storage mein save rehte hain; public ya
+                shared devices par logout karein.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsTermsOpen(false)}
+              className="w-full py-2.5 rounded-2xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       {isGoogleAccountModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-blue-500/50 p-6 space-y-3 text-xs">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!manualGoogleEmail.trim()) return;
+              applyConnectedGoogleProfile({
+                name: manualGoogleName.trim() || manualGoogleEmail.trim().split('@')[0],
+                email: manualGoogleEmail.trim()
+              });
+              setManualGoogleEmail('');
+              setManualGoogleName('');
+              setIsGoogleAccountModalOpen(false);
+            }}
+            className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-6 space-y-3"
+          >
             <button
               type="button"
               onClick={() => setIsGoogleAccountModalOpen(false)}
@@ -2800,46 +3177,37 @@ export default function App() {
               <X className="w-5 h-5" />
             </button>
             <h3 className="text-base font-extrabold text-white">Connect Google Account</h3>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const em = manualGoogleEmail.trim().toLowerCase();
-                if (!em || !em.includes('@')) return;
-                applyConnectedGoogleProfile({
-                  name: manualGoogleName.trim() || em.split('@')[0],
-                  email: em
-                });
-              }}
-              className="space-y-2.5"
+            <input
+              type="text"
+              value={manualGoogleName}
+              onChange={(e) => setManualGoogleName(e.target.value)}
+              placeholder="Channel / Creator Name"
+              className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+            />
+            <input
+              type="email"
+              required
+              value={manualGoogleEmail}
+              onChange={(e) => setManualGoogleEmail(e.target.value)}
+              placeholder="Enter Google Gmail ID"
+              className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+            />
+            <button
+              type="submit"
+              className="w-full py-3 rounded-2xl bg-[#4285F4] text-white font-extrabold text-xs cursor-pointer"
             >
-              <input
-                type="text"
-                value={manualGoogleName}
-                onChange={(e) => setManualGoogleName(e.target.value)}
-                placeholder="Channel / Creator Name"
-                className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white"
-              />
-              <input
-                type="email"
-                value={manualGoogleEmail}
-                onChange={(e) => setManualGoogleEmail(e.target.value)}
-                placeholder="you@gmail.com"
-                className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white"
-              />
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-xl bg-[#4285F4] text-white font-extrabold cursor-pointer"
-              >
-                Save Account
-              </button>
-            </form>
-          </div>
+              Save & Connect Google
+            </button>
+          </form>
         </div>
       )}
 
-      {isIgModalOpen && (
+      {isIgModalOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-pink-500/50 p-6 space-y-3 text-xs">
+          <form
+            onSubmit={handleSaveInstagramToken}
+            className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-pink-500/50 p-6 space-y-3"
+          >
             <button
               type="button"
               onClick={() => setIsIgModalOpen(false)}
@@ -2847,75 +3215,39 @@ export default function App() {
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-base font-extrabold text-white">Instagram Token</h3>
-            <form onSubmit={handleSaveInstagramToken} className="space-y-2.5">
-              <input
-                type="text"
-                value={igUsernameDraft}
-                onChange={(e) => setIgUsernameDraft(e.target.value)}
-                placeholder="@username"
-                className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white"
-              />
-              <input
-                type="password"
-                value={igTokenDraft}
-                onChange={(e) => setIgTokenDraft(e.target.value)}
-                placeholder="Instagram Access Token"
-                className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white"
-              />
-              {igError && <p className="text-rose-400 font-bold">{igError}</p>}
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-xl bg-pink-600 text-white font-extrabold cursor-pointer"
-              >
-                Save Token
-              </button>
-            </form>
-          </div>
+            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+              <Instagram className="w-4 h-4 text-pink-300" /> Instagram Token Connect
+            </h3>
+            <input
+              type="text"
+              required
+              value={igUsernameDraft}
+              onChange={(e) => setIgUsernameDraft(e.target.value)}
+              placeholder="@your_instagram"
+              className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-pink-300 font-mono"
+            />
+            <input
+              type="text"
+              required
+              value={igTokenDraft}
+              onChange={(e) => setIgTokenDraft(e.target.value)}
+              placeholder="Paste Instagram Token..."
+              className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
+            />
+            {igError && <p className="text-xs text-rose-400 font-bold">{igError}</p>}
+            <button
+              type="submit"
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
+            >
+              Save & Connect Instagram
+            </button>
+          </form>
         </div>
       )}
 
-      {isSplitterModalOpen && (
+      {isThumbnailModalOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-pink-500/50 p-6 space-y-3">
-            <button
-              type="button"
-              onClick={() => setIsSplitterModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="text-base font-extrabold">Cut Shorts (1, 3, 5)</h3>
-            <div className="grid grid-cols-3 gap-2">
-              {[1, 3, 5].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setClipSplitCount(n)}
-                  className={`py-2.5 rounded-xl border text-xs font-extrabold cursor-pointer ${
-                    clipSplitCount === n
-                      ? 'bg-pink-600 border-pink-400 text-white'
-                      : 'bg-[#130c26] border-slate-700 text-slate-300'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => splitterInputRef.current?.click()}
-              className="w-full py-3 rounded-2xl bg-pink-600 text-white font-extrabold text-xs cursor-pointer"
-            >
-              Select Video &amp; Cut
-            </button>
-          </div>
-        </div>
-      )}
-
-      {isThumbnailModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-3">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <button
               type="button"
               onClick={() => setIsThumbnailModalOpen(false)}
@@ -2923,51 +3255,117 @@ export default function App() {
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-base font-extrabold">9:16 Thumbnail Preset</h3>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const next = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
-                setThumbConcepts(next);
-                setSelectedThumbConcept(next[0]);
-              }}
-              className="flex gap-2"
-            >
+            <div className="flex items-center gap-2">
+              <ImageIcon className="w-5 h-5 text-cyan-300" />
+              <h3 className="text-base font-extrabold text-white">9:16 Thumbnail Preset</h3>
+            </div>
+
+            <form onSubmit={handleGenerateThumbnails} className="flex gap-2">
               <input
                 type="text"
                 value={thumbTopicInput}
                 onChange={(e) => setThumbTopicInput(e.target.value)}
-                placeholder="Topic / Hook text..."
-                className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+                placeholder="Enter cover label..."
+                className="flex-1 px-3 py-2.5 rounded-xl bg-[#06040c] border border-cyan-500/40 text-xs text-white"
               />
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
               >
-                Apply
+                Generate
               </button>
             </form>
-            <div className="grid grid-cols-3 gap-2">
-              {thumbConcepts.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => setSelectedThumbConcept(item)}
-                  className={`p-3 rounded-2xl bg-gradient-to-b ${item.gradient} border-2 cursor-pointer text-center ${
-                    selectedThumbConcept?.id === item.id ? 'border-amber-400' : 'border-white/15'
-                  }`}
-                >
-                  <div className="text-[11px] font-black text-white">{item.hookText}</div>
-                  <div className="text-[9px] text-emerald-300 mt-1">{item.ctrScore}</div>
-                </div>
-              ))}
+
+            <div className="grid grid-cols-3 gap-2.5">
+              {thumbConcepts.map((item) => {
+                const isSelected = selectedThumbConcept?.id === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedThumbConcept(item)}
+                    className={`aspect-[9/16] rounded-2xl bg-gradient-to-b ${item.gradient} p-2.5 flex flex-col justify-between border-2 cursor-pointer transition-all ${
+                      isSelected
+                        ? 'border-amber-400 scale-[1.02] shadow-[0_0_15px_rgba(251,191,36,0.4)]'
+                        : 'border-white/15 opacity-85'
+                    }`}
+                  >
+                    <span className="px-1.5 py-0.5 rounded bg-black/60 text-[7px] font-extrabold text-white self-start">
+                      {item.badge}
+                    </span>
+                    <div className="text-center space-y-1 my-auto">
+                      <div className="text-xs font-black text-white leading-tight drop-shadow">
+                        {item.hookText}
+                      </div>
+                      <div className={`text-[8.5px] font-extrabold ${item.accentText} truncate`}>
+                        {item.subText}
+                      </div>
+                    </div>
+                    <div className="text-[7.5px] font-extrabold text-emerald-300 bg-black/50 rounded px-1.5 py-0.5 text-center">
+                      {item.ctrScore}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsThumbnailModalOpen(false)}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
+            >
+              Apply Selected 9:16 Thumbnail ({selectedThumbConcept?.hookText})
+            </button>
           </div>
         </div>
       )}
 
-      {isPricingOpen && (
+      {isSplitterModalOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-amber-400/50 p-6 space-y-3">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-pink-500/50 p-6 space-y-4">
+            <button
+              type="button"
+              onClick={() => setIsSplitterModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2">
+              <Scissors className="w-5 h-5 text-pink-400" />
+              <h3 className="text-base font-extrabold text-white">AI Engaging Shorts Cutter</h3>
+            </div>
+            <p className="text-xs text-slate-300">
+              Select how many Shorts you want AI to cut from your video:
+            </p>
+            <div className="grid grid-cols-3 gap-2.5">
+              {[1, 3, 5].map((count) => (
+                <button
+                  key={count}
+                  type="button"
+                  onClick={() => setClipSplitCount(count)}
+                  className={`py-3 rounded-2xl border text-xs font-extrabold cursor-pointer ${
+                    clipSplitCount === count
+                      ? 'bg-pink-600 border-pink-400 text-white shadow-lg'
+                      : 'bg-[#130c26] border-slate-700 text-slate-300'
+                  }`}
+                >
+                  {count} {count === 1 ? 'Short' : 'Shorts'}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => splitterInputRef.current?.click()}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
+            >
+              Select Video & Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isPricingOpen && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-amber-400/50 p-6 space-y-4 max-h-[92vh] overflow-y-auto">
             <button
               type="button"
               onClick={() => setIsPricingOpen(false)}
@@ -2975,61 +3373,224 @@ export default function App() {
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-base font-extrabold">Offer Plans</h3>
-            {upgradeReason && <p className="text-xs text-amber-300">{upgradeReason}</p>}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-extrabold">
+                LIMITED TIME LAUNCH OFFER
+              </span>
+              <h3 className="text-base font-extrabold text-white">
+                Choose Your ShortsPilot Offer Plan
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => setSelectedBilling('monthly')}
                 className={`p-3 rounded-2xl border text-left cursor-pointer ${
                   selectedBilling === 'monthly'
-                    ? 'bg-cyan-500/20 border-cyan-400'
-                    : 'border-slate-800'
+                    ? 'bg-cyan-500/20 border-cyan-400 text-white'
+                    : 'bg-[#120d24] border-slate-800 text-slate-400'
                 }`}
               >
-                <div className="text-xs font-extrabold text-cyan-300">
-                  Monthly ₹{currentMonthlyPrice}
+                <div className="text-[10px] font-extrabold text-cyan-300">MONTHLY PRO</div>
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <span className="text-lg font-extrabold text-white">
+                    ₹{globalConfig.monthlyPrice || '99'}
+                  </span>
+                  <span className="text-xs line-through text-slate-500">₹499</span>
+                </div>
+                <div className="text-[9.5px] text-emerald-400 font-bold mt-1">
+                  50K+ Views Guarantee
                 </div>
               </button>
+
               <button
                 type="button"
                 onClick={() => setSelectedBilling('yearly')}
                 className={`p-3 rounded-2xl border text-left cursor-pointer ${
                   selectedBilling === 'yearly'
-                    ? 'bg-amber-500/20 border-amber-400'
-                    : 'border-slate-800'
+                    ? 'bg-amber-500/20 border-amber-400 text-white'
+                    : 'bg-[#120d24] border-slate-800 text-slate-400'
                 }`}
               >
-                <div className="text-xs font-extrabold text-amber-300">
-                  Yearly ₹{currentYearlyPrice}
+                <div className="text-[10px] font-extrabold text-amber-300">YEARLY VIP</div>
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <span className="text-lg font-extrabold text-amber-400">
+                    ₹{globalConfig.yearlyPrice || '1499'}
+                  </span>
+                  <span className="text-xs line-through text-slate-500">₹6999</span>
+                </div>
+                <div className="text-[9.5px] text-amber-200 font-bold mt-1">
+                  100K+ Views Guarantee
                 </div>
               </button>
             </div>
-            <input
-              type="email"
-              value={checkoutEmail}
-              onChange={(e) => setCheckoutEmail(e.target.value)}
-              placeholder="Gmail ID"
-              className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
-            />
-            {checkoutError && <p className="text-xs text-rose-400">{checkoutError}</p>}
-            {checkoutPendingMsg && (
-              <p className="text-xs text-emerald-300">{checkoutPendingMsg}</p>
-            )}
-            <button
-              type="button"
-              onClick={handleOpenRazorpayCheckout}
-              className="w-full py-3 rounded-2xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
-            >
-              Pay via Razorpay
-            </button>
+
+            {upgradeReason && <p className="text-xs text-amber-200">{upgradeReason}</p>}
+
+            <div className="space-y-2.5">
+              <input
+                type="email"
+                value={checkoutEmail}
+                onChange={(e) => setCheckoutEmail(e.target.value)}
+                placeholder="Enter Your Gmail ID"
+                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+              />
+
+              {checkoutError && <p className="text-xs text-rose-400 font-bold">{checkoutError}</p>}
+              {checkoutPendingMsg && (
+                <p className="text-xs text-emerald-300 font-bold">{checkoutPendingMsg}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleOpenRazorpayCheckout}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-xs cursor-pointer shadow-lg"
+              >
+                💳 Pay Instantly via Razorpay (₹
+                {selectedBilling === 'yearly'
+                  ? globalConfig.yearlyPrice || '1499'
+                  : globalConfig.monthlyPrice || '99'}
+                )
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {isNotificationOpen && (
+      {isSettingsDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex bg-black/75 lg:hidden">
+          <div className="w-68 bg-[#0b0818] border-r border-purple-500/30 h-full p-5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <span className="font-extrabold text-sm text-white">ShortsPilot AI</span>
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsDrawerOpen(false)}
+                  className="text-slate-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-1 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('home');
+                    setIsSettingsDrawerOpen(false);
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-slate-200 cursor-pointer"
+                >
+                  Home Dashboard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    openGoogleGuidePopup(startGoogleLogin, 'Google Connect');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-[#4285F4] cursor-pointer"
+                >
+                  {isGoogleConnected ? '✅ Google Connected' : 'Connect Google'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsIgModalOpen(true), 'Instagram Token Connect');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-pink-300 flex items-center justify-between cursor-pointer"
+                >
+                  <span>📸 Instagram</span>
+                  <span className="text-[10px] text-amber-300">
+                    {igData.connected ? 'Connected ✅' : 'Pending ⏳'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-pink-300 cursor-pointer"
+                >
+                  ✂️ AI Engaging Shorts (1, 3, 5)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
+                >
+                  🎨 9:16 Thumbnail Preset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer"
+                >
+                  🔥 Offer Plans (₹99 / ₹1,499)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setActiveTab('settings'), 'Settings');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-slate-300 cursor-pointer"
+                >
+                  Settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
+                >
+                  📄 Terms & Conditions
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsAdminOpen(true), 'Owner Admin Console');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-rose-400 cursor-pointer"
+                >
+                  🔐 Owner Admin Console
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {isGoogleConnected && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    logoutGoogle();
+                    setIsSettingsDrawerOpen(false);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" /> Logout
+                </button>
+              )}
+              <div className="text-[10px] text-slate-500">Developed by shortspilot.in</div>
+            </div>
+          </div>
+          <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
+        </div>
+      )}
+
+      {isNotificationOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-5 space-y-3 text-xs">
+          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-6 space-y-2.5">
             <button
               type="button"
               onClick={() => setIsNotificationOpen(false)}
@@ -3037,72 +3598,22 @@ export default function App() {
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-base font-extrabold text-white">Notifications</h3>
-            <div className="space-y-2">
-              {notificationsList.map((n) => (
-                <div
-                  key={n.id}
-                  className="p-3 rounded-2xl bg-[#120d24] border border-slate-800 space-y-1"
-                >
-                  <div className="font-bold text-cyan-300">{n.title}</div>
-                  <div className="text-slate-300">{n.desc}</div>
-                </div>
-              ))}
-            </div>
+            <h3 className="text-sm font-extrabold text-white">Notifications</h3>
+            {notificationsList.map((n) => (
+              <div key={n.id} className="p-3 rounded-xl bg-[#130d26] text-xs space-y-1">
+                <div className="font-bold text-white">{n.title}</div>
+                <p className="text-slate-300 text-[11px]">{n.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {isTermsOpen && (
+      {showAiSupport && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-purple-500/40 p-6 space-y-3 text-xs">
-            <button
-              type="button"
-              onClick={() => setIsTermsOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="text-base font-extrabold text-white">Terms &amp; Conditions</h3>
-            <p className="text-slate-300 leading-relaxed">
-              ShortsPilot AI ({currentWatermark}) is operated for YouTube Shorts creation, 9:16
-              thumbnail generation, and scheduled publishing. Users remain responsible for
-              uploaded media rights and platform policies.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {previewClip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
-          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-4 space-y-3">
-            <button
-              type="button"
-              onClick={() => setPreviewClip(null)}
-              className="absolute top-3 right-3 text-slate-400 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="text-xs font-extrabold truncate pr-6">{previewClip.title}</div>
-            <video
-              src={sanitizeMediaUrl(previewClip.croppedUrl)}
-              controls
-              autoPlay
-              playsInline
-              className="w-full aspect-[9/16] rounded-2xl bg-black"
-            />
-            <pre className="text-[10px] text-slate-200 whitespace-pre-wrap bg-[#06040c] p-2.5 rounded-xl">
-              {previewClip.description}
-            </pre>
-          </div>
-        </div>
-      )}
-
-      {showAiSupport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-sm h-[380px] rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-4 flex flex-col">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-              <span className="text-xs font-extrabold">AI Support</span>
+          <div className="relative w-full max-w-sm h-[420px] rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-4 flex flex-col">
+            <div className="flex justify-between items-center pb-2.5 border-b border-slate-800">
+              <span className="text-xs font-extrabold text-white">ShortsPilot AI Support</span>
               <button
                 type="button"
                 onClick={() => setShowAiSupport(false)}
@@ -3111,41 +3622,31 @@ export default function App() {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto space-y-2 py-2 text-xs">
+            <div className="flex-1 overflow-y-auto space-y-2 py-3 text-xs">
               {supportMessages.map((m, i) => (
                 <div
                   key={i}
-                  className={`p-2 rounded-xl ${
-                    m.role === 'user' ? 'bg-purple-600 ml-6' : 'bg-[#140e28] mr-6'
+                  className={`p-2.5 rounded-xl ${
+                    m.role === 'user'
+                      ? 'bg-purple-600 text-white ml-6'
+                      : 'bg-[#140e28] text-slate-200 mr-6'
                   }`}
                 >
                   {m.text}
                 </div>
               ))}
             </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!supportInput.trim()) return;
-                setSupportMessages((p) => [
-                  ...p,
-                  { role: 'user', text: supportInput.trim() },
-                  { role: 'ai', text: 'ShortsPilot auto-post by default aur #Shorts mode par set hai.' }
-                ]);
-                setSupportInput('');
-              }}
-              className="flex gap-2"
-            >
+            <form onSubmit={handleSendSupport} className="flex gap-2 pt-2 border-t border-slate-800">
               <input
                 type="text"
                 value={supportInput}
                 onChange={(e) => setSupportInput(e.target.value)}
-                placeholder="Ask..."
+                placeholder="Ask anything..."
                 className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
               />
               <button
                 type="submit"
-                className="px-3 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
               >
                 Send
               </button>
@@ -3154,26 +3655,174 @@ export default function App() {
         </div>
       )}
 
-      <AdminConsoleModal
-        isOpen={isAdminOpen}
-        onClose={() => setIsAdminOpen(false)}
-        adminUnlocked={adminUnlocked}
-        setAdminUnlocked={setAdminUnlocked}
-        adminPinInput={adminPinInput}
-        setAdminPinInput={setAdminPinInput}
-        adminError={adminError}
-        setAdminError={setAdminError}
-        globalConfig={globalConfig}
-        setGlobalConfig={setGlobalConfig}
-        liveDbUrl={liveDbUrl}
-        setLiveDbUrl={setLiveDbUrl}
-        transactions={transactions}
-        setTransactions={setTransactions}
-        fetchFirebaseData={fetchFirebaseData}
-        dbBase={dbBase}
-        setTier={setTier}
-        onSavedNotice={(msg) => setAutoPublishStatus(msg)}
-      />
+      {previewClip && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
+          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-4 space-y-3 max-h-[92vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setPreviewClip(null)}
+              className="absolute top-3 right-3 p-1.5 rounded-full bg-slate-900 text-white cursor-pointer z-20"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="text-xs font-extrabold text-white text-center pr-6 truncate">
+              {previewClip.title}
+            </div>
+
+            <div className="relative w-full max-w-[230px] mx-auto rounded-2xl overflow-hidden border border-purple-500/40">
+              <video
+                src={sanitizeMediaUrl(previewClip.croppedUrl)}
+                controls
+                autoPlay
+                playsInline
+                className="w-full aspect-[9/16] bg-black"
+              />
+              <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/65 border border-white/15 text-[8.5px] font-extrabold text-cyan-300 pointer-events-none">
+                {previewClip.watermarkText || 'Developed by shortspilot.in'}
+              </div>
+            </div>
+
+            <div className="space-y-1.5 text-left">
+              <div className="text-[10px] font-extrabold text-pink-300">Description & #Tags:</div>
+              <pre className="text-[10px] text-slate-200 whitespace-pre-wrap font-sans bg-[#06040c] p-2.5 rounded-xl border border-slate-800 max-h-36 overflow-y-auto">
+                {previewClip.description}
+              </pre>
+            </div>
+
+            <ClipActionShortcuts
+              clip={previewClip}
+              onPreview={setPreviewClip}
+              onCopyDescription={handleCopyDescription}
+              onSendThumbAI={handleSendThumbAI}
+            />
+          </div>
+        </div>
+      )}
+
+      {isAdminOpen && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3 max-h-[88vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setIsAdminOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-extrabold text-white">🔐 Owner Admin Console</h3>
+
+            {!adminUnlocked ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (adminPinInput.trim() === (globalConfig.adminPin || '9767905729')) {
+                    setAdminUnlocked(true);
+                    setAdminError('');
+                    fetchFirebaseData();
+                  } else {
+                    setAdminError('Invalid Admin PIN.');
+                  }
+                }}
+                className="space-y-2.5"
+              >
+                <input
+                  type="password"
+                  value={adminPinInput}
+                  onChange={(e) => setAdminPinInput(e.target.value)}
+                  placeholder="Enter Admin PIN"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+                />
+                {adminError && <p className="text-xs text-rose-400">{adminError}</p>}
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-xl bg-purple-600 text-white text-xs font-extrabold cursor-pointer"
+                >
+                  Unlock Admin
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-3 text-xs">
+                <div className="p-3 rounded-xl bg-[#120d24] border border-slate-800 space-y-2">
+                  <div className="font-bold text-cyan-300">Pricing & UPI</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={globalConfig.monthlyPrice}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, monthlyPrice: e.target.value }))
+                      }
+                      placeholder="Monthly Price"
+                      className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                    <input
+                      type="text"
+                      value={globalConfig.yearlyPrice}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, yearlyPrice: e.target.value }))
+                      }
+                      placeholder="Yearly Price"
+                      className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={globalConfig.receiverUpi}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, receiverUpi: e.target.value }))
+                    }
+                    placeholder="Receiver UPI"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
+                  />
+                  <input
+                    type="text"
+                    value={liveDbUrl}
+                    onChange={(e) => setLiveDbUrl(e.target.value)}
+                    placeholder="Firebase RTDB URL"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      localStorage.setItem('sp_global_config', JSON.stringify(globalConfig));
+                      localStorage.setItem('sp_firebase_url', liveDbUrl);
+                      setTier('pro');
+                      if (dbBase) {
+                        try {
+                          await fetch(`${dbBase}/siteConfig.json`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(globalConfig)
+                          });
+                        } catch {}
+                      }
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-emerald-500 text-black font-extrabold cursor-pointer"
+                  >
+                    Save Config
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="font-bold text-amber-300">
+                    Transactions ({transactions.length})
+                  </div>
+                  {transactions.slice(0, 8).map((t, idx) => (
+                    <div
+                      key={t.firebaseKey || t.id || idx}
+                      className="p-2.5 rounded-xl bg-[#120d24] border border-slate-800 flex items-center justify-between text-[11px]"
+                    >
+                      <div className="truncate">
+                        <b>{t.user}</b> • {t.amount} • ID: <span className="font-mono">{t.id}</span>
+                      </div>
+                      <span className="text-amber-300 font-bold ml-2">{t.status || 'Checkout Opened'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
