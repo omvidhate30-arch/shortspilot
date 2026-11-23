@@ -496,7 +496,9 @@ const idbGetAllClips = async () => {
       const tx = db.transaction(IDB_STORE, 'readonly');
       const req = tx.objectStore(IDB_STORE).getAll();
       req.onsuccess = () => {
-        const items = (req.result || []).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+        const items = (req.result || []).sort(
+          (a, b) => (b.savedAt || 0) - (a.savedAt || 0)
+        );
         resolve(
           items.map((item) => {
             const baseUrl = item.blob instanceof Blob ? URL.createObjectURL(item.blob) : '';
@@ -658,7 +660,13 @@ const buildThumbnailConcepts = (topic = 'VIRAL') => {
 };
 
 const GoogleVerificationGuideModal = React.memo(
-  ({ isOpen, onClose, onConnectGoogle, isLoggingIn, blockedOptionName = '' }) => {
+  ({
+    isOpen,
+    onClose,
+    onConnectGoogle,
+    isLoggingIn,
+    blockedOptionName = ''
+  }) => {
     const [stepIndex, setStepIndex] = useState(0);
 
     useEffect(() => {
@@ -672,8 +680,8 @@ const GoogleVerificationGuideModal = React.memo(
         badge: 'STEP 1 OF 3 • CLICK ADVANCED',
         title: '1. Warning Screen Par "Advanced" Dabaye',
         desc: blockedOptionName
-          ? `"${blockedOptionName}" use karne ke liye Google login karein. Screen par "Advanced" option dikhega — uspe click karein.`
-          : 'Login screen par warning dikhne par neeche left mein "Advanced" par click karein.',
+          ? `"${blockedOptionName}" use karne ke liye Google login karein. Google verification pending hone par screen par "Advanced" option dikhega — uspe click karein.`
+          : 'Google verification pending hone ki wajah se login screen par warning dikh sakti hai. Neeche left mein "Advanced" par click karein.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2.5 select-none">
             <div className="flex items-center gap-2">
@@ -796,7 +804,9 @@ const GoogleVerificationGuideModal = React.memo(
 
             <button
               type="button"
-              onClick={() => setStepIndex((prev) => Math.min(guideSteps.length - 1, prev + 1))}
+              onClick={() =>
+                setStepIndex((prev) => Math.min(guideSteps.length - 1, prev + 1))
+              }
               disabled={stepIndex === guideSteps.length - 1}
               className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-cyan-300 disabled:opacity-35 cursor-pointer"
             >
@@ -1295,477 +1305,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
   </nav>
 ));
 
-export default function App() {
-  const [googleUser, setGoogleUser] = useState(() => {
-    try {
-      const saved =
-        localStorage.getItem('sp_google_user') || localStorage.getItem('shortspilot_google_user');
-      const parsed = saved ? JSON.parse(saved) : null;
-      return parsed && typeof parsed === 'object' ? parsed : null;
-    } catch {
-      return null;
-    }
-  });
-
-  const [youtubeAccessToken, setYoutubeAccessToken] = useState(
-    () =>
-      localStorage.getItem('sp_yt_access_token') ||
-      localStorage.getItem('shortspilot_yt_access_token') ||
-      ''
-  );
-
-  const [youtubeRefreshToken, setYoutubeRefreshToken] = useState(
-    () =>
-      localStorage.getItem('sp_yt_refresh_token') ||
-      localStorage.getItem('shortspilot_yt_refresh_token') ||
-      ''
-  );
-
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [loginError, setLoginError] = useState('');
-  const [isAuthGateModalOpen, setIsAuthGateModalOpen] = useState(false);
-  const [blockedOptionName, setBlockedOptionName] = useState('');
-  const [isGoogleAccountModalOpen, setIsGoogleAccountModalOpen] = useState(false);
-  const [manualGoogleEmail, setManualGoogleEmail] = useState('');
-  const [manualGoogleName, setManualGoogleName] = useState('');
-
-  const isGoogleConnected = Boolean(googleUser?.email);
-  const pendingActionRef = useRef(null);
-
-  const openGoogleGuidePopup = useCallback((actionFn = null, optionLabel = 'Google Login') => {
-    pendingActionRef.current = actionFn || null;
-    setBlockedOptionName(optionLabel);
-    setIsAuthGateModalOpen(true);
-  }, []);
-
-  const requireGoogleAuth = useCallback(
-    (actionFn, optionLabel = 'this option') => {
-      if (isGoogleConnected) {
-        actionFn?.();
-        return true;
-      }
-      openGoogleGuidePopup(actionFn, optionLabel);
-      return false;
-    },
-    [isGoogleConnected, openGoogleGuidePopup]
-  );
-
-  const [globalConfig, setGlobalConfig] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('sp_global_config') || 'null');
-      if (saved && typeof saved === 'object') {
-        return {
-          ...saved,
-          monthlyOriginalPrice: '499',
-          monthlyPrice: saved.monthlyPrice || '99',
-          yearlyOriginalPrice: '6999',
-          yearlyPrice: saved.yearlyPrice || '3999',
-          watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
-          ownerAlertEmail: saved.ownerAlertEmail || '',
-          paymentWebhookUrl: saved.paymentWebhookUrl || '',
-          ytAutoUploadActive: saved.ytAutoUploadActive !== false,
-          shortsOnlyMode: saved.shortsOnlyMode !== false,
-          maintenanceMode: Boolean(saved.maintenanceMode),
-          announcementBanner: saved.announcementBanner || '',
-          blockedEmails: Array.isArray(saved.blockedEmails) ? saved.blockedEmails : [],
-          adsEnabled: saved.adsEnabled !== false,
-          adBadgeText: saved.adBadgeText || 'SPONSORED AD',
-          adTitleText:
-            saved.adTitleText || 'Upgrade to Yearly VIP (₹3,999/yr) for Priority 4x Daily Shorts Slots',
-          adCtaLabel: saved.adCtaLabel || 'Explore VIP',
-          adClickUrl: saved.adClickUrl || 'https://www.shortspilot.in'
-        };
-      }
-    } catch {}
-    return {
-      receiverUpi: '9767905729@paytm',
-      monthlyOriginalPrice: '499',
-      monthlyPrice: '99',
-      yearlyOriginalPrice: '6999',
-      yearlyPrice: '3999',
-      couponCode: 'SAVE200',
-      couponDiscount: '200',
-      freeLimit: 3,
-      watermarkText: 'Developed by shortspilot.in',
-      ownerAlertEmail: '',
-      paymentWebhookUrl: '',
-      ytAutoUploadActive: true,
-      shortsOnlyMode: true,
-      maintenanceMode: false,
-      announcementBanner: '',
-      blockedEmails: [],
-      adsEnabled: true,
-      adBadgeText: 'SPONSORED AD',
-      adTitleText:
-        'Upgrade to Yearly VIP (₹3,999/yr) for Priority 4x Daily Shorts Slots',
-      adCtaLabel: 'Explore VIP',
-      adClickUrl: 'https://www.shortspilot.in',
-      adminPin: '9767905729'
-    };
-  });
-
-  const [igData, setIgData] = useState(() => {
-    try {
-      const reg = readLocalRegistry()['creator@shortspilot.in'];
-      if (reg?.igToken) {
-        return {
-          username: reg.igUsername || '@instagram_user',
-          token: reg.igToken,
-          connected: true
-        };
-      }
-    } catch {}
-    return { username: '', token: '', connected: false };
-  });
-
-  const [igUsernameDraft, setIgUsernameDraft] = useState(() => igData.username || '');
-  const [igTokenDraft, setIgTokenDraft] = useState(() => igData.token || '');
-  const [isIgModalOpen, setIsIgModalOpen] = useState(false);
-  const [igError, setIgError] = useState('');
-
-  const [activeTab, setActiveTab] = useState('home');
-  const [tier, setTier] = useState('pro');
-  const [videoQueue, setVideoQueue] = useState([]);
-
-  const [clipSplitCount, setClipSplitCount] = useState(3);
-  const [isSplitterModalOpen, setIsSplitterModalOpen] = useState(false);
-
-  const [isThumbnailModalOpen, setIsThumbnailModalOpen] = useState(false);
-  const [thumbTopicInput, setThumbTopicInput] = useState('');
-  const [selectedThumbConcept, setSelectedThumbConcept] = useState(
-    () => buildThumbnailConcepts('VIRAL')[0]
-  );
-  const [thumbConcepts, setThumbConcepts] = useState(() => buildThumbnailConcepts('VIRAL'));
-
-  const [selectedTimeSlot] = useState(() => {
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const upcoming =
-      DAILY_AUTO_SLOTS.find((s) => s.hour * 60 + s.minute > currentMinutes) || DAILY_AUTO_SLOTS[0];
-    return `${upcoming.label} • 4 Daily Slots`;
-  });
-
-  const [autoPublishStatus, setAutoPublishStatus] = useState('');
-  const [manualPostMode, setManualPostMode] = useState(false);
-
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [notificationsList, setNotificationsList] = useState([
-    {
-      id: 1,
-      title: 'Auto-Post & Shorts Mode Active ✅',
-      desc: 'Auto-posting is enabled by default for #Shorts.',
-      unread: true
-    }
-  ]);
-
-  const [showAiSupport, setShowAiSupport] = useState(false);
-  const [supportMessages, setSupportMessages] = useState([
-    {
-      role: 'ai',
-      text: 'Namaste! ShortsPilot auto-post by default aur #Shorts mode par set hai.'
-    }
-  ]);
-  const [supportInput, setSupportInput] = useState('');
-
-  const [isTermsOpen, setIsTermsOpen] = useState(false);
-  const [isPricingOpen, setIsPricingOpen] = useState(false);
-  const [selectedBilling, setSelectedBilling] = useState('yearly');
-  const [upgradeReason] = useState('');
-
-  const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
-  const [previewClip, setPreviewClip] = useState(null);
-
-  const [checkoutEmail, setCheckoutEmail] = useState(() => googleUser?.email || '');
-  const [checkoutError, setCheckoutError] = useState('');
-  const [checkoutPendingMsg, setCheckoutPendingMsg] = useState('');
-
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [adminPinInput, setAdminPinInput] = useState('');
-  const [adminUnlocked, setAdminUnlocked] = useState(false);
-  const [adminError, setAdminError] = useState('');
-  const [blockedEmailInput, setBlockedEmailInput] = useState('');
-  const [liveDbUrl, setLiveDbUrl] = useState(
-    () => localStorage.getItem('sp_firebase_url') || DEFAULT_FIREBASE_URL
-  );
-  const [transactions, setTransactions] = useState([]);
-
-  const fileInputRef = useRef(null);
-  const splitterInputRef = useRef(null);
-
-  const dbBase = (liveDbUrl || DEFAULT_FIREBASE_URL).trim().replace(/\/$/, '');
-
-  const isCurrentUserBlocked = useMemo(() => {
-    const em = String(googleUser?.email || '').trim().toLowerCase();
-    const blocked = Array.isArray(globalConfig?.blockedEmails)
-      ? globalConfig.blockedEmails.map((x) => String(x).trim().toLowerCase())
-      : [];
-    return Boolean(em && blocked.includes(em));
-  }, [googleUser?.email, globalConfig?.blockedEmails]);
-
-  const handleCopyDescription = useCallback((clip) => {
-    if (clip?.description && navigator.clipboard) {
-      navigator.clipboard.writeText(clip.description).catch(() => {});
-    }
-  }, []);
-
-  const handleSendThumbAI = useCallback(
-    (clip, target = 'gemini') => {
-      sendThumbnailPromptToAI({
-        clip,
-        customStyleNote: '',
-        target,
-        watermarkText: globalConfig.watermarkText || 'Developed by shortspilot.in'
-      });
-    },
-    [globalConfig.watermarkText]
-  );
-
-  const applyConnectedGoogleProfile = useCallback((profile, tokens = {}) => {
-    const userPayload = {
-      name: profile.name || 'YouTube Creator',
-      email: profile.email,
-      avatar: profile.avatar || '',
-      channelId: profile.channelId || '',
-      connectedAt: Date.now()
-    };
-
-    setGoogleUser(userPayload);
-    setCheckoutEmail((prev) => prev || profile.email);
-    try {
-      localStorage.setItem('sp_google_user', JSON.stringify(userPayload));
-      localStorage.setItem('shortspilot_google_user', JSON.stringify(userPayload));
-    } catch {}
-
-    if (tokens.accessToken) {
-      setYoutubeAccessToken(tokens.accessToken);
-      try {
-        localStorage.setItem('sp_yt_access_token', tokens.accessToken);
-        localStorage.setItem('shortspilot_yt_access_token', tokens.accessToken);
-      } catch {}
-    }
-
-    if (tokens.refreshToken) {
-      setYoutubeRefreshToken(tokens.refreshToken);
-      try {
-        localStorage.setItem('sp_yt_refresh_token', tokens.refreshToken);
-        localStorage.setItem('shortspilot_yt_refresh_token', tokens.refreshToken);
-      } catch {}
-    }
-
-    saveLocalRegistry(profile.email, {
-      name: userPayload.name,
-      avatar: userPayload.avatar,
-      channelId: userPayload.channelId
-    });
-
-    setLoginError('');
-    setIsAuthGateModalOpen(false);
-    setIsGoogleAccountModalOpen(false);
-
-    if (pendingActionRef.current) {
-      const nextAction = pendingActionRef.current;
-      pendingActionRef.current = null;
-      setTimeout(() => nextAction?.(), 50);
-    }
-  }, []);
-
-  const startGoogleLogin = useCallback(() => {
-    setLoginError('');
-    setIsLoggingIn(true);
-    try {
-      const origin =
-        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? window.location.origin
-          : FIXED_OAUTH_ORIGIN;
-      const payload = { cid: GOOGLE_CLIENT_ID, origin };
-      if (GOOGLE_CLIENT_SECRET) payload.csec = GOOGLE_CLIENT_SECRET;
-      const statePayload = btoa(JSON.stringify(payload));
-      const redirectUri = encodeURIComponent(`${origin}/api/youtube/callback`);
-      const scope = encodeURIComponent(
-        'openid email profile https://www.googleapis.com/auth/youtube.upload'
-      );
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
-        GOOGLE_CLIENT_ID
-      )}&redirect_uri=${redirectUri}&response_type=code&access_type=offline&prompt=consent&scope=${scope}&state=${encodeURIComponent(
-        statePayload
-      )}`;
-      window.location.href = authUrl;
-    } catch {
-      setIsLoggingIn(false);
-      setIsGoogleAccountModalOpen(true);
-    }
-  }, []);
-
-  const logoutGoogle = useCallback(() => {
-    setGoogleUser(null);
-    setYoutubeAccessToken('');
-    setYoutubeRefreshToken('');
-    setActiveTab('home');
-    setLoginError('');
-    try {
-      localStorage.removeItem('sp_google_user');
-      localStorage.removeItem('shortspilot_google_user');
-      localStorage.removeItem('sp_yt_access_token');
-      localStorage.removeItem('shortspilot_yt_access_token');
-      localStorage.removeItem('sp_yt_refresh_token');
-      localStorage.removeItem('shortspilot_yt_refresh_token');
-    } catch {}
-  }, []);
-
-  const refreshAccessToken = useCallback(async () => {
-    if (!youtubeRefreshToken) return '';
-    try {
-      const res = await fetch('/api/youtube/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          refresh_token: youtubeRefreshToken,
-          client_id: GOOGLE_CLIENT_ID,
-          client_secret: GOOGLE_CLIENT_SECRET
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.access_token) {
-        setYoutubeAccessToken(data.access_token);
-        try {
-          localStorage.setItem('sp_yt_access_token', data.access_token);
-          localStorage.setItem('shortspilot_yt_access_token', data.access_token);
-        } catch {}
-        return data.access_token;
-      }
-    } catch {}
-    return '';
-  }, [youtubeRefreshToken]);
-
-  const uploadClipToYouTube = useCallback(
-    async (clip) => {
-      let token = youtubeAccessToken;
-      if (!token && youtubeRefreshToken) {
-        token = await refreshAccessToken();
-      }
-      if (!token) {
-        return {
-          uploaded: false,
-          videoId: '',
-          error: 'YouTube token nahi mila — Google login dobara karein'
-        };
-      }
-
-      const fileBlob = clip?.blob instanceof Blob ? clip.blob : null;
-      if (!fileBlob || fileBlob.size === 0) {
-        return {
-          uploaded: false,
-          videoId: '',
-          error: 'Video file missing ya empty hai'
-        };
-      }
-
-      const cleanTitleBase = String(clip?.title || 'Viral Short').trim();
-      const cleanTitle = `${cleanTitleBase} #Shorts`
-        .replace(/\s+/g, ' ')
-        .slice(0, 100);
-
-      const metadata = {
-        snippet: {
-          title: cleanTitle,
-          description: String(clip?.description || cleanTitle).slice(0, 4900),
-          categoryId: '22'
-        },
-        status: {
-          privacyStatus: 'public',
-          selfDeclaredMadeForKids: false
-        }
-      };
-
-      const sendUpload = async (bearerToken) => {
-        const form = new FormData();
-        form.append(
-          'metadata',
-          new Blob([JSON.stringify(metadata)], { type: 'application/json; charset=UTF-8' })
-        );
-        form.append(
-          'file',
-          fileBlob,
-          `${String(clip?.title || 'short').replace(/[^\w.-]+/g, '_') || 'short'}.mp4`
-        );
-
-        return fetch(
-          'https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=multipart',
-          {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${bearerToken}` },
-            body: form
-          }
-        );
-      };
-
-      try {
-        let res = await sendUpload(token);
-
-        if (res.status === 401) {
-          const fresh = await refreshAccessToken();
-          if (fresh) {
-            token = fresh;
-            res = await sendUpload(fresh);
-          }
-        }
-
-        const rawText = await res.text();
-        let data = {};
-        try {
-          data = rawText ? JSON.parse(rawText) : {};
-        } catch {
-          data = {};
-        }
-
-        if (!res.ok || !data?.id) {
-          return {
-            uploaded: false,
-            videoId: '',
-            error:
-              data?.error?.message ||
-              data?.error_description ||
-              `YouTube API Error (${res.status})`
-          };
-        }
-
-        const videoId = String(data.id);
-
-        if (videoId && clip?.thumbnailBlob instanceof Blob && clip.thumbnailBlob.size > 0) {
-          try {
-            await fetch(
-              `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(
-                videoId
-              )}`,
-              {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  'Content-Type': 'image/png'
-                },
-                body: clip.thumbnailBlob
-              }
-            );
-          } catch {}
-        }
-
-        return { uploaded: true, videoId, error: '' };
-      } catch (err) {
-        return {
-          uploaded: false,
-          videoId: '',
-          error: err?.message || 'YouTube upload network error'
-        };
-      }
-    },
-    [youtubeAccessToken, youtubeRefreshToken, refreshAccessToken]
-  );
-
-  const handleRetryYouTubeUpload = useCallback(
-    async (clip) => {
-      if (!clip?.id) return;
-      setLoginError('');
-      setAutoPublishStatus(`Uploading Short to YouTube: ${clip.title}...`);
+`Uploading Short to YouTube: ${clip.title}...`);
 
       setVideoQueue((prev) =>
         prev.map((item) =>
@@ -2193,8 +1733,7 @@ export default function App() {
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
-
-  const handleGenerateThumbnails = (e) => {
+const handleGenerateThumbnails = (e) => {
     e.preventDefault();
     const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
     setThumbConcepts(updated);
