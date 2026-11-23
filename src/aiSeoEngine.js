@@ -1,8 +1,14 @@
 const SHORTSPILOT_URLS = Array.from({ length: 400 }, (_, idx) => {
   const num = idx + 1;
-  if (num <= 100) return `https://www.shortspilot.in/shorts/clip-${String(num).padStart(3, '0')}`;
-  if (num <= 200) return `https://www.shortspilot.in/thumbnails/preset-9x16-${String(num - 100).padStart(3, '0')}`;
-  if (num <= 300) return `https://www.shortspilot.in/templates/viral-hook-${String(num - 200).padStart(3, '0')}`;
+  if (num <= 100) {
+    return `https://www.shortspilot.in/shorts/clip-${String(num).padStart(3, '0')}`;
+  }
+  if (num <= 200) {
+    return `https://www.shortspilot.in/thumbnails/preset-9x16-${String(num - 100).padStart(3, '0')}`;
+  }
+  if (num <= 300) {
+    return `https://www.shortspilot.in/templates/viral-hook-${String(num - 200).padStart(3, '0')}`;
+  }
   return `https://www.shortspilot.in/redirect/auto-post-${String(num - 300).padStart(3, '0')}`;
 });
 
@@ -13,11 +19,16 @@ export const detectTopicFromFile = (fileName = '') => {
   const base = String(fileName || '')
     .replace(/\.[^/.]+$/, '')
     .replace(/[_-]+/g, ' ')
-    .replace(/\b(vid|video|screen|recording|record|clip|short|shorts|final|edit|hd|fhd|4k|1080p|720p|60fps|30fps|mp4|mov|mkv)\b/gi, ' ')
+    .replace(
+      /\b(vid|video|screen|recording|record|clip|short|shorts|final|edit|hd|fhd|4k|1080p|720p|60fps|30fps|mp4|mov|mkv)\b/gi,
+      ' '
+    )
     .replace(/\b\d{4,}\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  return base.length >= 2 ? base.replace(/\b\w/g, (ch) => ch.toUpperCase()) : 'Insane Viral Moment';
+  return base.length >= 2
+    ? base.replace(/\b\w/g, (ch) => ch.toUpperCase())
+    : 'Insane Viral Moment';
 };
 
 export const buildClipPackage = (
@@ -53,7 +64,9 @@ export const buildClipPackage = (
     .slice(0, 3)
     .map((w) => `#${w.charAt(0).toUpperCase()}${w.slice(1)}`);
 
-  const hashtags = Array.from(new Set(['#Shorts', ...words, ...tagPools[index % tagPools.length]]))
+  const hashtags = Array.from(
+    new Set(['#Shorts', ...words, ...tagPools[index % tagPools.length]])
+  )
     .slice(0, 5)
     .join(' ');
 
@@ -101,7 +114,9 @@ export const buildMasterThumbnailPrompt = ({
   const hookText = String(clip?.thumbnailHook || 'WAIT FOR END 😱').trim();
   const description = String(clip?.description || '').trim();
   const hashtags = String(clip?.hashtags || '#Shorts #ViralShorts').trim();
-  const credit = String(watermarkText || clip?.watermarkText || 'Developed by shortspilot.in').trim();
+  const credit = String(
+    watermarkText || clip?.watermarkText || 'Developed by shortspilot.in'
+  ).trim();
   const extraStyle = String(customStyleNote || '').trim()
     ? `\n- Custom Style Note: ${String(customStyleNote).trim()}`
     : '';
@@ -130,7 +145,11 @@ export const sendThumbnailPromptToAI = async ({
   target = 'gemini',
   watermarkText = 'Developed by shortspilot.in'
 } = {}) => {
-  const finalPrompt = buildMasterThumbnailPrompt({ clip, customStyleNote, watermarkText });
+  const finalPrompt = buildMasterThumbnailPrompt({
+    clip,
+    customStyleNote,
+    watermarkText
+  });
   try {
     if (typeof navigator !== 'undefined' && navigator?.clipboard?.writeText) {
       await navigator.clipboard.writeText(finalPrompt);
@@ -140,6 +159,8 @@ export const sendThumbnailPromptToAI = async ({
     target === 'chatgpt'
       ? `https://chatgpt.com/?q=${encodeURIComponent(finalPrompt)}`
       : `https://gemini.google.com/app?q=${encodeURIComponent(finalPrompt)}`;
-  if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
+  if (typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
   return finalPrompt;
 };
