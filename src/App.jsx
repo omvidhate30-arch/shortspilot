@@ -1117,7 +1117,7 @@ const DesktopSidebar = React.memo(
           onClick={onOpenAdmin}
           className="w-full py-2.5 px-3 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-extrabold cursor-pointer hover:bg-purple-600/30"
         >
-          🔐 Owner Admin Console
+          🔐 Full Control Admin Console
         </button>
 
         <button
@@ -1294,6 +1294,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
     </button>
   </nav>
 ));
+
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
@@ -1362,7 +1363,17 @@ export default function App() {
           watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
           ownerAlertEmail: saved.ownerAlertEmail || '',
           paymentWebhookUrl: saved.paymentWebhookUrl || '',
-          ytAutoUploadActive: saved.ytAutoUploadActive !== false
+          ytAutoUploadActive: saved.ytAutoUploadActive !== false,
+          shortsOnlyMode: saved.shortsOnlyMode !== false,
+          maintenanceMode: Boolean(saved.maintenanceMode),
+          announcementBanner: saved.announcementBanner || '',
+          blockedEmails: Array.isArray(saved.blockedEmails) ? saved.blockedEmails : [],
+          adsEnabled: saved.adsEnabled !== false,
+          adBadgeText: saved.adBadgeText || 'SPONSORED AD',
+          adTitleText:
+            saved.adTitleText || 'Upgrade to Yearly VIP (₹3,999/yr) for Priority 4x Daily Shorts Slots',
+          adCtaLabel: saved.adCtaLabel || 'Explore VIP',
+          adClickUrl: saved.adClickUrl || 'https://www.shortspilot.in'
         };
       }
     } catch {}
@@ -1379,6 +1390,16 @@ export default function App() {
       ownerAlertEmail: '',
       paymentWebhookUrl: '',
       ytAutoUploadActive: true,
+      shortsOnlyMode: true,
+      maintenanceMode: false,
+      announcementBanner: '',
+      blockedEmails: [],
+      adsEnabled: true,
+      adBadgeText: 'SPONSORED AD',
+      adTitleText:
+        'Upgrade to Yearly VIP (₹3,999/yr) for Priority 4x Daily Shorts Slots',
+      adCtaLabel: 'Explore VIP',
+      adClickUrl: 'https://www.shortspilot.in',
       adminPin: '9767905729'
     };
   });
@@ -1462,6 +1483,7 @@ export default function App() {
   const [adminPinInput, setAdminPinInput] = useState('');
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminError, setAdminError] = useState('');
+  const [blockedEmailInput, setBlockedEmailInput] = useState('');
   const [liveDbUrl, setLiveDbUrl] = useState(
     () => localStorage.getItem('sp_firebase_url') || DEFAULT_FIREBASE_URL
   );
@@ -1471,6 +1493,14 @@ export default function App() {
   const splitterInputRef = useRef(null);
 
   const dbBase = (liveDbUrl || DEFAULT_FIREBASE_URL).trim().replace(/\/$/, '');
+
+  const isCurrentUserBlocked = useMemo(() => {
+    const em = String(googleUser?.email || '').trim().toLowerCase();
+    const blocked = Array.isArray(globalConfig?.blockedEmails)
+      ? globalConfig.blockedEmails.map((x) => String(x).trim().toLowerCase())
+      : [];
+    return Boolean(em && blocked.includes(em));
+  }, [googleUser?.email, globalConfig?.blockedEmails]);
 
   const handleCopyDescription = useCallback((clip) => {
     if (clip?.description && navigator.clipboard) {
@@ -1774,7 +1804,7 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (manualPostMode || !isGoogleConnected) return;
+    if (manualPostMode || !isGoogleConnected || globalConfig?.ytAutoUploadActive === false) return;
 
     const tickSlots = async () => {
       const now = new Date();
@@ -1798,7 +1828,13 @@ export default function App() {
 
     const timer = setInterval(tickSlots, 60000);
     return () => clearInterval(timer);
-  }, [manualPostMode, isGoogleConnected, videoQueue, handleRetryYouTubeUpload]);
+  }, [
+    manualPostMode,
+    isGoogleConnected,
+    globalConfig?.ytAutoUploadActive,
+    videoQueue,
+    handleRetryYouTubeUpload
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -1927,7 +1963,10 @@ export default function App() {
           monthlyPrice: cfgData.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
           yearlyPrice: cfgData.yearlyPrice || '3999',
-          watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in'
+          watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in',
+          blockedEmails: Array.isArray(cfgData.blockedEmails)
+            ? cfgData.blockedEmails
+            : prev.blockedEmails || []
         }));
       }
       const txnData = await txnRes.json();
@@ -2008,7 +2047,7 @@ export default function App() {
       let youtubeVideoId = '';
       let uploadError = '';
 
-      if (!manualPostMode) {
+      if (!manualPostMode && globalConfig?.ytAutoUploadActive !== false) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
           mediaFormat: 'short',
@@ -2105,7 +2144,7 @@ export default function App() {
       let youtubeVideoId = '';
       let uploadError = '';
 
-      if (!manualPostMode && i < 4) {
+      if (!manualPostMode && globalConfig?.ytAutoUploadActive !== false && i < 4) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
           mediaFormat: 'short',
@@ -2154,6 +2193,7 @@ export default function App() {
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
+
   const handleGenerateThumbnails = (e) => {
     e.preventDefault();
     const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
@@ -2243,6 +2283,27 @@ export default function App() {
   };
 
   const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
+  const currentMonthlyPrice = globalConfig.monthlyPrice || '99';
+  const currentYearlyPrice = globalConfig.yearlyPrice || '3999';
+  const currentWatermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
+  const safeAdUrl = sanitizeMediaUrl(globalConfig.adClickUrl) || 'https://www.shortspilot.in';
+
+  if (!isAdminOpen && (globalConfig?.maintenanceMode || isCurrentUserBlocked)) {
+    return (
+      <div className="min-h-screen w-full bg-[#05030a] text-white flex items-center justify-center p-6 text-center">
+        <div className="max-w-md rounded-3xl bg-[#110c22] border border-rose-500/40 p-6 space-y-3">
+          <h2 className="text-lg font-extrabold text-rose-300">
+            {isCurrentUserBlocked ? 'Access Restricted' : 'Site Under Maintenance'}
+          </h2>
+          <p className="text-xs text-slate-300">
+            {isCurrentUserBlocked
+              ? 'Aapka account owner admin dwara block kiya gaya hai.'
+              : globalConfig?.announcementBanner || 'Website abhi maintenance mode mein hai.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
@@ -2257,15 +2318,15 @@ export default function App() {
           requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset')
         }
         onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
-        onOpenAdmin={() => requireGoogleAuth(() => setIsAdminOpen(true), 'Owner Admin Console')}
+        onOpenAdmin={() => requireGoogleAuth(() => setIsAdminOpen(true), 'Full Control Admin Console')}
         onOpenTerms={() => requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions')}
         onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
         onGoogleLogout={logoutGoogle}
         isGoogleConnected={isGoogleConnected}
         isLoggingIn={isLoggingIn}
         googleUser={googleUser}
-        monthlyPrice={globalConfig.monthlyPrice || '99'}
-        yearlyPrice={globalConfig.yearlyPrice || '3999'}
+        monthlyPrice={currentMonthlyPrice}
+        yearlyPrice={currentYearlyPrice}
         videoCount={videoQueue.length}
       />
 
@@ -2289,6 +2350,12 @@ export default function App() {
           onGoogleLogout={logoutGoogle}
           onOpenSettings={() => requireGoogleAuth(() => setActiveTab('settings'), 'Settings')}
         />
+
+        {globalConfig?.announcementBanner && (
+          <div className="mx-4 lg:mx-8 mt-2 px-3.5 py-2 rounded-xl bg-cyan-500/15 border border-cyan-400/40 text-xs text-cyan-200 font-bold">
+            {globalConfig.announcementBanner}
+          </div>
+        )}
 
         {loginError && (
           <div className="mx-4 lg:mx-8 mt-2 px-3 py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-xs text-rose-300 font-bold">
@@ -2321,6 +2388,28 @@ export default function App() {
                   <span>Built for YouTube #Shorts Creators • 4 Daily Auto Slots</span>
                 </div>
               </div>
+
+              {globalConfig?.adsEnabled && (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#1d1236] via-[#131a2e] to-[#241129] border border-amber-400/45 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-lg">
+                  <div className="space-y-0.5 min-w-0">
+                    <span className="inline-block px-2 py-0.5 rounded bg-amber-400/20 border border-amber-300/40 text-[9px] font-black text-amber-300 uppercase">
+                      {globalConfig.adBadgeText || 'SPONSORED AD'}
+                    </span>
+                    <div className="text-xs font-extrabold text-white">
+                      {globalConfig.adTitleText ||
+                        'Upgrade to Yearly VIP (₹3,999/yr) for Priority 4x Daily Shorts Slots'}
+                    </div>
+                  </div>
+                  <a
+                    href={safeAdUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black text-[11px] font-extrabold shrink-0 transition"
+                  >
+                    {globalConfig.adCtaLabel || 'Explore VIP'}
+                  </a>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
                 <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-purple-600/20 to-pink-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
@@ -2647,7 +2736,7 @@ export default function App() {
                   </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-base lg:text-2xl font-extrabold text-white">
-                      ₹{globalConfig.monthlyPrice || '99'}
+                      ₹{currentMonthlyPrice}
                     </span>
                     <span className="text-[11px] lg:text-sm text-slate-400 line-through">
                       ₹{globalConfig.monthlyOriginalPrice || '499'}
@@ -2679,7 +2768,7 @@ export default function App() {
                   </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-base lg:text-2xl font-extrabold text-amber-400">
-                      ₹{globalConfig.yearlyPrice || '3999'}
+                      ₹{currentYearlyPrice}
                     </span>
                     <span className="text-[11px] lg:text-sm text-slate-400 line-through">
                       ₹{globalConfig.yearlyOriginalPrice || '6999'}
@@ -2836,7 +2925,7 @@ export default function App() {
               </div>
 
               <footer className="pt-2 pb-1 flex flex-wrap items-center justify-between gap-2 text-[10.5px] text-slate-400 border-t border-white/10">
-                <span>Developed by shortspilot.in</span>
+                <span>{currentWatermark}</span>
                 <button
                   type="button"
                   onClick={() =>
@@ -3001,7 +3090,7 @@ export default function App() {
                     Master Control &amp; Settings Dashboard
                   </h2>
                   <p className="text-xs text-slate-400">
-                    Control accounts, auto-post slots, clip cutter, and branding from one place
+                    Control accounts, auto-post slots, ads, clip cutter, and branding from one place
                   </p>
                 </div>
                 <span className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-xs font-extrabold">
@@ -3028,7 +3117,7 @@ export default function App() {
                 </div>
                 <div className="p-3 rounded-2xl bg-[#110c22] border border-amber-500/30">
                   <div className="text-base font-black text-amber-300">
-                    ₹{globalConfig.yearlyPrice || '3999'}
+                    ₹{currentYearlyPrice}
                   </div>
                   <div className="text-[10px] text-slate-400">Yearly VIP Price</div>
                 </div>
@@ -3205,14 +3294,14 @@ export default function App() {
                   onClick={() => setIsPricingOpen(true)}
                   className="py-3 px-4 rounded-2xl bg-amber-500 text-black font-extrabold cursor-pointer shadow-lg"
                 >
-                  🔥 Plans (₹{globalConfig.monthlyPrice}/mo • ₹{globalConfig.yearlyPrice}/yr)
+                  🔥 Plans (₹{currentMonthlyPrice}/mo • ₹{currentYearlyPrice}/yr)
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsAdminOpen(true)}
                   className="py-3 px-4 rounded-2xl bg-purple-600/25 border border-purple-500/40 text-purple-300 font-extrabold cursor-pointer"
                 >
-                  🔐 Owner Admin Console
+                  🔐 Full Control Admin Console
                 </button>
                 <button
                   type="button"
@@ -3540,9 +3629,7 @@ export default function App() {
               >
                 <div className="text-[10px] font-extrabold text-cyan-300">MONTHLY PRO</div>
                 <div className="flex items-baseline gap-1.5 mt-1">
-                  <span className="text-lg font-extrabold text-white">
-                    ₹{globalConfig.monthlyPrice || '99'}
-                  </span>
+                  <span className="text-lg font-extrabold text-white">₹{currentMonthlyPrice}</span>
                   <span className="text-xs line-through text-slate-500">₹499</span>
                 </div>
                 <div className="text-[9.5px] text-emerald-400 font-bold mt-1">
@@ -3562,7 +3649,7 @@ export default function App() {
                 <div className="text-[10px] font-extrabold text-amber-300">YEARLY VIP</div>
                 <div className="flex items-baseline gap-1.5 mt-1">
                   <span className="text-lg font-extrabold text-amber-400">
-                    ₹{globalConfig.yearlyPrice || '3999'}
+                    ₹{currentYearlyPrice}
                   </span>
                   <span className="text-xs line-through text-slate-500">₹6999</span>
                 </div>
@@ -3594,10 +3681,7 @@ export default function App() {
                 className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-xs cursor-pointer shadow-lg"
               >
                 💳 Pay Instantly via Razorpay (₹
-                {selectedBilling === 'yearly'
-                  ? globalConfig.yearlyPrice || '3999'
-                  : globalConfig.monthlyPrice || '99'}
-                )
+                {selectedBilling === 'yearly' ? currentYearlyPrice : currentMonthlyPrice})
               </button>
             </div>
           </div>
@@ -3680,7 +3764,7 @@ export default function App() {
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer"
                 >
-                  🔥 Offer Plans (₹99 / ₹3,999)
+                  🔥 Offer Plans (₹{currentMonthlyPrice} / ₹{currentYearlyPrice})
                 </button>
                 <button
                   type="button"
@@ -3690,7 +3774,7 @@ export default function App() {
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-slate-300 cursor-pointer"
                 >
-                  Settings
+                  Control &amp; Settings
                 </button>
                 <button
                   type="button"
@@ -3706,11 +3790,11 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     setIsSettingsDrawerOpen(false);
-                    requireGoogleAuth(() => setIsAdminOpen(true), 'Owner Admin Console');
+                    requireGoogleAuth(() => setIsAdminOpen(true), 'Full Control Admin Console');
                   }}
                   className="w-full p-2.5 rounded-xl text-left text-rose-400 cursor-pointer"
                 >
-                  🔐 Owner Admin Console
+                  🔐 Full Control Admin Console
                 </button>
               </div>
             </div>
@@ -3727,7 +3811,7 @@ export default function App() {
                   <LogOut className="w-3.5 h-3.5" /> Logout
                 </button>
               )}
-              <div className="text-[10px] text-slate-500">Developed by shortspilot.in</div>
+              <div className="text-[10px] text-slate-500">{currentWatermark}</div>
             </div>
           </div>
           <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
@@ -3824,7 +3908,7 @@ export default function App() {
                 className="w-full aspect-[9/16] bg-black"
               />
               <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/65 border border-white/15 text-[8.5px] font-extrabold text-cyan-300 pointer-events-none">
-                {previewClip.watermarkText || 'Developed by shortspilot.in'}
+                {previewClip.watermarkText || currentWatermark}
               </div>
             </div>
 
@@ -3847,7 +3931,7 @@ export default function App() {
 
       {isAdminOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3 max-h-[88vh] overflow-y-auto">
+          <div className="relative w-full max-w-lg rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3.5 max-h-[90vh] overflow-y-auto">
             <button
               type="button"
               onClick={() => setIsAdminOpen(false)}
@@ -3855,7 +3939,9 @@ export default function App() {
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-base font-extrabold text-white">🔐 Owner Admin Console</h3>
+            <h3 className="text-base font-extrabold text-white">
+              🔐 Full Control Owner Admin Console
+            </h3>
 
             {!adminUnlocked ? (
               <form
@@ -3883,13 +3969,129 @@ export default function App() {
                   type="submit"
                   className="w-full py-2.5 rounded-xl bg-purple-600 text-white text-xs font-extrabold cursor-pointer"
                 >
-                  Unlock Admin
+                  Unlock Full Control Console
                 </button>
               </form>
             ) : (
-              <div className="space-y-3 text-xs">
-                <div className="p-3 rounded-xl bg-[#120d24] border border-slate-800 space-y-2">
-                  <div className="font-bold text-cyan-300">Pricing &amp; UPI</div>
+              <div className="space-y-3.5 text-xs">
+                <div className="p-3.5 rounded-2xl bg-[#120d24] border border-purple-500/30 space-y-2.5">
+                  <div className="font-bold text-purple-300">Engine &amp; Access Controls</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-200 font-semibold">YouTube Auto-Upload</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setGlobalConfig((prev) => ({
+                          ...prev,
+                          ytAutoUploadActive: prev.ytAutoUploadActive === false
+                        }))
+                      }
+                      className={`px-3 py-1 rounded-full font-extrabold cursor-pointer ${
+                        globalConfig.ytAutoUploadActive !== false
+                          ? 'bg-emerald-500/20 border border-emerald-400 text-emerald-300'
+                          : 'bg-rose-500/20 border border-rose-400 text-rose-300'
+                      }`}
+                    >
+                      {globalConfig.ytAutoUploadActive !== false ? 'ENABLED' : 'PAUSED'}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-200 font-semibold">Maintenance Mode</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setGlobalConfig((prev) => ({
+                          ...prev,
+                          maintenanceMode: !prev.maintenanceMode
+                        }))
+                      }
+                      className={`px-3 py-1 rounded-full font-extrabold cursor-pointer ${
+                        globalConfig.maintenanceMode
+                          ? 'bg-rose-500/25 border border-rose-400 text-rose-300'
+                          : 'bg-slate-800 border border-slate-600 text-slate-300'
+                      }`}
+                    >
+                      {globalConfig.maintenanceMode ? 'ON (Locked)' : 'OFF (Live)'}
+                    </button>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={globalConfig.announcementBanner || ''}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, announcementBanner: e.target.value }))
+                    }
+                    placeholder="Top Announcement Banner Text (optional)"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                  />
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-[#120d24] border border-amber-400/35 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-amber-300">App Ads Control</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setGlobalConfig((prev) => ({
+                          ...prev,
+                          adsEnabled: !(prev.adsEnabled !== false)
+                        }))
+                      }
+                      className={`px-3 py-1 rounded-full font-extrabold cursor-pointer ${
+                        globalConfig.adsEnabled !== false
+                          ? 'bg-amber-400/20 border border-amber-300 text-amber-200'
+                          : 'bg-slate-800 border border-slate-600 text-slate-400'
+                      }`}
+                    >
+                      {globalConfig.adsEnabled !== false ? 'ADS ON ✅' : 'ADS OFF'}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={globalConfig.adBadgeText || ''}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, adBadgeText: e.target.value }))
+                      }
+                      placeholder="Ad Badge (e.g. SPONSORED AD)"
+                      className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                    <input
+                      type="text"
+                      value={globalConfig.adCtaLabel || ''}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, adCtaLabel: e.target.value }))
+                      }
+                      placeholder="Ad Button Text"
+                      className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                  </div>
+
+                  <input
+                    type="text"
+                    value={globalConfig.adTitleText || ''}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, adTitleText: e.target.value }))
+                    }
+                    placeholder="Ad Headline / Promo Message"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                  />
+
+                  <input
+                    type="text"
+                    value={globalConfig.adClickUrl || ''}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, adClickUrl: e.target.value }))
+                    }
+                    placeholder="Ad Destination URL (https://...)"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-cyan-300 font-mono"
+                  />
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-[#120d24] border border-cyan-500/30 space-y-2">
+                  <div className="font-bold text-cyan-300">Pricing, Watermark &amp; DB</div>
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="text"
@@ -3912,6 +4114,15 @@ export default function App() {
                   </div>
                   <input
                     type="text"
+                    value={globalConfig.watermarkText || ''}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, watermarkText: e.target.value }))
+                    }
+                    placeholder="Brand Watermark"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
+                  />
+                  <input
+                    type="text"
                     value={globalConfig.receiverUpi}
                     onChange={(e) =>
                       setGlobalConfig((prev) => ({ ...prev, receiverUpi: e.target.value }))
@@ -3926,27 +4137,86 @@ export default function App() {
                     placeholder="Firebase RTDB URL"
                     className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
                   />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      localStorage.setItem('sp_global_config', JSON.stringify(globalConfig));
-                      localStorage.setItem('sp_firebase_url', liveDbUrl);
-                      setTier('pro');
-                      if (dbBase) {
-                        try {
-                          await fetch(`${dbBase}/siteConfig.json`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(globalConfig)
-                          });
-                        } catch {}
-                      }
-                    }}
-                    className="w-full py-2.5 rounded-xl bg-emerald-500 text-black font-extrabold cursor-pointer"
-                  >
-                    Save Config
-                  </button>
                 </div>
+
+                <div className="p-3.5 rounded-2xl bg-[#120d24] border border-rose-500/30 space-y-2">
+                  <div className="font-bold text-rose-300">Blocked User Emails</div>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={blockedEmailInput}
+                      onChange={(e) => setBlockedEmailInput(e.target.value)}
+                      placeholder="user@gmail.com"
+                      className="flex-1 px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const em = blockedEmailInput.trim().toLowerCase();
+                        if (!em) return;
+                        setGlobalConfig((prev) => ({
+                          ...prev,
+                          blockedEmails: Array.from(
+                            new Set([...(prev.blockedEmails || []), em])
+                          )
+                        }));
+                        setBlockedEmailInput('');
+                      }}
+                      className="px-3 py-2 rounded-lg bg-rose-600 text-white font-extrabold cursor-pointer"
+                    >
+                      Block
+                    </button>
+                  </div>
+                  {(globalConfig.blockedEmails || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {(globalConfig.blockedEmails || []).map((em) => (
+                        <span
+                          key={em}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/20 text-rose-200 text-[10px]"
+                        >
+                          <span>{em}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setGlobalConfig((prev) => ({
+                                ...prev,
+                                blockedEmails: (prev.blockedEmails || []).filter(
+                                  (x) => x !== em
+                                )
+                              }))
+                            }
+                            className="text-rose-300 hover:text-white cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    localStorage.setItem('sp_global_config', JSON.stringify(globalConfig));
+                    localStorage.setItem('sp_firebase_url', liveDbUrl);
+                    setTier('pro');
+                    setAutoPublishStatus('Full Control Config Saved ✅');
+                    if (dbBase) {
+                      try {
+                        await fetch(`${dbBase}/siteConfig.json`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(globalConfig)
+                        });
+                      } catch {}
+                    }
+                    setTimeout(() => setAutoPublishStatus(''), 2500);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-emerald-500 text-black font-extrabold cursor-pointer"
+                >
+                  Save All Full Control Settings
+                </button>
 
                 <div className="space-y-1.5">
                   <div className="font-bold text-amber-300">
