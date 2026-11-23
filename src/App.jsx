@@ -1117,6 +1117,251 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
     </button>
   </nav>
 ));
+          <button
+            type="button"
+            onClick={() => onSelectTab('settings')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+              activeTab === 'settings'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            <span>Profile & Settings</span>
+          </button>
+
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">
+            AI Studio Tools
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenSplitter}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-pink-300 hover:bg-pink-500/15 cursor-pointer transition-all"
+          >
+            <Scissors className="w-4 h-4" />
+            <span>AI Clip Cutter (1, 3, 5)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenThumbnail}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-cyan-300 hover:bg-cyan-500/15 cursor-pointer transition-all"
+          >
+            <ImageIcon className="w-4 h-4" />
+            <span>9:16 Thumbnail Preset</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-2.5 pt-4 border-t border-purple-500/20">
+        <button
+          type="button"
+          onClick={onOpenPricing}
+          className="w-full p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-400/50 text-left cursor-pointer hover:border-amber-300 transition-all"
+        >
+          <div className="flex items-center justify-between text-xs font-extrabold text-amber-300">
+            <span>VIP Offer Active</span>
+            <Crown className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+          </div>
+          <div className="text-[10px] text-slate-300 mt-1">
+            ₹{monthlyPrice}/mo • ₹{yearlyPrice}/yr
+          </div>
+        </button>
+
+        {isGoogleConnected && (
+          <button
+            type="button"
+            onClick={onGoogleLogout}
+            className="w-full py-2 px-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer hover:bg-rose-500/25"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Disconnect Google</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onOpenAdmin}
+          className="w-full py-2.5 px-3 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-extrabold cursor-pointer hover:bg-purple-600/30"
+        >
+          🔐 Owner Admin Console
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenTerms}
+          className="w-full py-1.5 px-3 rounded-xl text-slate-400 hover:text-cyan-300 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Terms &amp; Conditions</span>
+        </button>
+
+        <div className="text-[9.5px] text-center text-slate-500 font-mono">
+          Developed by shortspilot.in
+        </div>
+      </div>
+    </aside>
+  )
+);
+
+const TopHeader = React.memo(
+  ({
+    tier,
+    hasUnread,
+    googleUser,
+    isGoogleConnected,
+    isLoggingIn,
+    onOpenDrawer,
+    onGoHome,
+    onOpenPricing,
+    onOpenNotifications,
+    onGoogleLogin,
+    onGoogleLogout,
+    onOpenSettings
+  }) => (
+    <header className="flex items-center justify-between px-4 lg:px-8 pt-4 pb-3 bg-[#090614]/95 backdrop-blur sticky top-0 z-30 border-b border-purple-500/15">
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={onOpenDrawer}
+          className="lg:hidden p-1.5 rounded-xl text-slate-200 hover:text-white cursor-pointer"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+        <div onClick={onGoHome} className="flex lg:hidden items-center gap-2 cursor-pointer">
+          <div className="w-9 h-9 rounded-2xl bg-[#140d2a] border border-pink-500/40 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-pink-400" />
+          </div>
+          <div>
+            <div className="flex items-center text-[17px] font-extrabold tracking-tight leading-none">
+              <span className="text-white">Shorts</span>
+              <span className="text-pink-400">Pilot AI</span>
+            </div>
+            <p className="text-[9.5px] text-slate-400 font-medium mt-0.5">
+              Developed by shortspilot.in
+            </p>
+          </div>
+        </div>
+
+        <div className="hidden lg:flex items-center gap-2.5">
+          <span
+            className={`px-2.5 py-1 rounded-full border text-[11px] font-extrabold ${
+              isGoogleConnected
+                ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
+                : 'bg-amber-500/15 border-amber-400/40 text-amber-300'
+            }`}
+          >
+            {isGoogleConnected ? '● Google Connected ✅' : '● Login Required for Options'}
+          </span>
+          <span className="text-xs text-slate-400">
+            Brand: <b className="text-cyan-300 font-mono">Developed by shortspilot.in</b>
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {!isGoogleConnected ? (
+          <button
+            type="button"
+            onClick={onGoogleLogin}
+            disabled={isLoggingIn}
+            className="px-3 py-1.5 rounded-full bg-[#4285F4] hover:bg-blue-500 text-white font-extrabold text-xs cursor-pointer shadow disabled:opacity-60"
+          >
+            {isLoggingIn ? 'Connecting...' : 'Connect Google'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onGoogleLogout}
+            title="Disconnect Google"
+            className="px-2.5 py-1.5 rounded-full bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center gap-1 cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onOpenPricing}
+          className="px-3 py-1.5 rounded-full bg-[#1f1608] border border-amber-400/70 text-amber-300 font-extrabold text-xs flex items-center gap-1 cursor-pointer"
+        >
+          <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+          <span>{tier === 'pro' ? 'VIP Active' : 'Offer ₹99'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenNotifications}
+          className="relative p-2 rounded-full bg-[#120d24] border border-purple-500/30 text-slate-200 cursor-pointer"
+        >
+          <Bell className="w-4 h-4" />
+          {hasUnread && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />}
+        </button>
+
+        <GoogleUserLogo googleUser={googleUser} onClick={onOpenSettings} />
+      </div>
+    </header>
+  )
+);
+
+const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload }) => (
+  <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-[#090614] border-t border-purple-500/25 px-3 flex items-center justify-around z-30">
+    <button
+      type="button"
+      onClick={() => onSelectTab('home')}
+      className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
+        activeTab === 'home' ? 'text-pink-400 font-extrabold' : 'text-slate-400'
+      }`}
+    >
+      <Home className="w-5 h-5" />
+      <span className="text-[10.5px]">Home</span>
+    </button>
+    <button
+      type="button"
+      onClick={() => onSelectTab('analytics')}
+      className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
+        activeTab === 'analytics' ? 'text-cyan-400 font-extrabold' : 'text-slate-400'
+      }`}
+    >
+      <ChartIcon className="w-5 h-5" />
+      <span className="text-[10.5px]">Analytics</span>
+    </button>
+    <div className="relative -top-4">
+      <button
+        type="button"
+        onClick={onTriggerUpload}
+        className="w-14 h-14 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-cyan-400 p-[2px] shadow-lg flex items-center justify-center cursor-pointer active:scale-95 transition-transform"
+      >
+        <div className="w-full h-full rounded-full bg-[#160b2e] flex flex-col items-center justify-center px-2.5 py-2">
+          <Plus className="w-5 h-5 text-white" />
+          <span className="text-[8px] font-extrabold text-white -mt-0.5">Shorts</span>
+        </div>
+      </button>
+    </div>
+    <button
+      type="button"
+      onClick={() => onSelectTab('projects')}
+      className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
+        activeTab === 'projects' ? 'text-purple-400 font-extrabold' : 'text-slate-400'
+      }`}
+    >
+      <FolderKanban className="w-5 h-5" />
+      <span className="text-[10.5px]">Projects</span>
+    </button>
+    <button
+      type="button"
+      onClick={() => onSelectTab('settings')}
+      className={`flex flex-col items-center gap-1 py-1 px-3 cursor-pointer ${
+        activeTab === 'settings' ? 'text-amber-400 font-extrabold' : 'text-slate-400'
+      }`}
+    >
+      <Settings className="w-5 h-5" />
+      <span className="text-[10.5px]">Settings</span>
+    </button>
+  </nav>
+));
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
