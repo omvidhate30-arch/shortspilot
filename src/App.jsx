@@ -1129,6 +1129,33 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
             <Settings className="w-4 h-4" />
             <span>Profile & Settings</span>
           </button>
+<div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-4 pb-28 space-y-4">
+          {activeTab === 'home' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div
+                  onClick={() =>
+                    requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail')
+                  }
+                  className="p-3.5 rounded-2xl bg-[#110c22] border border-amber-500/35 flex items-center justify-between cursor-pointer hover:border-amber-400/60 transition"
+                >
+                  
+            <Scissors className="w-4 h-4" />
+            <span>AI Clip Cutter (1, 3, 5)</span>
+          </button>
+
+<button
+            type="button"
+            onClick={() => onSelectTab('settings')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+              activeTab === 'settings'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            <span>Profile &amp; Settings</span>
+          </button>
 
           <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">
             AI Studio Tools
@@ -1142,20 +1169,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
             <Scissors className="w-4 h-4" />
             <span>AI Clip Cutter (1, 3, 5)</span>
           </button>
-
-          <button
-            type="button"
-            onClick={onOpenThumbnail}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-cyan-300 hover:bg-cyan-500/15 cursor-pointer transition-all"
-          >
-            <ImageIcon className="w-4 h-4" />
-            <span>9:16 Thumbnail Preset</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="space-y-2.5 pt-4 border-t border-purple-500/20">
-        <button
+                
           type="button"
           onClick={onOpenPricing}
           className="w-full p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-400/50 text-left cursor-pointer hover:border-amber-300 transition-all"
