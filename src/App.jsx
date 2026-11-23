@@ -1126,24 +1126,22 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
                 : 'text-slate-300 hover:bg-white/5'
             }`}
           >
-            <Settings className="w-4 h-4" />
-            <span>Profile & Settings</span>
+<Settings className="w-4 h-4" />
+            <span>Profile &amp; Settings</span>
           </button>
-<div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-4 pb-28 space-y-4">
-          {activeTab === 'home' && (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div
-                  onClick={() =>
-                    requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail')
-                  }
-                  className="p-3.5 rounded-2xl bg-[#110c22] border border-amber-500/35 flex items-center justify-between cursor-pointer hover:border-amber-400/60 transition"
-                >
-                  
+
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">
+            AI Studio Tools
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenSplitter}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-pink-300 hover:bg-pink-500/15 cursor-pointer transition-all"
+          >
             <Scissors className="w-4 h-4" />
             <span>AI Clip Cutter (1, 3, 5)</span>
           </button>
-
 <button
             type="button"
             onClick={() => onSelectTab('settings')}
