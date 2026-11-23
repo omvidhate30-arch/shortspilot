@@ -5,8 +5,6 @@ import {
   Youtube,
   X,
   Trash2,
-  Calendar,
-  Clock,
   Bot,
   Crown,
   Bell,
@@ -29,6 +27,7 @@ import {
 } from 'lucide-react';
 import AdminConsoleModal from './AdminConsoleModal';
 import { detectTopicFromFile, buildClipPackage, sendThumbnailPromptToAI } from './aiSeoEngine';
+
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -395,9 +394,7 @@ const idbGetAllClips = async () => {
       const tx = db.transaction(IDB_STORE, 'readonly');
       const req = tx.objectStore(IDB_STORE).getAll();
       req.onsuccess = () => {
-        const items = (req.result || []).sort(
-          (a, b) => (b.savedAt || 0) - (a.savedAt || 0)
-        );
+        const items = (req.result || []).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
         resolve(
           items.map((item) => {
             const baseUrl = item.blob instanceof Blob ? URL.createObjectURL(item.blob) : '';
@@ -484,13 +481,7 @@ const buildThumbnailConcepts = (topic = 'VIRAL') => {
 };
 
 const GoogleVerificationGuideModal = React.memo(
-  ({
-    isOpen,
-    onClose,
-    onConnectGoogle,
-    isLoggingIn,
-    blockedOptionName = ''
-  }) => {
+  ({ isOpen, onClose, onConnectGoogle, isLoggingIn, blockedOptionName = '' }) => {
     const [stepIndex, setStepIndex] = useState(0);
 
     useEffect(() => {
@@ -504,8 +495,8 @@ const GoogleVerificationGuideModal = React.memo(
         badge: 'STEP 1 OF 3 • CLICK ADVANCED',
         title: '1. Warning Screen Par "Advanced" Dabaye',
         desc: blockedOptionName
-          ? `"${blockedOptionName}" use karne ke liye Google login karein. Google verification pending hone par screen par "Advanced" option dikhega — uspe click karein.`
-          : 'Google verification pending hone ki wajah se login screen par warning dikh sakti hai. Neeche left mein "Advanced" par click karein.',
+          ? `"${blockedOptionName}" use karne ke liye Google login karein. Screen par "Advanced" option dikhega — uspe click karein.`
+          : 'Login screen par warning dikhne par neeche left mein "Advanced" par click karein.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2.5 select-none">
             <div className="flex items-center gap-2">
@@ -628,9 +619,7 @@ const GoogleVerificationGuideModal = React.memo(
 
             <button
               type="button"
-              onClick={() =>
-                setStepIndex((prev) => Math.min(guideSteps.length - 1, prev + 1))
-              }
+              onClick={() => setStepIndex((prev) => Math.min(guideSteps.length - 1, prev + 1))}
               disabled={stepIndex === guideSteps.length - 1}
               className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-cyan-300 disabled:opacity-35 cursor-pointer"
             >
@@ -960,7 +949,7 @@ const DesktopSidebar = React.memo(
           className="w-full py-1.5 px-3 rounded-xl text-slate-400 hover:text-cyan-300 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition"
         >
           <FileText className="w-3.5 h-3.5" />
-          <span>Terms & Conditions</span>
+          <span>Terms &amp; Conditions</span>
         </button>
 
         <div className="text-[9.5px] text-center text-slate-500 font-mono">
@@ -1130,6 +1119,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
 ));
 
 
+
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
@@ -1274,8 +1264,8 @@ export default function App() {
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: 'Shorts Mode Active ✅',
-      desc: 'All uploads and AI clips are set to Shorts (#Shorts) mode.',
+      title: 'Auto-Post & Shorts Mode Active ✅',
+      desc: 'Auto-posting is enabled by default for #Shorts.',
       unread: true
     }
   ]);
@@ -1284,7 +1274,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! ShortsPilot abhi Shorts (#Shorts) mode par set hai.'
+      text: 'Namaste! ShortsPilot auto-post by default aur #Shorts mode par set hai.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -2016,6 +2006,7 @@ export default function App() {
   };
 
 
+
 const handleOpenRazorpayCheckout = useCallback(async () => {
     setCheckoutError('');
     setCheckoutPendingMsg('');
@@ -2098,9 +2089,15 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
           if (tab === 'home') return setActiveTab('home');
           requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`);
         }}
-        onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload & Auto-Post Shorts')}
-        onOpenSplitter={() => requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')}
-        onOpenThumbnail={() => requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset')}
+        onTriggerUpload={() =>
+          requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload & Auto-Post Shorts')
+        }
+        onOpenSplitter={() =>
+          requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
+        }
+        onOpenThumbnail={() =>
+          requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset')
+        }
         onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
         onOpenAdmin={() => requireGoogleAuth(() => setIsAdminOpen(true), 'Owner Admin Console')}
         onOpenTerms={() => setIsTermsOpen(true)}
@@ -2130,7 +2127,9 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
           }}
           onGoogleLogin={startGoogleLogin}
           onGoogleLogout={logoutGoogle}
-          onOpenSettings={() => requireGoogleAuth(() => setActiveTab('settings'), 'Profile & Settings')}
+          onOpenSettings={() =>
+            requireGoogleAuth(() => setActiveTab('settings'), 'Profile & Settings')
+          }
         />
 
         {globalConfig?.announcementBanner && (
@@ -2164,10 +2163,11 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-4 pb-28 space-y-4">
           {activeTab === 'home' && (
             <>
-              {/* Top 3 Status Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div
-                  onClick={() => requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail')}
+                  onClick={() =>
+                    requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail')
+                  }
                   className="p-3.5 rounded-2xl bg-[#110c22] border border-amber-500/35 flex items-center justify-between cursor-pointer hover:border-amber-400/60 transition"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -2175,7 +2175,9 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
                       <Sparkles className="w-5 h-5 text-amber-300" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-extrabold text-white truncate">Shorts Engine Active</div>
+                      <div className="text-xs font-extrabold text-white truncate">
+                        Shorts Engine Active
+                      </div>
                       <div className="text-[10.5px] text-slate-400 truncate">
                         4 Daily Slots • 9:16 Thumb
                       </div>
@@ -2187,7 +2189,9 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
                 </div>
 
                 <div
-                  onClick={() => requireGoogleAuth(() => setActiveTab('analytics'), 'Channel Analytics')}
+                  onClick={() =>
+                    requireGoogleAuth(() => setActiveTab('analytics'), 'Channel Analytics')
+                  }
                   className="p-3.5 rounded-2xl bg-[#110c22] border border-red-500/35 flex items-center justify-between cursor-pointer hover:border-red-400/60 transition"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -2237,7 +2241,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
                 </div>
               </div>
 
-              {/* Hero Upload & Auto-Post + AI Shorts Cutter */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="rounded-[28px] p-5 bg-gradient-to-br from-[#2a104e] via-[#150a2e] to-[#0c071d] border border-purple-500/40 space-y-3 shadow-lg">
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-400/40 text-[9.5px] font-extrabold text-pink-300">
@@ -2293,7 +2296,7 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
                     </button>
                   </div>
                   <p className="text-xs text-slate-300">
-                    Split any video into 1, 3, or 5 vertical Shorts with #Shorts metadata & 9:16 hook.
+                    Split any video into 1, 3, or 5 vertical Shorts with #Shorts metadata &amp; 9:16 hook.
                   </p>
                   <div className="grid grid-cols-3 gap-2">
                     {[1, 3, 5].map((num) => (
@@ -2326,7 +2329,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
                 </div>
               </div>
 
-              {/* Thumbnail Hook & Posting Control */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <div className="p-4 rounded-2xl bg-[#110c22] border border-cyan-500/40 flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -2372,7 +2374,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
                 </div>
               </div>
 
-              {/* Monthly & Yearly Offer Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div
                   onClick={() => {
@@ -2420,7 +2421,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
                 </div>
               </div>
 
-              {/* 3-Card Summary Row */}
               <div className="grid grid-cols-3 gap-2.5">
                 <div className="p-3 rounded-2xl bg-[#110c22] border border-purple-500/25 text-center">
                   <div className="text-sm font-extrabold text-white">{videoQueue.length}</div>
@@ -2436,7 +2436,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
                 </div>
               </div>
 
-              {/* Your Published & Cut Shorts */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
@@ -2636,7 +2635,8 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
                 </div>
               </div>
               <p className="text-xs text-slate-300">
-                Connected Account: <b className="text-cyan-300">{googleUser?.email || 'Not Connected'}</b>
+                Connected Account:{' '}
+                <b className="text-cyan-300">{googleUser?.email || 'Not Connected'}</b>
               </p>
             </div>
           )}
@@ -2719,7 +2719,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         />
       </div>
 
-      {/* Mobile Drawer */}
       {isSettingsDrawerOpen && (
         <div
           onClick={() => setIsSettingsDrawerOpen(false)}
@@ -2788,7 +2787,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         </div>
       )}
 
-      {/* Google Verification Guide Modal */}
       <GoogleVerificationGuideModal
         isOpen={isAuthGateModalOpen}
         onClose={() => setIsAuthGateModalOpen(false)}
@@ -2797,7 +2795,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         blockedOptionName={blockedOptionName}
       />
 
-      {/* Manual Google Fallback Modal */}
       {isGoogleAccountModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-blue-500/50 p-6 space-y-3 text-xs">
@@ -2846,7 +2843,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         </div>
       )}
 
-      {/* Instagram Token Modal */}
       {isIgModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-pink-500/50 p-6 space-y-3 text-xs">
@@ -2885,7 +2881,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         </div>
       )}
 
-      {/* Splitter Modal */}
       {isSplitterModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-pink-500/50 p-6 space-y-3">
@@ -2924,7 +2919,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         </div>
       )}
 
-      {/* Thumbnail Preset Modal */}
       {isThumbnailModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-3">
@@ -2977,7 +2971,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         </div>
       )}
 
-      {/* Pricing Modal */}
       {isPricingOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-amber-400/50 p-6 space-y-3">
@@ -3040,7 +3033,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         </div>
       )}
 
-      {/* Notifications Modal */}
       {isNotificationOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-5 space-y-3 text-xs">
@@ -3067,7 +3059,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         </div>
       )}
 
-      {/* Terms Modal */}
       {isTermsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-purple-500/40 p-6 space-y-3 text-xs">
@@ -3088,7 +3079,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         </div>
       )}
 
-      {/* Preview Modal */}
       {previewClip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
           <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-4 space-y-3">
@@ -3114,7 +3104,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         </div>
       )}
 
-      {/* AI Support Modal */}
       {showAiSupport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-sm h-[380px] rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-4 flex flex-col">
@@ -3147,7 +3136,7 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
                 setSupportMessages((p) => [
                   ...p,
                   { role: 'user', text: supportInput.trim() },
-                  { role: 'ai', text: 'ShortsPilot abhi Shorts (#Shorts) mode par hai.' }
+                  { role: 'ai', text: 'ShortsPilot auto-post by default aur #Shorts mode par set hai.' }
                 ]);
                 setSupportInput('');
               }}
@@ -3171,7 +3160,6 @@ const handleOpenRazorpayCheckout = useCallback(async () => {
         </div>
       )}
 
-      {/* Owner Admin Console Modal */}
       <AdminConsoleModal
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
