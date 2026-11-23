@@ -882,7 +882,7 @@ const DesktopSidebar = React.memo(
             }`}
           >
             <Settings className="w-4 h-4" />
-            <span>Profile & Settings</span>
+            <span>Profile &amp; Settings</span>
           </button>
 
           <div className="text-[10px] uppercase tracking-wider text-slate-500 px-2 pt-3 pb-1">
