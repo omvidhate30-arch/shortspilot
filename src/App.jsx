@@ -27,6 +27,7 @@ import {
   FileText,
   Lock
 } from 'lucide-react';
+
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -49,21 +50,16 @@ const DAILY_AUTO_SLOTS = [
 const getNextSlotLabel = (index = 0) => {
   const safeIdx = Math.abs(Number(index) || 0) % DAILY_AUTO_SLOTS.length;
   const slot = DAILY_AUTO_SLOTS[safeIdx];
-  return `${slot.label} (Slot ${safeIdx + 1}/4)`;
+  return `${slot.label} (Slot${safeIdx + 1}/4)`;
 };
 
 const SHORTSPILOT_400_URLS = Array.from({ length: 400 }, (_, idx) => {
   const num = idx + 1;
   if (num <= 100) {
-    return `https://www.shortspilot.in/shorts/clip-${String(num).padStart(3, '0')}`;
-  }
-  if (num <= 200) {
-    return `https://www.shortspilot.in/thumbnails/preset-9x16-${String(num - 100).padStart(3, '0')}`;
+    return `https://www.shortspilot.in/shorts/clip-${String(num).padStart(3, '0')}`; } if (num <= 200) { return `https://www.shortspilot.in/thumbnails/preset-9x16-${String(num - 100).padStart(3, '0')}`;
   }
   if (num <= 300) {
-    return `https://www.shortspilot.in/templates/viral-hook-${String(num - 200).padStart(3, '0')}`;
-  }
-  return `https://www.shortspilot.in/redirect/auto-post-${String(num - 300).padStart(3, '0')}`;
+    return `https://www.shortspilot.in/templates/viral-hook-${String(num - 200).padStart(3, '0')}`; } return `https://www.shortspilot.in/redirect/auto-post-${String(num - 300).padStart(3, '0')}`;
 });
 
 const getShortsPilotUrlByIndex = (index = 0) => {
@@ -155,16 +151,9 @@ const buildMasterThumbnailPrompt = ({
   ).trim();
 
   const extraStyle = String(customStyleNote || '').trim()
-    ? `\n- Custom Style Note: ${String(customStyleNote).trim()}`
-    : '';
-
-  return [
-    'Create a high-CTR 9:16 vertical YouTube Shorts thumbnail/cover graphic (1080x1920) for this Short:',
-    '',
-    `- Title: ${title}`,
+    ? `\n- Custom Style Note: ${String(customStyleNote).trim()}` : '';  return [ 'Create a high-CTR 9:16 vertical YouTube Shorts thumbnail/cover graphic (1080x1920) for this Short:', '', `- Title: ${title}`,
     `- Hook Text: ${hookText}`,
-    `- Description: ${description}`,
-    `- Hashtags: ${hashtags}`,
+    `- Description: ${description}`, `- Hashtags: ${hashtags}`,
     `- Credit / Watermark: ${credit}${extraStyle}`,
     '',
     'Design Instructions:',
@@ -196,8 +185,7 @@ const sendThumbnailPromptToAI = async ({
 
   const url =
     target === 'chatgpt'
-      ? `https://chatgpt.com/?q=${encodeURIComponent(finalPrompt)}`
-      : `https://gemini.google.com/app?q=${encodeURIComponent(finalPrompt)}`;
+      ? `https://chatgpt.com/?q=${encodeURIComponent(finalPrompt)}` : `https://gemini.google.com/app?q=${encodeURIComponent(finalPrompt)}`;
 
   if (typeof window !== 'undefined') {
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -287,13 +275,7 @@ const generateThumbnailBlob = async ({
     }
 
     const orbLeft = ctx.createRadialGradient(180, 380, 20, 180, 380, 480);
-    orbLeft.addColorStop(0, `${accentA}55`);
-    orbLeft.addColorStop(1, 'transparent');
-    ctx.fillStyle = orbLeft;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const orbRight = ctx.createRadialGradient(900, 1380, 20, 900, 1380, 520);
-    orbRight.addColorStop(0, `${accentB}4d`);
+    orbLeft.addColorStop(0, `${accentA}55`); orbLeft.addColorStop(1, 'transparent'); ctx.fillStyle = orbLeft; ctx.fillRect(0, 0, canvas.width, canvas.height);  const orbRight = ctx.createRadialGradient(900, 1380, 20, 900, 1380, 520); orbRight.addColorStop(0, `${accentB}4d`);
     orbRight.addColorStop(1, 'transparent');
     ctx.fillStyle = orbRight;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -578,26 +560,14 @@ const buildClipPackage = (
     .split(/\s+/)
     .filter((w) => w.length > 1)
     .slice(0, 3)
-    .map((w) => `#${w.charAt(0).toUpperCase()}${w.slice(1)}`);
-
-  const pool = tagPools[index % tagPools.length];
-  const combinedTags = Array.from(new Set(['#Shorts', ...words, ...pool])).slice(0, 5);
-  const hashtags = combinedTags.join(' ');
-
-  const openingLine = hookLines[index % hookLines.length];
-  const metaBits = [
-    partLabel ? `Segment: ${partLabel}` : '',
-    durationLabel ? `Length: ${durationLabel}` : '',
-    hookText ? `Hook: ${hookText}` : ''
+    .map((w) => `#${w.charAt(0).toUpperCase()}${w.slice(1)}`);  const pool = tagPools[index \% tagPools.length]; const combinedTags = Array.from(new Set(['#Shorts', ...words, ...pool])).slice(0, 5); const hashtags = combinedTags.join(' ');  const openingLine = hookLines[index \% hookLines.length]; const metaBits = [ partLabel ? `Segment: ${partLabel}` : '',
+    durationLabel ? `Length: ${durationLabel}` : '', hookText ? `Hook: ${hookText}` : ''
   ]
     .filter(Boolean)
     .join(' • ');
 
   const description = [
-    `${title} #Shorts`,
-    '',
-    openingLine,
-    metaBits ? `\n${metaBits}` : '',
+    `${title} #Shorts`, '', openingLine, metaBits ? `\n${metaBits}` : '',
     '',
     hashtags,
     '',
@@ -608,78 +578,7 @@ const buildClipPackage = (
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-  const hookScore = `${Math.min(99, 88 + ((index * 3) % 10))}/100`;
-
-  return {
-    title,
-    category: 'Shorts',
-    mediaFormat: 'short',
-    hashtags,
-    description,
-    watermarkText,
-    websiteUrl: getShortsPilotUrlByIndex(index),
-    hookScore
-  };
-};
-
-const buildThumbnailConcepts = (topic = 'VIRAL') => {
-  const clean = (topic || 'VIRAL').trim().toUpperCase().slice(0, 18);
-  return [
-    {
-      id: 't1',
-      badge: 'HIGH CTR',
-      hookText: 'WAIT FOR END 😱',
-      subText: clean,
-      accentText: 'text-amber-300',
-      ctrScore: '9.6 CTR',
-      gradient: 'from-pink-600 via-purple-900 to-slate-950',
-      palette: ['#db2777', '#22d3ee', '#070510']
-    },
-    {
-      id: 't2',
-      badge: 'TRENDING',
-      hookText: 'INSANE CLUTCH 🔥',
-      subText: clean,
-      accentText: 'text-cyan-300',
-      ctrScore: '9.4 CTR',
-      gradient: 'from-cyan-600 via-blue-950 to-slate-950',
-      palette: ['#0891b2', '#ec4899', '#070510']
-    },
-    {
-      id: 't3',
-      badge: 'VIRAL',
-      hookText: 'NO WAY!! 🤯',
-      subText: clean,
-      accentText: 'text-rose-300',
-      ctrScore: '9.2 CTR',
-      gradient: 'from-amber-500 via-rose-900 to-slate-950',
-      palette: ['#f59e0b', '#a855f7', '#070510']
-    }
-  ];
-};
-
-const GoogleVerificationGuideModal = React.memo(
-  ({
-    isOpen,
-    onClose,
-    onConnectGoogle,
-    isLoggingIn,
-    blockedOptionName = ''
-  }) => {
-    const [stepIndex, setStepIndex] = useState(0);
-
-    useEffect(() => {
-      if (isOpen) setStepIndex(0);
-    }, [isOpen]);
-
-    if (!isOpen) return null;
-
-    const guideSteps = [
-      {
-        badge: 'STEP 1 OF 3 • CLICK ADVANCED',
-        title: '1. Warning Screen Par "Advanced" Dabaye',
-        desc: blockedOptionName
-          ? `"${blockedOptionName}" use karne ke liye Google login karein. Google verification pending hone par screen par "Advanced" option dikhega — uspe click karein.`
+  const hookScore = `${Math.min(99, 88 + ((index * 3) \% 10))}/100`;  return { title, category: 'Shorts', mediaFormat: 'short', hashtags, description, watermarkText, websiteUrl: getShortsPilotUrlByIndex(index), hookScore }; };  const buildThumbnailConcepts = (topic = 'VIRAL') => { const clean = (topic \vert{}\vert{} 'VIRAL').trim().toUpperCase().slice(0, 18); return [ { id: 't1', badge: 'HIGH CTR', hookText: 'WAIT FOR END 😱', subText: clean, accentText: 'text-amber-300', ctrScore: '9.6 CTR', gradient: 'from-pink-600 via-purple-900 to-slate-950', palette: ['#db2777', '#22d3ee', '#070510'] }, { id: 't2', badge: 'TRENDING', hookText: 'INSANE CLUTCH 🔥', subText: clean, accentText: 'text-cyan-300', ctrScore: '9.4 CTR', gradient: 'from-cyan-600 via-blue-950 to-slate-950', palette: ['#0891b2', '#ec4899', '#070510'] }, { id: 't3', badge: 'VIRAL', hookText: 'NO WAY!! 🤯', subText: clean, accentText: 'text-rose-300', ctrScore: '9.2 CTR', gradient: 'from-amber-500 via-rose-900 to-slate-950', palette: ['#f59e0b', '#a855f7', '#070510'] } ]; };  const GoogleVerificationGuideModal = React.memo( ({ isOpen, onClose, onConnectGoogle, isLoggingIn, blockedOptionName = '' }) => { const [stepIndex, setStepIndex] = useState(0);  useEffect(() => { if (isOpen) setStepIndex(0); }, [isOpen]);  if (!isOpen) return null;  const guideSteps = [ { badge: 'STEP 1 OF 3 • CLICK ADVANCED', title: '1. Warning Screen Par "Advanced" Dabaye', desc: blockedOptionName ? `"${blockedOptionName}" use karne ke liye Google login karein. Google verification pending hone par screen par "Advanced" option dikhega — uspe click karein.`
           : 'Google verification pending hone ki wajah se login screen par warning dikh sakti hai. Neeche left mein "Advanced" par click karein.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2.5 select-none">
@@ -831,75 +730,7 @@ const GoogleVerificationGuideModal = React.memo(
 const ClipActionShortcuts = React.memo(
   ({ clip, onPreview, onCopyDescription, onSendThumbAI }) => {
     const youtubeUrl = clip?.youtubeVideoId
-      ? `https://www.youtube.com/shorts/${clip.youtubeVideoId}`
-      : 'https://studio.youtube.com/channel/UC/videos';
-
-    return (
-      <div className="pt-2 mt-1 border-t border-white/10 space-y-1.5">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => onPreview?.(clip)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 border border-purple-400/40 text-purple-200 text-[10.5px] font-extrabold cursor-pointer transition"
-          >
-            <Play className="w-3 h-3 fill-purple-200" />
-            <span>Watch Clip</span>
-          </button>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => onCopyDescription?.(clip)}
-              title="Copy Description & #Tags"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-cyan-300 text-[10.5px] font-bold cursor-pointer transition"
-            >
-              <Copy className="w-3 h-3" />
-              <span>Copy Desc</span>
-            </button>
-
-            <a
-              href={youtubeUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-400/40 text-red-200 text-[10.5px] font-extrabold transition"
-            >
-              <Youtube className="w-3.5 h-3.5 text-red-400" />
-              <span>{clip?.youtubeVideoId ? 'Open Short' : 'YouTube'}</span>
-              <ExternalLink className="w-3 h-3 opacity-80" />
-            </a>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => onSendThumbAI?.(clip, 'gemini')}
-            className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 text-cyan-200 text-[10px] font-extrabold cursor-pointer transition"
-          >
-            <span>✨ Gemini Thumb</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onSendThumbAI?.(clip, 'chatgpt')}
-            className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 text-emerald-200 text-[10px] font-extrabold cursor-pointer transition"
-          >
-            <span>🤖 ChatGPT Thumb</span>
-          </button>
-        </div>
-      </div>
-    );
-  }
-);
-
-const ChannelAvatarBadge = React.memo(({ googleUser, sizeClass = 'w-10 h-10' }) => {
-  const safeAvatar = sanitizeMediaUrl(googleUser?.avatar);
-  if (googleUser?.email && safeAvatar) {
-    return (
-      <div className="relative shrink-0">
-        <img
-          src={safeAvatar}
-          alt={googleUser?.name || googleUser?.email || 'Google Account'}
-          className={`${sizeClass} rounded-full object-cover border-2 border-emerald-400 shadow-md`}
+      ? `https://www.youtube.com/shorts/${clip.youtubeVideoId}` : 'https://studio.youtube.com/channel/UC/videos';  return ( <div className="pt-2 mt-1 border-t border-white/10 space-y-1.5"> <div className="flex items-center justify-between gap-2 flex-wrap"> <button type="button" onClick={() => onPreview?.(clip)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 border border-purple-400/40 text-purple-200 text-[10.5px] font-extrabold cursor-pointer transition" > <Play className="w-3 h-3 fill-purple-200" /> <span>Watch Clip</span> </button>  <div className="flex items-center gap-1.5"> <button type="button" onClick={() => onCopyDescription?.(clip)} title="Copy Description & #Tags" className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-cyan-300 text-[10.5px] font-bold cursor-pointer transition" > <Copy className="w-3 h-3" /> <span>Copy Desc</span> </button>  <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-600/25 hover:bg-red-600/40 border border-red-400/40 text-red-200 text-[10.5px] font-extrabold transition" > <Youtube className="w-3.5 h-3.5 text-red-400" /> <span>{clip?.youtubeVideoId ? 'Open Short' : 'YouTube'}</span> <ExternalLink className="w-3 h-3 opacity-80" /> </a> </div> </div>  <div className="flex items-center gap-1.5 flex-wrap"> <button type="button" onClick={() => onSendThumbAI?.(clip, 'gemini')} className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 text-cyan-200 text-[10px] font-extrabold cursor-pointer transition" > <span>✨ Gemini Thumb</span> </button> <button type="button" onClick={() => onSendThumbAI?.(clip, 'chatgpt')} className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 text-emerald-200 text-[10px] font-extrabold cursor-pointer transition" > <span>🤖 ChatGPT Thumb</span> </button> </div> </div> ); } );  const ChannelAvatarBadge = React.memo(({ googleUser, sizeClass = 'w-10 h-10' }) => { const safeAvatar = sanitizeMediaUrl(googleUser?.avatar); if (googleUser?.email && safeAvatar) { return ( <div className="relative shrink-0"> <img src={safeAvatar} alt={googleUser?.name \vert{}\vert{} googleUser?.email \vert{}\vert{} 'Google Account'} className={`${sizeClass} rounded-full object-cover border-2 border-emerald-400 shadow-md`}
         />
         <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#090614]" />
       </div>
@@ -1043,7 +874,8 @@ const DesktopSidebar = React.memo(
           <button
             type="button"
             onClick={() => onSelectTab('projects')}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+            className={`w-full flex items
+            -center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
               activeTab === 'projects'
                 ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
                 : 'text-slate-300 hover:bg-white/5'
@@ -2202,7 +2034,203 @@ export default function App() {
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
-  400/45 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-lg">
+  const handleGenerateThumbnails = (e) => {
+    e.preventDefault();
+    const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
+    setThumbConcepts(updated);
+    setSelectedThumbConcept(updated[0]);
+  };
+
+  const handleDeleteClip = async (clipId) => {
+    const target = videoQueue.find((c) => c.id === clipId);
+    if (target?.croppedUrl && target.croppedUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(target.croppedUrl.split('#')[0]);
+    }
+    setVideoQueue((prev) => prev.filter((item) => item.id !== clipId));
+    await idbDeleteClip(clipId);
+  };
+
+  const handleClearAllClips = async () => {
+    videoQueue.forEach((c) => {
+      if (c.croppedUrl && c.croppedUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(c.croppedUrl.split('#')[0]);
+      }
+    });
+    setVideoQueue([]);
+    await idbClearAllClips();
+  };
+
+  const handleOpenRazorpayCheckout = useCallback(async () => {
+    setCheckoutError('');
+    setCheckoutPendingMsg('');
+
+    const cleanEmail = (checkoutEmail || googleUser?.email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+      return setCheckoutError('Pehle apna Gmail ID enter karein.');
+    }
+
+    const amt =
+      selectedBilling === 'yearly'
+        ? Number(globalConfig.yearlyPrice || 3999)
+        : Number(globalConfig.monthlyPrice || 99);
+
+    const targetUrl =
+      selectedBilling === 'yearly' ? RAZORPAY_YEARLY_LINK : RAZORPAY_MONTHLY_LINK;
+
+    if (!targetUrl) {
+      return setCheckoutError('Yearly plan ki alag Razorpay link abhi set nahi hai.');
+    }
+
+    const loggedTxn = {
+      id: `RZP-${Date.now()}`,
+      user: cleanEmail,
+      userKey: emailToKey(cleanEmail),
+      plan: selectedBilling,
+      numericAmount: amt,
+      amount: `₹${amt} (${selectedBilling})`,
+      status: 'Checkout Opened',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    if (dbBase) {
+      try {
+        await fetch(`${dbBase}/transactions.json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(loggedTxn)
+        });
+      } catch {}
+    }
+
+    setTransactions((prev) => [loggedTxn, ...prev]);
+    setCheckoutPendingMsg('Razorpay payment page open ho raha hai...');
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  }, [checkoutEmail, googleUser?.email, selectedBilling, globalConfig, dbBase]);
+
+  const handleSendSupport = (e) => {
+    e.preventDefault();
+    if (!supportInput.trim()) return;
+    const msg = supportInput.trim();
+    setSupportMessages((prev) => [
+      ...prev,
+      { role: 'user', text: msg },
+      {
+        role: 'ai',
+        text: 'ShortsPilot auto-post by default aur #Shorts mode par set hai.'
+      }
+    ]);
+    setSupportInput('');
+  };
+
+  const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
+  const currentMonthlyPrice = globalConfig.monthlyPrice || '99';
+  const currentYearlyPrice = globalConfig.yearlyPrice || '3999';
+  const currentWatermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
+  const safeAdUrl = sanitizeMediaUrl(globalConfig.adClickUrl) || 'https://www.shortspilot.in';
+
+  if (!isAdminOpen && (globalConfig?.maintenanceMode || isCurrentUserBlocked)) {
+    return (
+      <div className="min-h-screen w-full bg-[#05030a] text-white flex items-center justify-center p-6 text-center">
+        <div className="max-w-md rounded-3xl bg-[#110c22] border border-rose-500/40 p-6 space-y-3">
+          <h2 className="text-lg font-extrabold text-rose-300">
+            {isCurrentUserBlocked ? 'Access Restricted' : 'Site Under Maintenance'}
+          </h2>
+          <p className="text-xs text-slate-300">
+            {isCurrentUserBlocked
+              ? 'Aapka account owner admin dwara block kiya gaya hai.'
+              : globalConfig?.announcementBanner || 'Website abhi maintenance mode mein hai.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
+      <DesktopSidebar
+        activeTab={activeTab}
+        onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
+        onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')}
+        onOpenSplitter={() =>
+          requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
+        }
+        onOpenThumbnail={() =>
+          requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset')
+        }
+        onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
+        onOpenAdmin={() => requireGoogleAuth(() => setIsAdminOpen(true), 'Full Control Admin Console')}
+        onOpenTerms={() => requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions')}
+        onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
+        onGoogleLogout={logoutGoogle}
+        isGoogleConnected={isGoogleConnected}
+        isLoggingIn={isLoggingIn}
+        googleUser={googleUser}
+        monthlyPrice={currentMonthlyPrice}
+        yearlyPrice={currentYearlyPrice}
+        videoCount={videoQueue.length}
+      />
+
+      <div className="flex-1 min-h-screen bg-[#070510] text-white flex flex-col">
+        <TopHeader
+          tier={tier}
+          hasUnread={notificationsList.some((n) => n.unread)}
+          googleUser={googleUser}
+          isGoogleConnected={isGoogleConnected}
+          isLoggingIn={isLoggingIn}
+          onOpenDrawer={() => setIsSettingsDrawerOpen(true)}
+          onGoHome={() => setActiveTab('home')}
+          onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
+          onOpenNotifications={() =>
+            requireGoogleAuth(() => {
+              setIsNotificationOpen(true);
+              setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
+            }, 'Notifications')
+          }
+          onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
+          onGoogleLogout={logoutGoogle}
+          onOpenSettings={() => requireGoogleAuth(() => setActiveTab('settings'), 'Settings')}
+        />
+
+        {globalConfig?.announcementBanner && (
+          <div className="mx-4 lg:mx-8 mt-2 px-3.5 py-2 rounded-xl bg-cyan-500/15 border border-cyan-400/40 text-xs text-cyan-200 font-bold">
+            {globalConfig.announcementBanner}
+          </div>
+        )}
+
+        {loginError && (
+          <div className="mx-4 lg:mx-8 mt-2 px-3 py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-xs text-rose-300 font-bold">
+            {loginError}
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/*"
+          multiple
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+        <input
+          ref={splitterInputRef}
+          type="file"
+          accept="video/*"
+          onChange={handleSplitFullVideo}
+          className="hidden"
+        />
+
+        <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-3 lg:pt-6 pb-32 lg:pb-12 space-y-4 lg:space-y-6">
+          {activeTab === 'home' && (
+            <>
+              <div className="flex justify-center">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#120c24] border border-purple-400/35 text-[11px] font-bold text-slate-200 shadow-md">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>Built for YouTube #Shorts Creators • 4 Daily Auto Slots</span>
+                </div>
+              </div>
+
+              {globalConfig?.adsEnabled && (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#1d1236] via-[#131a2e] to-[#241129] border border-amber-400/45 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-lg">
                   <div className="space-y-0.5 min-w-0">
                     <span className="inline-block px-2 py-0.5 rounded bg-amber-400/20 border border-amber-300/40 text-[9px] font-black text-amber-300 uppercase">
                       {globalConfig.adBadgeText || 'SPONSORED AD'}
