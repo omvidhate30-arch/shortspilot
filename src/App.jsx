@@ -2203,7 +2203,8 @@ export default function App() {
 setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
-                        <div className="text-[10px] lg:text-xs text-slate-300 truncate">
+
+<div className="text-[10px] lg:text-xs text-slate-300 truncate">
                           3-step login guide before connect
                         </div>
                       </div>
@@ -2217,7 +2218,7 @@ setVideoQueue((prev) => [...generated, ...prev]);
                       {isLoggingIn ? 'Connecting...' : 'Connect Google'}
                     </button>
                   </div>
-                )}
+                )} 
 
                 {igData.connected ? (
                   <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-pink-600/20 via-purple-600/20 to-amber-500/15 border border-pink-400/50 flex items-center justify-between gap-3 shadow-lg">
