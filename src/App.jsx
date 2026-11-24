@@ -751,7 +751,7 @@ const GoogleVerificationGuideModal = React.memo(
     const current = guideSteps[stepIndex] || guideSteps[0];
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
         <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-3.5 shadow-2xl">
           <button
             type="button"
@@ -891,6 +891,7 @@ const ClipActionShortcuts = React.memo(
     );
   }
 );
+
 const ChannelAvatarBadge = React.memo(({ googleUser, sizeClass = 'w-10 h-10' }) => {
   const safeAvatar = sanitizeMediaUrl(googleUser?.avatar);
   if (googleUser?.email && safeAvatar) {
@@ -2202,22 +2203,268 @@ export default function App() {
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
+  const handleGenerateThumbnails = (e) => {
+    e.preventDefault();
+    const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
+    setThumbConcepts(updated);
+    setSelectedThumbConcept(updated[0]);
+  };
+
+  const handleDeleteClip = async (clipId) => {
+    const target = videoQueue.find((c) => c.id === clipId);
+    if (target?.croppedUrl && target.croppedUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(target.croppedUrl.split('#')[0]);
+    }
+    setVideoQueue((prev) => prev.filter((item) => item.id !== clipId));
+    await idbDeleteClip(clipId);
+  };
+
+  const handleClearAllClips = async () => {
+    videoQueue.forEach((c) => {
+      if (c.croppedUrl && c.croppedUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(c.croppedUrl.split('#')[0]);
+      }
+    });
+    setVideoQueue([]);
+    await idbClearAllClips();
+  };
+
+  const handleOpenRazorpayCheckout = useCallback(async () => {
+    setCheckoutError('');
+    setCheckoutPendingMsg('');
+
+    const cleanEmail = (checkoutEmail || googleUser?.email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+      return setCheckoutError('Pehle apna Gmail ID enter karein.');
+    }
+
+    const amt =
+      selectedBilling === 'yearly'
+        ? Number(globalConfig.yearlyPrice || 3999)
+        : Number(globalConfig.monthlyPrice || 99);
+
+    const targetUrl =
+      selectedBilling === 'yearly' ? RAZORPAY_YEARLY_LINK : RAZORPAY_MONTHLY_LINK;
+
+    if (!targetUrl) {
+      return setCheckoutError('Yearly plan ki alag Razorpay link abhi set nahi hai.');
+    }
+
+    const loggedTxn = {
+      id: `RZP-${Date.now()}`,
+      user: cleanEmail,
+      userKey: emailToKey(cleanEmail),
+      plan: selectedBilling,
+      numericAmount: amt,
+      amount: `₹${amt} (${selectedBilling})`,
+      status: 'Checkout Opened',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    if (dbBase) {
+      try {
+        await fetch(`${dbBase}/transactions.json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(loggedTxn)
+        });
+      } catch {}
+    }
+
+    setTransactions((prev) => [loggedTxn, ...prev]);
+    setCheckoutPendingMsg('Razorpay payment page open ho raha hai...');
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  }, [checkoutEmail, googleUser?.email, selectedBilling, globalConfig, dbBase]);
+
+  const handleSendSupport = (e) => {
+    e.preventDefault();
+    if (!supportInput.trim()) return;
+    const msg = supportInput.trim();
+    setSupportMessages((prev) => [
+      ...prev,
+      { role: 'user', text: msg },
+      {
+        role: 'ai',
+        text: 'ShortsPilot auto-post by default aur #Shorts mode par set hai.'
+      }
+    ]);
+    setSupportInput('');
+  };
+
+  const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
+  const currentMonthlyPrice = globalConfig.monthlyPrice || '99';
+  const currentYearlyPrice = globalConfig.yearlyPrice || '3999';
+  const currentWatermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
+  const safeAdUrl = sanitizeMediaUrl(globalConfig.adClickUrl) || 'https://www.shortspilot.in';
+
+  if (!isAdminOpen && (globalConfig?.maintenanceMode || isCurrentUserBlocked)) {
+    return (
+      <div className="min-h-screen w-full bg-[#05030a] text-white flex items-center justify-center p-6 text-center">
+        <div className="max-w-md rounded-3xl bg-[#110c22] border border-rose-500/40 p-6 space-y-3">
+          <h2 className="text-lg font-extrabold text-rose-300">
+            {isCurrentUserBlocked ? 'Access Restricted' : 'Site Under Maintenance'}
+          </h2>
+          <p className="text-xs text-slate-300">
+            {isCurrentUserBlocked
+              ? 'Aapka account owner admin dwara block kiya gaya hai.'
+              : globalConfig?.announcementBanner || 'Website abhi maintenance mode mein hai.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <>
-      <div className="min-h-screen bg-[#090614] text-white">
-        <div className="mx-auto w-full max-w-7xl px-3 pb-24 pt-4 lg:px-6">
+    <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
+      <DesktopSidebar
+        activeTab={activeTab}
+        onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
+        onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')}
+        onOpenSplitter={() =>
+          requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
+        }
+        onOpenThumbnail={() =>
+          requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset')
+        }
+        onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
+        onOpenAdmin={() => requireGoogleAuth(() => setIsAdminOpen(true), 'Full Control Admin Console')}
+        onOpenTerms={() => requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions')}
+        onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
+        onGoogleLogout={logoutGoogle}
+        isGoogleConnected={isGoogleConnected}
+        isLoggingIn={isLoggingIn}
+        googleUser={googleUser}
+        monthlyPrice={currentMonthlyPrice}
+        yearlyPrice={currentYearlyPrice}
+        videoCount={videoQueue.length}
+      />
+
+      <div className="flex-1 min-h-screen bg-[#070510] text-white flex flex-col">
+        <TopHeader
+          tier={tier}
+          hasUnread={notificationsList.some((n) => n.unread)}
+          googleUser={googleUser}
+          isGoogleConnected={isGoogleConnected}
+          isLoggingIn={isLoggingIn}
+          onOpenDrawer={() => setIsSettingsDrawerOpen(true)}
+          onGoHome={() => setActiveTab('home')}
+          onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
+          onOpenNotifications={() =>
+            requireGoogleAuth(() => {
+              setIsNotificationOpen(true);
+              setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
+            }, 'Notifications')
+          }
+          onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
+          onGoogleLogout={logoutGoogle}
+          onOpenSettings={() => requireGoogleAuth(() => setActiveTab('settings'), 'Settings')}
+        />
+
+        {globalConfig?.announcementBanner && (
+          <div className="mx-4 lg:mx-8 mt-2 px-3.5 py-2 rounded-xl bg-cyan-500/15 border border-cyan-400/40 text-xs text-cyan-200 font-bold">
+            {globalConfig.announcementBanner}
+          </div>
+        )}
+
+        {loginError && (
+          <div className="mx-4 lg:mx-8 mt-2 px-3 py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-xs text-rose-300 font-bold">
+            {loginError}
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/*"
+          multiple
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+        <input
+          ref={splitterInputRef}
+          type="file"
+          accept="video/*"
+          onChange={handleSplitFullVideo}
+          className="hidden"
+        />
+
+        <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-3 lg:pt-6 pb-32 lg:pb-12 space-y-4 lg:space-y-6">
           {activeTab === 'home' && (
             <>
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                {!isGoogleConnected && (
-                  <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-blue-600/15 to-cyan-500/10 border border-blue-400/35 flex items-center justify-between gap-3 shadow-lg">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-400/40 flex items-center justify-center shrink-0">
-                        <Youtube className="w-5 h-5 text-blue-300" />
+              <div className="flex justify-center">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#120c24] border border-purple-400/35 text-[11px] font-bold text-slate-200 shadow-md">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>Built for YouTube #Shorts Creators • 4 Daily Auto Slots</span>
+                </div>
+              </div>
+
+              {globalConfig?.adsEnabled && (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#1d1236] via-[#131a2e] to-[#241129] border border-amber-400/45 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-lg">
+                  <div className="space-y-0.5 min-w-0">
+                    <span className="inline-block px-2 py-0.5 rounded bg-amber-400/20 border border-amber-300/40 text-[9px] font-black text-amber-300 uppercase">
+                      {globalConfig.adBadgeText || 'SPONSORED AD'}
+                    </span>
+                    <div className="text-xs font-extrabold text-white">
+                      {globalConfig.adTitleText ||
+                        'Upgrade to Yearly VIP (₹3,999/yr) for Priority 4x Daily Shorts Slots'}
+                    </div>
+                  </div>
+                  <a
+                    href={safeAdUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black text-[11px] font-extrabold shrink-0 transition"
+                  >
+                    {globalConfig.adCtaLabel || 'Explore VIP'}
+                  </a>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
+                <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-purple-600/20 to-pink-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Crown className="w-6 h-6 text-amber-400 fill-amber-400 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-xs lg:text-sm font-extrabold text-amber-300 truncate">
+                        Shorts Engine Active
                       </div>
+                      <div className="text-[10px] lg:text-xs text-slate-200">
+                        4 Daily Slots • 9:16 Thumb • shortspilot.in
+                      </div>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                    PRO
+                  </span>
+                </div>
+
+                {isGoogleConnected ? (
+                  <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-emerald-600/20 via-purple-600/20 to-cyan-600/20 border border-emerald-400/50 flex items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <ChannelAvatarBadge googleUser={googleUser} sizeClass="w-10 h-10" />
                       <div className="min-w-0">
-                        <div className="text-xs lg:text-sm font-extrabold text-white truncate">
-                          Google / YouTube
+                        <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
+                          <span>{googleUser?.name || 'Google Account'}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 text-[9.5px] font-extrabold">
+                            Connected ✅
+                          </span>
+                        </div>
+                        <div className="text-[10px] lg:text-xs text-slate-300 truncate">
+                          {googleUser?.email}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 lg:p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-amber-600/20 border border-amber-400/50 flex items-center justify-between gap-3 shadow-lg">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <ChannelAvatarBadge googleUser={googleUser} sizeClass="w-10 h-10" />
+                      <div className="min-w-0">
+                        <div className="text-xs lg:text-sm font-extrabold text-white truncate flex items-center gap-1.5">
+                          <span>Google &amp; YouTube</span>
+                          <span className="px-1.5 py-0.5 rounded bg-cyan-500/25 text-cyan-300 text-[9px] font-extrabold">
+                            AUTO
+                          </span>
                         </div>
                         <div className="text-[10px] lg:text-xs text-slate-300 truncate">
                           3-step login guide before connect
@@ -2310,7 +2557,7 @@ export default function App() {
                       }
                       className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-purple-600/30 to-pink-600/30 border border-purple-400/50 flex items-center justify-center relative cursor-pointer shadow-xl shrink-0 group"
                     >
-                      <span className="px-1.5 py-0.5 rounded bg-cyan-500/25 text-cyan-300 text-[9px] font-extrabold">
+                      <span className="absolute -top-1 right-0 px-2 py-0.5 rounded-md bg-cyan-500 text-[9px] font-extrabold text-black">
                         AUTO
                       </span>
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-orange-500 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
@@ -3094,918 +3341,916 @@ export default function App() {
         />
       </div>
 
-      <div className="relative z-50">
-        <GoogleVerificationGuideModal
-          isOpen={isAuthGateModalOpen}
-          onClose={() => {
-            pendingActionRef.current = null;
-            setIsAuthGateModalOpen(false);
-          }}
-          onConnectGoogle={startGoogleLogin}
-          isLoggingIn={isLoggingIn}
-          blockedOptionName={blockedOptionName}
-        />
+      <GoogleVerificationGuideModal
+        isOpen={isAuthGateModalOpen}
+        onClose={() => {
+          pendingActionRef.current = null;
+          setIsAuthGateModalOpen(false);
+        }}
+        onConnectGoogle={startGoogleLogin}
+        isLoggingIn={isLoggingIn}
+        blockedOptionName={blockedOptionName}
+      />
 
-        {isTermsOpen && isGoogleConnected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-            <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-3 max-h-[85vh] overflow-y-auto text-xs text-slate-300">
-              <button
-                type="button"
-                onClick={() => setIsTermsOpen(false)}
-                className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-base font-extrabold text-white">Terms &amp; Conditions</h3>
-              <p className="text-[11px] text-slate-400">Service: ShortsPilot AI (shortspilot.in)</p>
-              <div className="space-y-2 leading-relaxed">
-                <p>
-                  <b className="text-white">1. Content Rights:</b> Aap sirf wahi videos upload/cut aur
-                  publish karein jinke rights aapke paas hain ya jo copyright guidelines ke anusaar
-                  allowed hain.
-                </p>
-                <p>
-                  <b className="text-white">2. YouTube &amp; Third-Party Rules:</b> Shorts YouTube ke
-                  Community Guidelines aur Terms of Service ke mutabik publish kiye jaate hain;
-                  platform moderation ya reach ki guarantee nahi deta.
-                </p>
-                <p>
-                  <b className="text-white">3. Subscriptions &amp; Payments:</b> Plans (Monthly / Yearly)
-                  digital automation access ke liye hain; Razorpay payment complete hone ke baad plan
-                  active hota hai.
-                </p>
-                <p>
-                  <b className="text-white">4. Local Storage &amp; Tokens:</b> Clips local IndexedDB mein
-                  aur account/token details aapke browser storage mein save rehte hain; public ya
-                  shared devices par logout karein.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsTermsOpen(false)}
-                className="w-full py-2.5 rounded-2xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
-              >
-                Close
-              </button>
+      {isTermsOpen && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-6 space-y-3 max-h-[85vh] overflow-y-auto text-xs text-slate-300">
+            <button
+              type="button"
+              onClick={() => setIsTermsOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-extrabold text-white">Terms &amp; Conditions</h3>
+            <p className="text-[11px] text-slate-400">Service: ShortsPilot AI (shortspilot.in)</p>
+            <div className="space-y-2 leading-relaxed">
+              <p>
+                <b className="text-white">1. Content Rights:</b> Aap sirf wahi videos upload/cut aur
+                publish karein jinke rights aapke paas hain ya jo copyright guidelines ke anusaar
+                allowed hain.
+              </p>
+              <p>
+                <b className="text-white">2. YouTube &amp; Third-Party Rules:</b> Shorts YouTube ke
+                Community Guidelines aur Terms of Service ke mutabik publish kiye jaate hain;
+                platform moderation ya reach ki guarantee nahi deta.
+              </p>
+              <p>
+                <b className="text-white">3. Subscriptions &amp; Payments:</b> Plans (Monthly / Yearly)
+                digital automation access ke liye hain; Razorpay payment complete hone ke baad plan
+                active hota hai.
+              </p>
+              <p>
+                <b className="text-white">4. Local Storage &amp; Tokens:</b> Clips local IndexedDB mein
+                aur account/token details aapke browser storage mein save rehte hain; public ya
+                shared devices par logout karein.
+              </p>
             </div>
-          </div>
-        )}
-
-        {isGoogleAccountModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!manualGoogleEmail.trim()) return;
-                applyConnectedGoogleProfile({
-                  name: manualGoogleName.trim() || manualGoogleEmail.trim().split('@')[0],
-                  email: manualGoogleEmail.trim()
-                });
-                setManualGoogleEmail('');
-                setManualGoogleName('');
-                setIsGoogleAccountModalOpen(false);
-              }}
-              className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-6 space-y-3"
+            <button
+              type="button"
+              onClick={() => setIsTermsOpen(false)}
+              className="w-full py-2.5 rounded-2xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
             >
-              <button
-                type="button"
-                onClick={() => setIsGoogleAccountModalOpen(false)}
-                className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-base font-extrabold text-white">Connect Google Account</h3>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isGoogleAccountModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!manualGoogleEmail.trim()) return;
+              applyConnectedGoogleProfile({
+                name: manualGoogleName.trim() || manualGoogleEmail.trim().split('@')[0],
+                email: manualGoogleEmail.trim()
+              });
+              setManualGoogleEmail('');
+              setManualGoogleName('');
+              setIsGoogleAccountModalOpen(false);
+            }}
+            className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-6 space-y-3"
+          >
+            <button
+              type="button"
+              onClick={() => setIsGoogleAccountModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-extrabold text-white">Connect Google Account</h3>
+            <input
+              type="text"
+              value={manualGoogleName}
+              onChange={(e) => setManualGoogleName(e.target.value)}
+              placeholder="Channel / Creator Name"
+              className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+            />
+            <input
+              type="email"
+              required
+              value={manualGoogleEmail}
+              onChange={(e) => setManualGoogleEmail(e.target.value)}
+              placeholder="Enter Google Gmail ID"
+              className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+            />
+            <button
+              type="submit"
+              className="w-full py-3 rounded-2xl bg-[#4285F4] text-white font-extrabold text-xs cursor-pointer"
+            >
+              Save &amp; Connect Google
+            </button>
+          </form>
+        </div>
+      )}
+
+      {isIgModalOpen && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <form
+            onSubmit={handleSaveInstagramToken}
+            className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-pink-500/50 p-6 space-y-3"
+          >
+            <button
+              type="button"
+              onClick={() => setIsIgModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+              <Instagram className="w-4 h-4 text-pink-300" /> Instagram Token Connect
+            </h3>
+            <input
+              type="text"
+              required
+              value={igUsernameDraft}
+              onChange={(e) => setIgUsernameDraft(e.target.value)}
+              placeholder="@your_instagram"
+              className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-pink-300 font-mono"
+            />
+            <input
+              type="text"
+              required
+              value={igTokenDraft}
+              onChange={(e) => setIgTokenDraft(e.target.value)}
+              placeholder="Paste Instagram Token..."
+              className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
+            />
+            {igError && <p className="text-xs text-rose-400 font-bold">{igError}</p>}
+            <button
+              type="submit"
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
+            >
+              Save &amp; Connect Instagram
+            </button>
+          </form>
+        </div>
+      )}
+
+      {isThumbnailModalOpen && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setIsThumbnailModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2">
+              <ImageIcon className="w-5 h-5 text-cyan-300" />
+              <h3 className="text-base font-extrabold text-white">9:16 Thumbnail Preset</h3>
+            </div>
+
+            <form onSubmit={handleGenerateThumbnails} className="flex gap-2">
               <input
                 type="text"
-                value={manualGoogleName}
-                onChange={(e) => setManualGoogleName(e.target.value)}
-                placeholder="Channel / Creator Name"
-                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
-              />
-              <input
-                type="email"
-                required
-                value={manualGoogleEmail}
-                onChange={(e) => setManualGoogleEmail(e.target.value)}
-                placeholder="Enter Google Gmail ID"
-                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+                value={thumbTopicInput}
+                onChange={(e) => setThumbTopicInput(e.target.value)}
+                placeholder="Enter cover label..."
+                className="flex-1 px-3 py-2.5 rounded-xl bg-[#06040c] border border-cyan-500/40 text-xs text-white"
               />
               <button
                 type="submit"
-                className="w-full py-3 rounded-2xl bg-[#4285F4] text-white font-extrabold text-xs cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
               >
-                Save &amp; Connect Google
+                Generate
               </button>
             </form>
-          </div>
-        )}
 
-        {isIgModalOpen && isGoogleConnected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-            <form
-              onSubmit={handleSaveInstagramToken}
-              className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-pink-500/50 p-6 space-y-3"
-            >
-              <button
-                type="button"
-                onClick={() => setIsIgModalOpen(false)}
-                className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                <Instagram className="w-4 h-4 text-pink-300" /> Instagram Token Connect
-              </h3>
-              <input
-                type="text"
-                required
-                value={igUsernameDraft}
-                onChange={(e) => setIgUsernameDraft(e.target.value)}
-                placeholder="@your_instagram"
-                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-pink-300 font-mono"
-              />
-              <input
-                type="text"
-                required
-                value={igTokenDraft}
-                onChange={(e) => setIgTokenDraft(e.target.value)}
-                placeholder="Paste Instagram Token..."
-                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-cyan-300 font-mono"
-              />
-              {igError && <p className="text-xs text-rose-400 font-bold">{igError}</p>}
-              <button
-                type="submit"
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
-              >
-                Save &amp; Connect Instagram
-              </button>
-            </form>
-          </div>
-        )}
-
-        {isThumbnailModalOpen && isGoogleConnected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-            <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-cyan-500/50 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
-              <button
-                type="button"
-                onClick={() => setIsThumbnailModalOpen(false)}
-                className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <div className="flex items-center gap-2">
-                <ImageIcon className="w-5 h-5 text-cyan-300" />
-                <h3 className="text-base font-extrabold text-white">9:16 Thumbnail Preset</h3>
-              </div>
-
-              <form onSubmit={handleGenerateThumbnails} className="flex gap-2">
-                <input
-                  type="text"
-                  value={thumbTopicInput}
-                  onChange={(e) => setThumbTopicInput(e.target.value)}
-                  placeholder="Enter cover label..."
-                  className="flex-1 px-3 py-2.5 rounded-xl bg-[#06040c] border border-cyan-500/40 text-xs text-white"
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2.5 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
-                >
-                  Generate
-                </button>
-              </form>
-
-              <div className="grid grid-cols-3 gap-2.5">
-                {thumbConcepts.map((item) => {
-                  const isSelected = selectedThumbConcept?.id === item.id;
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() => setSelectedThumbConcept(item)}
-                      className={`aspect-[9/16] rounded-2xl bg-gradient-to-b ${item.gradient} p-2.5 flex flex-col justify-between border-2 cursor-pointer transition-all ${
-                        isSelected
-                          ? 'border-amber-400 scale-[1.02] shadow-[0_0_15px_rgba(251,191,36,0.4)]'
-                          : 'border-white/15 opacity-85'
-                      }`}
-                    >
-                      <span className="px-1.5 py-0.5 rounded bg-black/60 text-[7px] font-extrabold text-white self-start">
-                        {item.badge}
-                      </span>
-                      <div className="text-center space-y-1 my-auto">
-                        <div className="text-xs font-black text-white leading-tight drop-shadow">
-                          {item.hookText}
-                        </div>
-                        <div className={`text-[8.5px] font-extrabold ${item.accentText} truncate`}>
-                          {item.subText}
-                        </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {thumbConcepts.map((item) => {
+                const isSelected = selectedThumbConcept?.id === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedThumbConcept(item)}
+                    className={`aspect-[9/16] rounded-2xl bg-gradient-to-b ${item.gradient} p-2.5 flex flex-col justify-between border-2 cursor-pointer transition-all ${
+                      isSelected
+                        ? 'border-amber-400 scale-[1.02] shadow-[0_0_15px_rgba(251,191,36,0.4)]'
+                        : 'border-white/15 opacity-85'
+                    }`}
+                  >
+                    <span className="px-1.5 py-0.5 rounded bg-black/60 text-[7px] font-extrabold text-white self-start">
+                      {item.badge}
+                    </span>
+                    <div className="text-center space-y-1 my-auto">
+                      <div className="text-xs font-black text-white leading-tight drop-shadow">
+                        {item.hookText}
                       </div>
-                      <div className="text-[7.5px] font-extrabold text-emerald-300 bg-black/50 rounded px-1.5 py-0.5 text-center">
-                        {item.ctrScore}
+                      <div className={`text-[8.5px] font-extrabold ${item.accentText} truncate`}>
+                        {item.subText}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsThumbnailModalOpen(false)}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
-              >
-                Apply Selected 9:16 Thumbnail ({selectedThumbConcept?.hookText})
-              </button>
+                    <div className="text-[7.5px] font-extrabold text-emerald-300 bg-black/50 rounded px-1.5 py-0.5 text-center">
+                      {item.ctrScore}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-        )}
 
-        {isSplitterModalOpen && isGoogleConnected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-            <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-pink-500/50 p-6 space-y-4">
-              <button
-                type="button"
-                onClick={() => setIsSplitterModalOpen(false)}
-                className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <div className="flex items-center gap-2">
-                <Scissors className="w-5 h-5 text-pink-400" />
-                <h3 className="text-base font-extrabold text-white">AI Engaging Shorts Cutter</h3>
-              </div>
-              <p className="text-xs text-slate-300">
-                Select how many Shorts you want AI to cut from your video:
-              </p>
-              <div className="grid grid-cols-3 gap-2.5">
-                {[1, 3, 5].map((count) => (
-                  <button
-                    key={count}
-                    type="button"
-                    onClick={() => setClipSplitCount(count)}
-                    className={`py-3 rounded-2xl border text-xs font-extrabold cursor-pointer ${
-                      clipSplitCount === count
-                        ? 'bg-pink-600 border-pink-400 text-white shadow-lg'
-                        : 'bg-[#130c26] border-slate-700 text-slate-300'
-                    }`}
-                  >
-                    {count} {count === 1 ? 'Short' : 'Shorts'}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => splitterInputRef.current?.click()}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
-              >
-                Select Video &amp; Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}
-              </button>
+            <button
+              type="button"
+              onClick={() => setIsThumbnailModalOpen(false)}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
+            >
+              Apply Selected 9:16 Thumbnail ({selectedThumbConcept?.hookText})
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isSplitterModalOpen && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-pink-500/50 p-6 space-y-4">
+            <button
+              type="button"
+              onClick={() => setIsSplitterModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2">
+              <Scissors className="w-5 h-5 text-pink-400" />
+              <h3 className="text-base font-extrabold text-white">AI Engaging Shorts Cutter</h3>
             </div>
-          </div>
-        )}
-
-        {isPricingOpen && isGoogleConnected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-            <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-amber-400/50 p-6 space-y-4 max-h-[92vh] overflow-y-auto">
-              <button
-                type="button"
-                onClick={() => setIsPricingOpen(false)}
-                className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <div className="space-y-1">
-                <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-extrabold">
-                  LIMITED TIME LAUNCH OFFER
-                </span>
-                <h3 className="text-base font-extrabold text-white">
-                  Choose Your ShortsPilot Offer Plan
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
+            <p className="text-xs text-slate-300">
+              Select how many Shorts you want AI to cut from your video:
+            </p>
+            <div className="grid grid-cols-3 gap-2.5">
+              {[1, 3, 5].map((count) => (
                 <button
+                  key={count}
                   type="button"
-                  onClick={() => setSelectedBilling('monthly')}
-                  className={`p-3 rounded-2xl border text-left cursor-pointer ${
-                    selectedBilling === 'monthly'
-                      ? 'bg-cyan-500/20 border-cyan-400 text-white'
-                      : 'bg-[#120d24] border-slate-800 text-slate-400'
+                  onClick={() => setClipSplitCount(count)}
+                  className={`py-3 rounded-2xl border text-xs font-extrabold cursor-pointer ${
+                    clipSplitCount === count
+                      ? 'bg-pink-600 border-pink-400 text-white shadow-lg'
+                      : 'bg-[#130c26] border-slate-700 text-slate-300'
                   }`}
                 >
-                  <div className="text-[10px] font-extrabold text-cyan-300">MONTHLY PRO</div>
-                  <div className="flex items-baseline gap-1.5 mt-1">
-                    <span className="text-lg font-extrabold text-white">₹{currentMonthlyPrice}</span>
-                    <span className="text-xs line-through text-slate-500">₹499</span>
-                  </div>
-                  <div className="text-[9.5px] text-emerald-400 font-bold mt-1">
-                    50K+ Views Guarantee
-                  </div>
+                  {count} {count === 1 ? 'Short' : 'Shorts'}
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedBilling('yearly')}
-                  className={`p-3 rounded-2xl border text-left cursor-pointer ${
-                    selectedBilling === 'yearly'
-                      ? 'bg-amber-500/20 border-amber-400 text-white'
-                      : 'bg-[#120d24] border-slate-800 text-slate-400'
-                  }`}
-                >
-                  <div className="text-[10px] font-extrabold text-amber-300">YEARLY VIP</div>
-                  <div className="flex items-baseline gap-1.5 mt-1">
-                    <span className="text-lg font-extrabold text-amber-400">
-                      ₹{currentYearlyPrice}
-                    </span>
-                    <span className="text-xs line-through text-slate-500">₹6999</span>
-                  </div>
-                  <div className="text-[9.5px] text-amber-200 font-bold mt-1">
-                    100K+ Views Guarantee
-                  </div>
-                </button>
-              </div>
-
-              {upgradeReason && <p className="text-xs text-amber-200">{upgradeReason}</p>}
-
-              <div className="space-y-2.5">
-                <input
-                  type="email"
-                  value={checkoutEmail}
-                  onChange={(e) => setCheckoutEmail(e.target.value)}
-                  placeholder="Enter Your Gmail ID"
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
-                />
-
-                {checkoutError && <p className="text-xs text-rose-400 font-bold">{checkoutError}</p>}
-                {checkoutPendingMsg && (
-                  <p className="text-xs text-emerald-300 font-bold">{checkoutPendingMsg}</p>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleOpenRazorpayCheckout}
-                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-xs cursor-pointer shadow-lg"
-                >
-                  💳 Pay Instantly via Razorpay (₹
-                  {selectedBilling === 'yearly' ? currentYearlyPrice : currentMonthlyPrice})
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {isSettingsDrawerOpen && (
-          <div className="fixed inset-0 z-50 flex bg-black/75 lg:hidden">
-            <div className="w-68 bg-[#0b0818] border-r border-purple-500/30 h-full p-5 flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                  <span className="font-extrabold text-sm text-white">ShortsPilot AI</span>
-                  <button
-                    type="button"
-                    onClick={() => setIsSettingsDrawerOpen(false)}
-                    className="text-slate-400 cursor-pointer"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="space-y-1 text-xs font-bold">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('home');
-                      setIsSettingsDrawerOpen(false);
-                    }}
-                    className="w-full p-2.5 rounded-xl text-left text-slate-200 cursor-pointer"
-                  >
-                    Home Dashboard
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSettingsDrawerOpen(false);
-                      openGoogleGuidePopup(startGoogleLogin, 'Google Connect');
-                    }}
-                    className="w-full p-2.5 rounded-xl text-left text-[#4285F4] cursor-pointer"
-                  >
-                    {isGoogleConnected ? '✅ Google Connected' : 'Connect Google'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSettingsDrawerOpen(false);
-                      requireGoogleAuth(() => setIsIgModalOpen(true), 'Instagram Token Connect');
-                    }}
-                    className="w-full p-2.5 rounded-xl text-left text-pink-300 flex items-center justify-between cursor-pointer"
-                  >
-                    <span>📸 Instagram</span>
-                    <span className="text-[10px] text-amber-300">
-                      {igData.connected ? 'Connected ✅' : 'Pending ⏳'}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSettingsDrawerOpen(false);
-                      requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter');
-                    }}
-                    className="w-full p-2.5 rounded-xl text-left text-pink-300 cursor-pointer"
-                  >
-                    ✂️ AI Engaging Shorts (1, 3, 5)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSettingsDrawerOpen(false);
-                      requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset');
-                    }}
-                    className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
-                  >
-                    🎨 9:16 Thumbnail Preset
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSettingsDrawerOpen(false);
-                      requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans');
-                    }}
-                    className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer"
-                  >
-                    🔥 Offer Plans (₹{currentMonthlyPrice} / ₹{currentYearlyPrice})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSettingsDrawerOpen(false);
-                      requireGoogleAuth(() => setActiveTab('settings'), 'Settings');
-                    }}
-                    className="w-full p-2.5 rounded-xl text-left text-slate-300 cursor-pointer"
-                  >
-                    Control &amp; Settings
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSettingsDrawerOpen(false);
-                      requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions');
-                    }}
-                    className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
-                  >
-                    📄 Terms &amp; Conditions
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSettingsDrawerOpen(false);
-                      requireGoogleAuth(() => setIsAdminOpen(true), 'Full Control Admin Console');
-                    }}
-                    className="w-full p-2.5 rounded-xl text-left text-rose-400 cursor-pointer"
-                  >
-                    🔐 Full Control Admin Console
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {isGoogleConnected && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      logoutGoogle();
-                      setIsSettingsDrawerOpen(false);
-                    }}
-                    className="w-full py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <LogOut className="w-3.5 h-3.5" /> Logout
-                  </button>
-                )}
-                <div className="text-[10px] text-slate-500">{currentWatermark}</div>
-              </div>
-            </div>
-            <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
-          </div>
-        )}
-
-        {isNotificationOpen && isGoogleConnected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-            <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-6 space-y-2.5">
-              <button
-                type="button"
-                onClick={() => setIsNotificationOpen(false)}
-                className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-sm font-extrabold text-white">Notifications</h3>
-              {notificationsList.map((n) => (
-                <div key={n.id} className="p-3 rounded-xl bg-[#130d26] text-xs space-y-1">
-                  <div className="font-bold text-white">{n.title}</div>
-                  <p className="text-slate-300 text-[11px]">{n.desc}</p>
-                </div>
               ))}
             </div>
+            <button
+              type="button"
+              onClick={() => splitterInputRef.current?.click()}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
+            >
+              Select Video &amp; Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {showAiSupport && isGoogleConnected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-            <div className="relative w-full max-w-sm h-[420px] rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-4 flex flex-col">
-              <div className="flex justify-between items-center pb-2.5 border-b border-slate-800">
-                <span className="text-xs font-extrabold text-white">ShortsPilot AI Support</span>
-                <button
-                  type="button"
-                  onClick={() => setShowAiSupport(false)}
-                  className="text-slate-400 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto space-y-2 py-3 text-xs">
-                {supportMessages.map((m, i) => (
-                  <div
-                    key={i}
-                    className={`p-2.5 rounded-xl ${
-                      m.role === 'user'
-                        ? 'bg-purple-600 text-white ml-6'
-                        : 'bg-[#140e28] text-slate-200 mr-6'
-                    }`}
-                  >
-                    {m.text}
-                  </div>
-                ))}
-              </div>
-              <form onSubmit={handleSendSupport} className="flex gap-2 pt-2 border-t border-slate-800">
-                <input
-                  type="text"
-                  value={supportInput}
-                  onChange={(e) => setSupportInput(e.target.value)}
-                  placeholder="Ask anything..."
-                  className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
-                >
-                  Send
-                </button>
-              </form>
+      {isPricingOpen && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#0b0818] border border-amber-400/50 p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setIsPricingOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="space-y-1">
+              <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-extrabold">
+                LIMITED TIME LAUNCH OFFER
+              </span>
+              <h3 className="text-base font-extrabold text-white">
+                Choose Your ShortsPilot Offer Plan
+              </h3>
             </div>
-          </div>
-        )}
 
-        {previewClip && isGoogleConnected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
-            <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-4 space-y-3 max-h-[92vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
-                onClick={() => setPreviewClip(null)}
-                className="absolute top-3 right-3 p-1.5 rounded-full bg-slate-900 text-white cursor-pointer z-20"
+                onClick={() => setSelectedBilling('monthly')}
+                className={`p-3 rounded-2xl border text-left cursor-pointer ${
+                  selectedBilling === 'monthly'
+                    ? 'bg-cyan-500/20 border-cyan-400 text-white'
+                    : 'bg-[#120d24] border-slate-800 text-slate-400'
+                }`}
+              >
+                <div className="text-[10px] font-extrabold text-cyan-300">MONTHLY PRO</div>
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <span className="text-lg font-extrabold text-white">₹{currentMonthlyPrice}</span>
+                  <span className="text-xs line-through text-slate-500">₹499</span>
+                </div>
+                <div className="text-[9.5px] text-emerald-400 font-bold mt-1">
+                  50K+ Views Guarantee
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedBilling('yearly')}
+                className={`p-3 rounded-2xl border text-left cursor-pointer ${
+                  selectedBilling === 'yearly'
+                    ? 'bg-amber-500/20 border-amber-400 text-white'
+                    : 'bg-[#120d24] border-slate-800 text-slate-400'
+                }`}
+              >
+                <div className="text-[10px] font-extrabold text-amber-300">YEARLY VIP</div>
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <span className="text-lg font-extrabold text-amber-400">
+                    ₹{currentYearlyPrice}
+                  </span>
+                  <span className="text-xs line-through text-slate-500">₹6999</span>
+                </div>
+                <div className="text-[9.5px] text-amber-200 font-bold mt-1">
+                  100K+ Views Guarantee
+                </div>
+              </button>
+            </div>
+
+            {upgradeReason && <p className="text-xs text-amber-200">{upgradeReason}</p>}
+
+            <div className="space-y-2.5">
+              <input
+                type="email"
+                value={checkoutEmail}
+                onChange={(e) => setCheckoutEmail(e.target.value)}
+                placeholder="Enter Your Gmail ID"
+                className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+              />
+
+              {checkoutError && <p className="text-xs text-rose-400 font-bold">{checkoutError}</p>}
+              {checkoutPendingMsg && (
+                <p className="text-xs text-emerald-300 font-bold">{checkoutPendingMsg}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleOpenRazorpayCheckout}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-xs cursor-pointer shadow-lg"
+              >
+                💳 Pay Instantly via Razorpay (₹
+                {selectedBilling === 'yearly' ? currentYearlyPrice : currentMonthlyPrice})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSettingsDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex bg-black/75 lg:hidden">
+          <div className="w-68 bg-[#0b0818] border-r border-purple-500/30 h-full p-5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <span className="font-extrabold text-sm text-white">ShortsPilot AI</span>
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsDrawerOpen(false)}
+                  className="text-slate-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-1 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('home');
+                    setIsSettingsDrawerOpen(false);
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-slate-200 cursor-pointer"
+                >
+                  Home Dashboard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    openGoogleGuidePopup(startGoogleLogin, 'Google Connect');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-[#4285F4] cursor-pointer"
+                >
+                  {isGoogleConnected ? '✅ Google Connected' : 'Connect Google'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsIgModalOpen(true), 'Instagram Token Connect');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-pink-300 flex items-center justify-between cursor-pointer"
+                >
+                  <span>📸 Instagram</span>
+                  <span className="text-[10px] text-amber-300">
+                    {igData.connected ? 'Connected ✅' : 'Pending ⏳'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-pink-300 cursor-pointer"
+                >
+                  ✂️ AI Engaging Shorts (1, 3, 5)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
+                >
+                  🎨 9:16 Thumbnail Preset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-amber-300 cursor-pointer"
+                >
+                  🔥 Offer Plans (₹{currentMonthlyPrice} / ₹{currentYearlyPrice})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setActiveTab('settings'), 'Settings');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-slate-300 cursor-pointer"
+                >
+                  Control &amp; Settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-cyan-300 cursor-pointer"
+                >
+                  📄 Terms &amp; Conditions
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsDrawerOpen(false);
+                    requireGoogleAuth(() => setIsAdminOpen(true), 'Full Control Admin Console');
+                  }}
+                  className="w-full p-2.5 rounded-xl text-left text-rose-400 cursor-pointer"
+                >
+                  🔐 Full Control Admin Console
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {isGoogleConnected && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    logoutGoogle();
+                    setIsSettingsDrawerOpen(false);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" /> Logout
+                </button>
+              )}
+              <div className="text-[10px] text-slate-500">{currentWatermark}</div>
+            </div>
+          </div>
+          <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
+        </div>
+      )}
+
+      {isNotificationOpen && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-6 space-y-2.5">
+            <button
+              type="button"
+              onClick={() => setIsNotificationOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-sm font-extrabold text-white">Notifications</h3>
+            {notificationsList.map((n) => (
+              <div key={n.id} className="p-3 rounded-xl bg-[#130d26] text-xs space-y-1">
+                <div className="font-bold text-white">{n.title}</div>
+                <p className="text-slate-300 text-[11px]">{n.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showAiSupport && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-sm h-[420px] rounded-3xl bg-[#0b0818] border border-cyan-500/40 p-4 flex flex-col">
+            <div className="flex justify-between items-center pb-2.5 border-b border-slate-800">
+              <span className="text-xs font-extrabold text-white">ShortsPilot AI Support</span>
+              <button
+                type="button"
+                onClick={() => setShowAiSupport(false)}
+                className="text-slate-400 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
-              <div className="text-xs font-extrabold text-white text-center pr-6 truncate">
-                {previewClip.title}
-              </div>
-
-              <div className="relative w-full max-w-[230px] mx-auto rounded-2xl overflow-hidden border border-purple-500/40">
-                <video
-                  src={sanitizeMediaUrl(previewClip.croppedUrl)}
-                  controls
-                  autoPlay
-                  playsInline
-                  className="w-full aspect-[9/16] bg-black"
-                />
-                <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/65 border border-white/15 text-[8.5px] font-extrabold text-cyan-300 pointer-events-none">
-                  {previewClip.watermarkText || currentWatermark}
-                </div>
-              </div>
-
-              <div className="space-y-1.5 text-left">
-                <div className="text-[10px] font-extrabold text-pink-300">Description &amp; #Tags:</div>
-                <pre className="text-[10px] text-slate-200 whitespace-pre-wrap font-sans bg-[#06040c] p-2.5 rounded-xl border border-slate-800 max-h-36 overflow-y-auto">
-                  {previewClip.description}
-                </pre>
-              </div>
-
-              <ClipActionShortcuts
-                clip={previewClip}
-                onPreview={setPreviewClip}
-                onCopyDescription={handleCopyDescription}
-                onSendThumbAI={handleSendThumbAI}
-              />
             </div>
-          </div>
-        )}
-
-        {isAdminOpen && isGoogleConnected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-            <div className="relative w-full max-w-lg rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3.5 max-h-[90vh] overflow-y-auto">
-              <button
-                type="button"
-                onClick={() => setIsAdminOpen(false)}
-                className="absolute top-4 right-4 text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-base font-extrabold text-white">
-                🔐 Full Control Owner Admin Console
-              </h3>
-
-              {!adminUnlocked ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (adminPinInput.trim() === (globalConfig.adminPin || '9767905729')) {
-                      setAdminUnlocked(true);
-                      setAdminError('');
-                      fetchFirebaseData();
-                    } else {
-                      setAdminError('Invalid Admin PIN.');
-                    }
-                  }}
-                  className="space-y-2.5"
+            <div className="flex-1 overflow-y-auto space-y-2 py-3 text-xs">
+              {supportMessages.map((m, i) => (
+                <div
+                  key={i}
+                  className={`p-2.5 rounded-xl ${
+                    m.role === 'user'
+                      ? 'bg-purple-600 text-white ml-6'
+                      : 'bg-[#140e28] text-slate-200 mr-6'
+                  }`}
                 >
-                  <input
-                    type="password"
-                    value={adminPinInput}
-                    onChange={(e) => setAdminPinInput(e.target.value)}
-                    placeholder="Enter Admin PIN"
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
-                  />
-                  {adminError && <p className="text-xs text-rose-400">{adminError}</p>}
-                  <button
-                    type="submit"
-                    className="w-full py-2.5 rounded-xl bg-purple-600 text-white text-xs font-extrabold cursor-pointer"
-                  >
-                    Unlock Full Control Console
-                  </button>
-                </form>
-              ) : (
-                <div className="space-y-3.5 text-xs">
-                  <div className="p-3.5 rounded-2xl bg-[#120d24] border border-purple-500/30 space-y-2.5">
-                    <div className="font-bold text-purple-300">Engine &amp; Access Controls</div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-200 font-semibold">YouTube Auto-Upload</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setGlobalConfig((prev) => ({
-                            ...prev,
-                            ytAutoUploadActive: prev.ytAutoUploadActive === false
-                          }))
-                        }
-                        className={`px-3 py-1 rounded-full font-extrabold cursor-pointer ${
-                          globalConfig.ytAutoUploadActive !== false
-                            ? 'bg-emerald-500/20 border border-emerald-400 text-emerald-300'
-                            : 'bg-rose-500/20 border border-rose-400 text-rose-300'
-                        }`}
-                      >
-                        {globalConfig.ytAutoUploadActive !== false ? 'ENABLED' : 'PAUSED'}
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-200 font-semibold">Maintenance Mode</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setGlobalConfig((prev) => ({
-                            ...prev,
-                            maintenanceMode: !prev.maintenanceMode
-                          }))
-                        }
-                        className={`px-3 py-1 rounded-full font-extrabold cursor-pointer ${
-                          globalConfig.maintenanceMode
-                            ? 'bg-rose-500/25 border border-rose-400 text-rose-300'
-                            : 'bg-slate-800 border border-slate-600 text-slate-300'
-                        }`}
-                      >
-                        {globalConfig.maintenanceMode ? 'ON (Locked)' : 'OFF (Live)'}
-                      </button>
-                    </div>
-
-                    <input
-                      type="text"
-                      value={globalConfig.announcementBanner || ''}
-                      onChange={(e) =>
-                        setGlobalConfig((prev) => ({ ...prev, announcementBanner: e.target.value }))
-                      }
-                      placeholder="Top Announcement Banner Text (optional)"
-                      className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
-                    />
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-[#120d24] border border-amber-400/35 space-y-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-amber-300">App Ads Control</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setGlobalConfig((prev) => ({
-                            ...prev,
-                            adsEnabled: !(prev.adsEnabled !== false)
-                          }))
-                        }
-                        className={`px-3 py-1 rounded-full font-extrabold cursor-pointer ${
-                          globalConfig.adsEnabled !== false
-                            ? 'bg-amber-400/20 border border-amber-300 text-amber-200'
-                            : 'bg-slate-800 border border-slate-600 text-slate-400'
-                        }`}
-                      >
-                        {globalConfig.adsEnabled !== false ? 'ADS ON ✅' : 'ADS OFF'}
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={globalConfig.adBadgeText || ''}
-                        onChange={(e) =>
-                          setGlobalConfig((prev) => ({ ...prev, adBadgeText: e.target.value }))
-                        }
-                        placeholder="Ad Badge (e.g. SPONSORED AD)"
-                        className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
-                      />
-                      <input
-                        type="text"
-                        value={globalConfig.adCtaLabel || ''}
-                        onChange={(e) =>
-                          setGlobalConfig((prev) => ({ ...prev, adCtaLabel: e.target.value }))
-                        }
-                        placeholder="Ad Button Text"
-                        className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
-                      />
-                    </div>
-
-                    <input
-                      type="text"
-                      value={globalConfig.adTitleText || ''}
-                      onChange={(e) =>
-                        setGlobalConfig((prev) => ({ ...prev, adTitleText: e.target.value }))
-                      }
-                      placeholder="Ad Headline / Promo Message"
-                      className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
-                    />
-
-                    <input
-                      type="text"
-                      value={globalConfig.adClickUrl || ''}
-                      onChange={(e) =>
-                        setGlobalConfig((prev) => ({ ...prev, adClickUrl: e.target.value }))
-                      }
-                      placeholder="Ad Destination URL (https://...)"
-                      className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-cyan-300 font-mono"
-                    />
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-[#120d24] border border-cyan-500/30 space-y-2">
-                    <div className="font-bold text-cyan-300">Pricing, Watermark &amp; DB</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={globalConfig.monthlyPrice}
-                        onChange={(e) =>
-                          setGlobalConfig((prev) => ({ ...prev, monthlyPrice: e.target.value }))
-                        }
-                        placeholder="Monthly Price"
-                        className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
-                      />
-                      <input
-                        type="text"
-                        value={globalConfig.yearlyPrice}
-                        onChange={(e) =>
-                          setGlobalConfig((prev) => ({ ...prev, yearlyPrice: e.target.value }))
-                        }
-                        placeholder="Yearly Price"
-                        className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
-                      />
-                    </div>
-                    <input
-                      type="text"
-                      value={globalConfig.watermarkText || ''}
-                      onChange={(e) =>
-                        setGlobalConfig((prev) => ({ ...prev, watermarkText: e.target.value }))
-                      }
-                      placeholder="Brand Watermark"
-                      className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
-                    />
-                    <input
-                      type="text"
-                      value={globalConfig.receiverUpi}
-                      onChange={(e) =>
-                        setGlobalConfig((prev) => ({ ...prev, receiverUpi: e.target.value }))
-                      }
-                      placeholder="Receiver UPI"
-                      className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
-                    />
-                    <input
-                      type="text"
-                      value={liveDbUrl}
-                      onChange={(e) => setLiveDbUrl(e.target.value)}
-                      placeholder="Firebase RTDB URL"
-                      className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
-                    />
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-[#120d24] border border-rose-500/30 space-y-2">
-                    <div className="font-bold text-rose-300">Blocked User Emails</div>
-                    <div className="flex gap-2">
-                      <input
-                        type="email"
-                        value={blockedEmailInput}
-                        onChange={(e) => setBlockedEmailInput(e.target.value)}
-                        placeholder="user@gmail.com"
-                        className="flex-1 px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const em = blockedEmailInput.trim().toLowerCase();
-                          if (!em) return;
-                          setGlobalConfig((prev) => ({
-                            ...prev,
-                            blockedEmails: Array.from(
-                              new Set([...(prev.blockedEmails || []), em])
-                            )
-                          }));
-                          setBlockedEmailInput('');
-                        }}
-                        className="px-3 py-2 rounded-lg bg-rose-600 text-white font-extrabold cursor-pointer"
-                      >
-                        Block
-                      </button>
-                    </div>
-                    {(globalConfig.blockedEmails || []).length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {(globalConfig.blockedEmails || []).map((em) => (
-                          <span
-                            key={em}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/20 text-rose-200 text-[10px]"
-                          >
-                            <span>{em}</span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setGlobalConfig((prev) => ({
-                                  ...prev,
-                                  blockedEmails: (prev.blockedEmails || []).filter(
-                                    (x) => x !== em
-                                  )
-                                }))
-                              }
-                              className="text-rose-300 hover:text-white cursor-pointer"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      localStorage.setItem('sp_global_config', JSON.stringify(globalConfig));
-                      localStorage.setItem('sp_firebase_url', liveDbUrl);
-                      setTier('pro');
-                      setAutoPublishStatus('Full Control Config Saved ✅');
-                      if (dbBase) {
-                        try {
-                          await fetch(`${dbBase}/siteConfig.json`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(globalConfig)
-                          });
-                        } catch {}
-                      }
-                      setTimeout(() => setAutoPublishStatus(''), 2500);
-                    }}
-                    className="w-full py-2.5 rounded-xl bg-emerald-500 text-black font-extrabold cursor-pointer"
-                  >
-                    Save All Full Control Settings
-                  </button>
-
-                  <div className="space-y-1.5">
-                    <div className="font-bold text-amber-300">
-                      Transactions ({transactions.length})
-                    </div>
-                    {transactions.slice(0, 8).map((t, idx) => (
-                      <div
-                        key={t.firebaseKey || t.id || idx}
-                        className="p-2.5 rounded-xl bg-[#120d24] border border-slate-800 flex items-center justify-between text-[11px]"
-                      >
-                        <div className="truncate">
-                          <b>{t.user}</b> • {t.amount} • ID:{' '}
-                          <span className="font-mono">{t.id}</span>
-                        </div>
-                        <span className="text-amber-300 font-bold ml-2">
-                          {t.status || 'Checkout Opened'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  {m.text}
                 </div>
-              )}
+              ))}
             </div>
+            <form onSubmit={handleSendSupport} className="flex gap-2 pt-2 border-t border-slate-800">
+              <input
+                type="text"
+                value={supportInput}
+                onChange={(e) => setSupportInput(e.target.value)}
+                placeholder="Ask anything..."
+                className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-xl bg-cyan-500 text-black font-extrabold text-xs cursor-pointer"
+              >
+                Send
+              </button>
+            </form>
           </div>
-        )}
-      </div>
-    </>
+        </div>
+      )}
+
+      {previewClip && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
+          <div className="relative w-full max-w-sm rounded-3xl bg-[#0b0818] border border-purple-500/40 p-4 space-y-3 max-h-[92vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setPreviewClip(null)}
+              className="absolute top-3 right-3 p-1.5 rounded-full bg-slate-900 text-white cursor-pointer z-20"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="text-xs font-extrabold text-white text-center pr-6 truncate">
+              {previewClip.title}
+            </div>
+
+            <div className="relative w-full max-w-[230px] mx-auto rounded-2xl overflow-hidden border border-purple-500/40">
+              <video
+                src={sanitizeMediaUrl(previewClip.croppedUrl)}
+                controls
+                autoPlay
+                playsInline
+                className="w-full aspect-[9/16] bg-black"
+              />
+              <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/65 border border-white/15 text-[8.5px] font-extrabold text-cyan-300 pointer-events-none">
+                {previewClip.watermarkText || currentWatermark}
+              </div>
+            </div>
+
+            <div className="space-y-1.5 text-left">
+              <div className="text-[10px] font-extrabold text-pink-300">Description &amp; #Tags:</div>
+              <pre className="text-[10px] text-slate-200 whitespace-pre-wrap font-sans bg-[#06040c] p-2.5 rounded-xl border border-slate-800 max-h-36 overflow-y-auto">
+                {previewClip.description}
+              </pre>
+            </div>
+
+            <ClipActionShortcuts
+              clip={previewClip}
+              onPreview={setPreviewClip}
+              onCopyDescription={handleCopyDescription}
+              onSendThumbAI={handleSendThumbAI}
+            />
+          </div>
+        </div>
+      )}
+
+      {isAdminOpen && isGoogleConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="relative w-full max-w-lg rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3.5 max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setIsAdminOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-extrabold text-white">
+              🔐 Full Control Owner Admin Console
+            </h3>
+
+            {!adminUnlocked ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (adminPinInput.trim() === (globalConfig.adminPin || '9767905729')) {
+                    setAdminUnlocked(true);
+                    setAdminError('');
+                    fetchFirebaseData();
+                  } else {
+                    setAdminError('Invalid Admin PIN.');
+                  }
+                }}
+                className="space-y-2.5"
+              >
+                <input
+                  type="password"
+                  value={adminPinInput}
+                  onChange={(e) => setAdminPinInput(e.target.value)}
+                  placeholder="Enter Admin PIN"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
+                />
+                {adminError && <p className="text-xs text-rose-400">{adminError}</p>}
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-xl bg-purple-600 text-white text-xs font-extrabold cursor-pointer"
+                >
+                  Unlock Full Control Console
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-3.5 text-xs">
+                <div className="p-3.5 rounded-2xl bg-[#120d24] border border-purple-500/30 space-y-2.5">
+                  <div className="font-bold text-purple-300">Engine &amp; Access Controls</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-200 font-semibold">YouTube Auto-Upload</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setGlobalConfig((prev) => ({
+                          ...prev,
+                          ytAutoUploadActive: prev.ytAutoUploadActive === false
+                        }))
+                      }
+                      className={`px-3 py-1 rounded-full font-extrabold cursor-pointer ${
+                        globalConfig.ytAutoUploadActive !== false
+                          ? 'bg-emerald-500/20 border border-emerald-400 text-emerald-300'
+                          : 'bg-rose-500/20 border border-rose-400 text-rose-300'
+                      }`}
+                    >
+                      {globalConfig.ytAutoUploadActive !== false ? 'ENABLED' : 'PAUSED'}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-200 font-semibold">Maintenance Mode</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setGlobalConfig((prev) => ({
+                          ...prev,
+                          maintenanceMode: !prev.maintenanceMode
+                        }))
+                      }
+                      className={`px-3 py-1 rounded-full font-extrabold cursor-pointer ${
+                        globalConfig.maintenanceMode
+                          ? 'bg-rose-500/25 border border-rose-400 text-rose-300'
+                          : 'bg-slate-800 border border-slate-600 text-slate-300'
+                      }`}
+                    >
+                      {globalConfig.maintenanceMode ? 'ON (Locked)' : 'OFF (Live)'}
+                    </button>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={globalConfig.announcementBanner || ''}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, announcementBanner: e.target.value }))
+                    }
+                    placeholder="Top Announcement Banner Text (optional)"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                  />
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-[#120d24] border border-amber-400/35 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-amber-300">App Ads Control</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setGlobalConfig((prev) => ({
+                          ...prev,
+                          adsEnabled: !(prev.adsEnabled !== false)
+                        }))
+                      }
+                      className={`px-3 py-1 rounded-full font-extrabold cursor-pointer ${
+                        globalConfig.adsEnabled !== false
+                          ? 'bg-amber-400/20 border border-amber-300 text-amber-200'
+                          : 'bg-slate-800 border border-slate-600 text-slate-400'
+                      }`}
+                    >
+                      {globalConfig.adsEnabled !== false ? 'ADS ON ✅' : 'ADS OFF'}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={globalConfig.adBadgeText || ''}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, adBadgeText: e.target.value }))
+                      }
+                      placeholder="Ad Badge (e.g. SPONSORED AD)"
+                      className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                    <input
+                      type="text"
+                      value={globalConfig.adCtaLabel || ''}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, adCtaLabel: e.target.value }))
+                      }
+                      placeholder="Ad Button Text"
+                      className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                  </div>
+
+                  <input
+                    type="text"
+                    value={globalConfig.adTitleText || ''}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, adTitleText: e.target.value }))
+                    }
+                    placeholder="Ad Headline / Promo Message"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                  />
+
+                  <input
+                    type="text"
+                    value={globalConfig.adClickUrl || ''}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, adClickUrl: e.target.value }))
+                    }
+                    placeholder="Ad Destination URL (https://...)"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-cyan-300 font-mono"
+                  />
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-[#120d24] border border-cyan-500/30 space-y-2">
+                  <div className="font-bold text-cyan-300">Pricing, Watermark &amp; DB</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={globalConfig.monthlyPrice}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, monthlyPrice: e.target.value }))
+                      }
+                      placeholder="Monthly Price"
+                      className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                    <input
+                      type="text"
+                      value={globalConfig.yearlyPrice}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, yearlyPrice: e.target.value }))
+                      }
+                      placeholder="Yearly Price"
+                      className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={globalConfig.watermarkText || ''}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, watermarkText: e.target.value }))
+                    }
+                    placeholder="Brand Watermark"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
+                  />
+                  <input
+                    type="text"
+                    value={globalConfig.receiverUpi}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, receiverUpi: e.target.value }))
+                    }
+                    placeholder="Receiver UPI"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
+                  />
+                  <input
+                    type="text"
+                    value={liveDbUrl}
+                    onChange={(e) => setLiveDbUrl(e.target.value)}
+                    placeholder="Firebase RTDB URL"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
+                  />
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-[#120d24] border border-rose-500/30 space-y-2">
+                  <div className="font-bold text-rose-300">Blocked User Emails</div>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={blockedEmailInput}
+                      onChange={(e) => setBlockedEmailInput(e.target.value)}
+                      placeholder="user@gmail.com"
+                      className="flex-1 px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const em = blockedEmailInput.trim().toLowerCase();
+                        if (!em) return;
+                        setGlobalConfig((prev) => ({
+                          ...prev,
+                          blockedEmails: Array.from(
+                            new Set([...(prev.blockedEmails || []), em])
+                          )
+                        }));
+                        setBlockedEmailInput('');
+                      }}
+                      className="px-3 py-2 rounded-lg bg-rose-600 text-white font-extrabold cursor-pointer"
+                    >
+                      Block
+                    </button>
+                  </div>
+                  {(globalConfig.blockedEmails || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {(globalConfig.blockedEmails || []).map((em) => (
+                        <span
+                          key={em}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/20 text-rose-200 text-[10px]"
+                        >
+                          <span>{em}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setGlobalConfig((prev) => ({
+                                ...prev,
+                                blockedEmails: (prev.blockedEmails || []).filter(
+                                  (x) => x !== em
+                                )
+                              }))
+                            }
+                            className="text-rose-300 hover:text-white cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    localStorage.setItem('sp_global_config', JSON.stringify(globalConfig));
+                    localStorage.setItem('sp_firebase_url', liveDbUrl);
+                    setTier('pro');
+                    setAutoPublishStatus('Full Control Config Saved ✅');
+                    if (dbBase) {
+                      try {
+                        await fetch(`${dbBase}/siteConfig.json`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(globalConfig)
+                        });
+                      } catch {}
+                    }
+                    setTimeout(() => setAutoPublishStatus(''), 2500);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-emerald-500 text-black font-extrabold cursor-pointer"
+                >
+                  Save All Full Control Settings
+                </button>
+
+                <div className="space-y-1.5">
+                  <div className="font-bold text-amber-300">
+                    Transactions ({transactions.length})
+                  </div>
+                  {transactions.slice(0, 8).map((t, idx) => (
+                    <div
+                      key={t.firebaseKey || t.id || idx}
+                      className="p-2.5 rounded-xl bg-[#120d24] border border-slate-800 flex items-center justify-between text-[11px]"
+                    >
+                      <div className="truncate">
+                        <b>{t.user}</b> • {t.amount} • ID:{' '}
+                        <span className="font-mono">{t.id}</span>
+                      </div>
+                      <span className="text-amber-300 font-bold ml-2">
+                        {t.status || 'Checkout Opened'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
