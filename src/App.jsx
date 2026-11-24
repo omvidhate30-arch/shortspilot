@@ -2205,11 +2205,10 @@ setVideoQueue((prev) => [...generated, ...prev]);
   };
 
 <div className="text-[10px] lg:text-xs text-slate-300 truncate">
-                          3-step login guide before connect
+3-step login guide before connect
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    <button
+                      <button
                       type="button"
                       onClick={() => openGoogleGuidePopup(startGoogleLogin, 'Google Connect')}
                       disabled={isLoggingIn}
