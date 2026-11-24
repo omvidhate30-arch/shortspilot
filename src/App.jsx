@@ -102,6 +102,7 @@ const detectTopicFromFile = (fileName = '') => {
   const base = String(fileName || '')
     .replace(/\.[^/.]+$/, '')
     .replace(/[_-]+/g, ' ')
+    .replace(/\b\d{3,4}\s*x\s*\d{3,4}\b/gi, ' ')
     .replace(
       /\b(vid|video|screen|recording|record|clip|short|shorts|final|edit|hd|fhd|4k|1080p|720p|60fps|30fps|mp4|mov|mkv)\b/gi,
       ' '
@@ -140,6 +141,37 @@ const readVideoMetadata = (file) =>
     } catch {
       resolve({ duration: 30, width: 1080, height: 1920 });
     }
+  });
+
+// Read real media dimensions/duration without assuming fallback values.
+const readVideoMetadataStrict = (file) =>
+  new Promise((resolve, reject) => {
+    if (!(file instanceof Blob) || !file.size) {
+      reject(new Error('Video file missing ya empty hai'));
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      const result = {
+        duration: Number(video.duration),
+        width: Number(video.videoWidth),
+        height: Number(video.videoHeight)
+      };
+      URL.revokeObjectURL(url);
+      if (!Number.isFinite(result.duration) || result.duration <= 0 || !result.width || !result.height) {
+        reject(new Error('Video ki actual details read nahi ho paayi'));
+      } else {
+        resolve(result);
+      }
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Video format read nahi ho paaya. MP4 ya WebM use karein.'));
+    };
+    video.src = url;
+    video.load();
   });
 
 // Convert an input video into a real 9:16 vertical clip before YouTube upload.
@@ -523,7 +555,6 @@ const generateThumbnailBlob = async ({
     return { blob: null, dataUrl: '' };
   }
 };
-
 const readLocalRegistry = () => {
   try {
     const raw = JSON.parse(localStorage.getItem('sp_user_registry') || '{}');
@@ -1761,7 +1792,7 @@ export default function App() {
         };
       }
 
-      const fileBlob = clip?.blob instanceof Blob ? clip.blob : null;
+      let fileBlob = clip?.blob instanceof Blob ? clip.blob : null;
       if (!fileBlob || fileBlob.size === 0) {
         return {
           uploaded: false,
@@ -1770,7 +1801,33 @@ export default function App() {
         };
       }
 
-      const cleanTitleBase = String(clip?.title || 'Viral Short').trim();
+      // Never trust the filename, title, or #Shorts tag: inspect the actual media.
+      try {
+        let media = await readVideoMetadataStrict(fileBlob);
+        if (media.duration > 180) {
+          return { uploaded: false, videoId: '', error: 'YouTube Short 3 minutes se lamba nahi ho sakta. Video ko chhote clips mein split karein.' };
+        }
+        const ratio = media.width / media.height;
+        // Standardize non-9:16 media (including landscape 3840x2160) to a real portrait canvas.
+        if (Math.abs(ratio - (9 / 16)) > 0.025) {
+          fileBlob = await createVerticalShortBlob(fileBlob, 0, media.duration);
+          media = await readVideoMetadataStrict(fileBlob);
+        }
+        const finalRatio = media.width / media.height;
+        if (media.height <= media.width || Math.abs(finalRatio - (9 / 16)) > 0.04) {
+          return { uploaded: false, videoId: '', error: `Short format verify nahi hua (${media.width}x${media.height}). Video upload rok diya hai.` };
+        }
+        if (media.duration > 180) {
+          return { uploaded: false, videoId: '', error: 'Converted video 3 minutes se lambi hai.' };
+        }
+      } catch (mediaError) {
+        return { uploaded: false, videoId: '', error: mediaError?.message || 'Video format verify nahi hua' };
+      }
+
+      const cleanTitleBase = String(clip?.title || 'Viral Short')
+        .replace(/\b\d{3,4}\s*x\s*\d{3,4}\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
       const cleanTitle = `${cleanTitleBase} #Shorts`
         .replace(/\s+/g, ' ')
         .slice(0, 100);
@@ -2320,8 +2377,7 @@ export default function App() {
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
-
-const handleGenerateThumbnails = (e) => {
+  const handleGenerateThumbnails = (e) => {
     e.preventDefault();
     const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
     setThumbConcepts(updated);
