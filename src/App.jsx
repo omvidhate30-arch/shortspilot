@@ -2200,12 +2200,9 @@ export default function App() {
       await idbSaveClip(clipItem);
     }
 
-    setVideoQueue((prev) => [...generated, ...prev]);
+setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
-  AUTO
-                          </span>
-                        </div>
                         <div className="text-[10px] lg:text-xs text-slate-300 truncate">
                           3-step login guide before connect
                         </div>
@@ -2297,9 +2294,9 @@ export default function App() {
                       }
                       className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-purple-600/30 to-pink-600/30 border border-purple-400/50 flex items-center justify-center relative cursor-pointer shadow-xl shrink-0 group"
                     >
-                          <span className="px-1.5 py-0.5 rounded bg-cyan-500/25 text-cyan-300 text-[9px] font-extrabold">
-                            AUTO
-                          </span>
+                      <span className="px-1.5 py-0.5 rounded bg-cyan-500/25 text-cyan-300 text-[9px] font-extrabold">
+                        AUTO
+                      </span>
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-orange-500 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
                         <Play className="w-7 h-7 text-white fill-white ml-0.5" />
                       </div>
