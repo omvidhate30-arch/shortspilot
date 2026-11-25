@@ -2666,31 +2666,33 @@ const handleGenerateThumbnails = (e) => {
     if (!targetUrl) {
       return setCheckoutError('Yearly plan ki alag Razorpay link abhi set nahi hai.');
     }
-
-    const loggedTxn = {
-id: 'RZP-' + Date.now(),
+const loggedTxn = {
+      id: 'RZP-' + Date.now(),
       user: cleanEmail,
-userKey: cleanEmail
-  .replace(/\./g, '_')
-  .replace(/#/g, '_')
-  .replace(/\$/g, '_')
-  .replace(/\[/g, '_')
-  .replace(/\]/g, '_'),
+      userKey: emailToKey(cleanEmail),
       plan: selectedBilling,
       numericAmount: amt,
-amount: 'Rs.' + amt + ' (' + selectedBilling + ')',
+      amount: 'Rs. ' + amt + ' (' + selectedBilling + ')',
       status: 'Checkout Opened',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      time: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
     };
 
     if (dbBase) {
       try {
-await fetch(dbBase + '/transactions.json', {
+        const response = await fetch(dbBase + '/transactions.json', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(loggedTxn)
         });
-      } catch {}
+        if (!response.ok) {
+          throw new Error('Transaction save failed: ' + response.status);
+        }
+      } catch (error) {
+        console.error('Transaction save error:', error);
+      }
     }
 
     setTransactions((prev) => [loggedTxn, ...prev]);
@@ -2740,7 +2742,7 @@ await fetch(dbBase + '/transactions.json', {
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
         activeTab={activeTab}
-        onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
+        onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), String(tab) + ' tab')}
         onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')}
         onOpenSplitter={() =>
           requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
@@ -2749,16 +2751,7 @@ await fetch(dbBase + '/transactions.json', {
           requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset')
         }
         onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
-        onOpenAdmin={() =>
-          requireGoogleAuth(() => {
-            if (!isOwnerAdmin) {
-              window.alert('Owner Admin access is restricted to the configured owner Gmail.');
-              return;
-            }
-            setAdminUnlocked(true);
-            setIsAdminOpen(true);
-          }, 'Full Control Admin Console')
-        }
+        onOpenAdmin={() => requireGoogleAuth(() => { if (!isOwnerAdmin) { window.alert('Owner Admin access is restricted to the configured owner Gmail.'); return; } setAdminUnlocked(true); setIsAdminOpen(true); }, 'Full Control Admin Console')}
         onOpenTerms={() => requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions')}
         onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
         onGoogleLogout={logoutGoogle}
@@ -3017,9 +3010,8 @@ await fetch(dbBase + '/transactions.json', {
                         : 'Upload & Auto-Post Shorts'}
                     </span>
                   </button>
-                </div>
-
-                <div className="p-4 lg:p-6 rounded-[28px] bg-gradient-to-br from-[#231042] via-[#150b29] to-[#0c1428] border border-pink-500/50 flex flex-col justify-between space-y-3 shadow-[0_0_25px_rgba(236,72,153,0.22)]">
+               </div>
+               <div className="p-4 lg:p-6 rounded-[28px] bg-gradient-to-br from-[#231042] via-[#150b29] to-[#0c1428] border border-pink-500/50 flex flex-col justify-between space-y-3 shadow-[0_0_25px_rgba(236,72,153,0.22)]">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-10 h-10 lg:w-11 lg:h-11 rounded-2xl bg-pink-500/25 border border-pink-400/50 flex items-center justify-center shrink-0">
@@ -3056,7 +3048,7 @@ await fetch(dbBase + '/transactions.json', {
                         key={num}
                         type="button"
                         onClick={() =>
-                          requireGoogleAuth(() => setClipSplitCount(num), `${num} Clips Mode`)
+                          requireGoogleAuth(() => setClipSplitCount(num), String(num) + ' Clips Mode')
                         }
                         className={`py-2 lg:py-2.5 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
                           clipSplitCount === num
@@ -3702,9 +3694,7 @@ await fetch(dbBase + '/transactions.json', {
                   </button>
                 </div>
 
-                <div className="space-y-1 pt-1 text-[11px] text-cyan-300 font-bold">
-                  Permanent watermark: {FIXED_BRAND_WATERMARK}
-                </div>
+                <div className="space-y-1 pt-1 text-[11px] text-cyan-300 font-bold">Permanent watermark: {FIXED_BRAND_WATERMARK}</div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
@@ -3733,9 +3723,8 @@ await fetch(dbBase + '/transactions.json', {
               </div>
             </div>
           )}
-          </div>
-
-        <button
+        </div>
+<button
           type="button"
           onClick={() => requireGoogleAuth(() => setShowAiSupport(true), 'AI Support Chat')}
           aria-label="Floating AI Support"
@@ -3746,7 +3735,7 @@ await fetch(dbBase + '/transactions.json', {
 
         <MobileBottomNavBar
           activeTab={activeTab}
-          onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
+          onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), String(tab) + ' tab')}
           onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')}
         />
       </div>
@@ -4671,4 +4660,3 @@ await fetch(dbBase + '/transactions.json', {
     </div>
   );
 }
-```[cite: 3]
