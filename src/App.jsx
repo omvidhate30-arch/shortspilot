@@ -694,9 +694,7 @@ const generateThumbnailBlob = async ({
     return { blob: null, dataUrl: '' };
   }
 };
-```[cite: 3]
 
-Jab aap **`2`** bhejenge, main **Step 2 of 3** bhejunga.
 const readLocalRegistry = () => {
   try {
     const raw = JSON.parse(localStorage.getItem('sp_user_registry') || '{}');
