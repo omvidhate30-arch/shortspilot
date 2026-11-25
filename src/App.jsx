@@ -1681,6 +1681,9 @@ export default function App() {
           ownerAlertEmail: saved.ownerAlertEmail || '',
           paymentWebhookUrl: saved.paymentWebhookUrl || '',
           ytAutoUploadActive: saved.ytAutoUploadActive !== false,
+          autoShortsGeneration: saved.autoShortsGeneration !== false,
+          autoScheduleEnabled: saved.autoScheduleEnabled !== false,
+          globalEmergencyStop: Boolean(saved.globalEmergencyStop),
           shortsOnlyMode: saved.shortsOnlyMode !== false,
           maintenanceMode: Boolean(saved.maintenanceMode),
           announcementBanner: saved.announcementBanner || '',
@@ -1707,6 +1710,9 @@ export default function App() {
       ownerAlertEmail: '',
       paymentWebhookUrl: '',
       ytAutoUploadActive: true,
+      autoShortsGeneration: true,
+      autoScheduleEnabled: true,
+      globalEmergencyStop: false,
       shortsOnlyMode: true,
       maintenanceMode: false,
       announcementBanner: '',
@@ -1786,6 +1792,7 @@ export default function App() {
   const [adminPinInput, setAdminPinInput] = useState('');
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminError, setAdminError] = useState('');
+  const [adminActiveSection, setAdminActiveSection] = useState('overview');
   const [blockedEmailInput, setBlockedEmailInput] = useState('');
   const [liveDbUrl, setLiveDbUrl] = useState(
     () => localStorage.getItem('sp_firebase_url') || DEFAULT_FIREBASE_URL
@@ -2113,6 +2120,10 @@ export default function App() {
   const handleRetryYouTubeUpload = useCallback(
     async (clip) => {
       if (!clip?.id) return;
+      if (globalConfig?.globalEmergencyStop || globalConfig?.ytAutoUploadActive === false) {
+        setLoginError('Owner has paused YouTube uploads from the admin console.');
+        return;
+      }
       setLoginError('');
       setAutoPublishStatus(`Uploading Short to YouTube: ${clip.title}...`);
 
@@ -2149,11 +2160,11 @@ export default function App() {
 
       setAutoPublishStatus('');
     },
-    [uploadClipToYouTube]
+    [uploadClipToYouTube, globalConfig?.globalEmergencyStop, globalConfig?.ytAutoUploadActive]
   );
 
   useEffect(() => {
-    if (manualPostMode || !isGoogleConnected || globalConfig?.ytAutoUploadActive === false) return;
+    if (manualPostMode || !isGoogleConnected || globalConfig?.globalEmergencyStop || globalConfig?.autoScheduleEnabled === false || globalConfig?.ytAutoUploadActive === false) return;
 
     const tickSlots = async () => {
       const now = new Date();
@@ -2181,6 +2192,8 @@ export default function App() {
     manualPostMode,
     isGoogleConnected,
     globalConfig?.ytAutoUploadActive,
+    globalConfig?.globalEmergencyStop,
+    globalConfig?.autoScheduleEnabled,
     videoQueue,
     handleRetryYouTubeUpload
   ]);
@@ -2413,6 +2426,10 @@ export default function App() {
       return;
     }
 
+    if (globalConfig?.globalEmergencyStop || globalConfig?.autoShortsGeneration === false) {
+      setLoginError('Owner has paused automatic Shorts generation.');
+      return;
+    }
     setLoginError('');
     setAutoPublishStatus('Generating Thumbnail, Description & Auto-Posting Short...');
 
@@ -2455,7 +2472,7 @@ export default function App() {
       let youtubeVideoId = '';
       let uploadError = '';
 
-      if (!manualPostMode && globalConfig?.ytAutoUploadActive !== false) {
+      if (!manualPostMode && !globalConfig?.globalEmergencyStop && globalConfig?.ytAutoUploadActive !== false) {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
           mediaFormat: 'short',
@@ -2592,7 +2609,7 @@ export default function App() {
         let youtubeVideoId = '';
         let uploadError = '';
 
-        if (!manualPostMode && globalConfig?.ytAutoUploadActive !== false && i < 4) {
+        if (!manualPostMode && !globalConfig?.globalEmergencyStop && globalConfig?.ytAutoUploadActive !== false && i < 4) {
           const ytRes = await uploadClipToYouTube({
             ...aiMeta,
             mediaFormat: 'short',
@@ -4363,7 +4380,7 @@ const loggedTxn = {
 
       {isAdminOpen && isGoogleConnected && isOwnerAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
-          <div className="relative w-full max-w-lg rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3.5 max-h-[90vh] overflow-y-auto">
+          <div className="relative w-full max-w-7xl rounded-3xl bg-[#080611] border border-purple-500/50 p-4 md:p-6 space-y-4 max-h-[94vh] overflow-y-auto shadow-[0_0_60px_rgba(124,58,237,0.18)]">
             <button
               type="button"
               onClick={() => setIsAdminOpen(false)}
@@ -4412,7 +4429,130 @@ const loggedTxn = {
                 </button>
               </form>
             ) : (
-              <div className="space-y-3.5 text-xs">
+              <div className="space-y-4 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-3 pr-8">
+                  <div>
+                    <div className="text-xl md:text-2xl font-black text-white">Owner Admin Console <span className="text-amber-300">👑</span></div>
+                    <p className="text-[11px] text-slate-400 mt-1">Platform overview • users • revenue • automation • integrations • security</p>
+                  </div>
+                  <div className={`px-3 py-1.5 rounded-full border font-extrabold ${globalConfig.globalEmergencyStop ? 'bg-rose-500/15 border-rose-400/40 text-rose-300' : 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'}`}>
+                    ● {globalConfig.globalEmergencyStop ? 'GLOBAL PAUSED' : 'SYSTEM CONTROLS ACTIVE'}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 xl:grid-cols-5 gap-2.5">
+                  {[
+                    { label: 'Queued / Saved Shorts', value: videoQueue.length, tint: 'text-fuchsia-300', icon: '▶' },
+                    { label: 'Transactions', value: transactions.length, tint: 'text-amber-300', icon: '₹' },
+                    { label: 'Blocked Accounts', value: (globalConfig.blockedEmails || []).length, tint: 'text-rose-300', icon: '⊘' },
+                    { label: 'Auto Upload', value: globalConfig.ytAutoUploadActive !== false ? 'ON' : 'OFF', tint: 'text-cyan-300', icon: '↥' },
+                    { label: 'Maintenance', value: globalConfig.maintenanceMode ? 'ON' : 'OFF', tint: 'text-violet-300', icon: '⚙' }
+                  ].map((metric) => (
+                    <div key={metric.label} className="rounded-2xl p-3 bg-[#120d24] border border-purple-500/25">
+                      <div className="flex justify-between text-slate-400"><span>{metric.label}</span><b className={metric.tint}>{metric.icon}</b></div>
+                      <div className={`text-xl font-black mt-1 ${metric.tint}`}>{metric.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
+                  {[
+                    ['Overview', 'overview'], ['Users', 'users'], ['Plans & Pricing', 'plans'],
+                    ['Payments', 'payments'], ['Automation', 'automation'], ['Integrations', 'integrations'], ['Logs & Backup', 'logs']
+                  ].map(([label, key]) => (
+                    <button key={key} type="button" onClick={() => setAdminActiveSection(key)}
+                      className={`px-2 py-2.5 rounded-xl border font-bold transition-all ${adminActiveSection === key ? 'bg-purple-600/35 border-purple-400 text-white' : 'bg-[#100b1e] border-slate-800 text-slate-400 hover:text-white'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {adminActiveSection === 'overview' && (
+                  <div className="grid lg:grid-cols-3 gap-3">
+                    <div className="lg:col-span-2 p-4 rounded-2xl bg-[#120d24] border border-purple-500/30 space-y-2">
+                      <div className="font-bold text-purple-300">Platform Health</div>
+                      {[
+                        ['Owner access', isOwnerAdmin ? 'Verified in this session' : 'Not verified'],
+                        ['Firebase endpoint', dbBase ? 'Configured' : 'Missing'],
+                        ['Payment records', `${transactions.length} loaded`],
+                        ['Video queue', `${videoQueue.length} clips in this browser session`],
+                        ['YouTube auto-upload', globalConfig.ytAutoUploadActive !== false ? 'Enabled in config' : 'Paused in config']
+                      ].map(([label, value]) => <div key={label} className="flex justify-between gap-3 border-b border-white/5 py-2"><span className="text-slate-400">{label}</span><b className="text-slate-200 text-right">{value}</b></div>)}
+                      <p className="text-[10px] text-amber-300 pt-1">Live user totals, revenue totals, processing metrics and cloud storage require dedicated backend/API data; no placeholder totals are shown.</p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-[#120d24] border border-rose-500/30 space-y-3">
+                      <div className="font-bold text-rose-300">Emergency System Control</div>
+                      <p className="text-slate-400">Pause scheduled uploads and automatic generation immediately. Existing user data is not deleted.</p>
+                      <button type="button" onClick={() => setGlobalConfig(prev => ({ ...prev, globalEmergencyStop: !prev.globalEmergencyStop }))}
+                        className={`w-full py-3 rounded-xl font-black ${globalConfig.globalEmergencyStop ? 'bg-emerald-500 text-black' : 'bg-rose-600 text-white'}`}>
+                        {globalConfig.globalEmergencyStop ? 'RESUME AUTOMATION' : 'STOP ALL AUTOMATION'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {adminActiveSection === 'users' && (
+                  <div className="p-4 rounded-2xl bg-[#120d24] border border-rose-500/30 space-y-3">
+                    <div className="font-bold text-rose-300">Users & Accounts</div>
+                    <p className="text-slate-400">Manage account access with the block/unblock list below. A complete searchable user directory, account deletion and role management need a protected server-side users endpoint; this frontend does not currently expose one.</p>
+                  </div>
+                )}
+
+                {adminActiveSection === 'plans' && (
+                  <div className="p-4 rounded-2xl bg-[#120d24] border border-cyan-500/30 space-y-2">
+                    <div className="font-bold text-cyan-300">Plans & Pricing</div>
+                    <div className="grid md:grid-cols-3 gap-2">
+                      <div className="p-3 rounded-xl bg-[#080611] border border-slate-800"><div className="text-slate-400">Monthly plan</div><b className="text-xl text-white">₹{globalConfig.monthlyPrice || '99'}</b></div>
+                      <div className="p-3 rounded-xl bg-[#080611] border border-slate-800"><div className="text-slate-400">Yearly plan</div><b className="text-xl text-white">₹{globalConfig.yearlyPrice || '3999'}</b></div>
+                      <div className="p-3 rounded-xl bg-[#080611] border border-slate-800"><div className="text-slate-400">Free plan limit</div><b className="text-xl text-white">{globalConfig.freeLimit ?? 3} clips</b></div>
+                    </div>
+                  </div>
+                )}
+
+                {adminActiveSection === 'payments' && (
+                  <div className="p-4 rounded-2xl bg-[#120d24] border border-amber-400/30 space-y-2">
+                    <div className="font-bold text-amber-300">Payments & Revenue Records</div>
+                    <p className="text-slate-400">Showing payment/transaction records returned by Firebase. Revenue totals are not estimated from incomplete records.</p>
+                    <div className="text-lg font-black text-white">{transactions.length} transaction records loaded</div>
+                  </div>
+                )}
+
+                {adminActiveSection === 'automation' && (
+                  <div className="p-4 rounded-2xl bg-[#120d24] border border-emerald-400/30 space-y-2">
+                    <div className="font-bold text-emerald-300">Global Automation</div>
+                    <p className="text-slate-400">Use the controls below to enable or pause upload, generation and scheduling.</p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="px-3 py-2 rounded-lg bg-[#080611] border border-slate-800">Generation: {globalConfig.autoShortsGeneration !== false ? 'ON' : 'OFF'}</span>
+                      <span className="px-3 py-2 rounded-lg bg-[#080611] border border-slate-800">Upload: {globalConfig.ytAutoUploadActive !== false ? 'ON' : 'OFF'}</span>
+                      <span className="px-3 py-2 rounded-lg bg-[#080611] border border-slate-800">Scheduler: {globalConfig.autoScheduleEnabled !== false ? 'ON' : 'OFF'}</span>
+                    </div>
+                  </div>
+                )}
+
+                {adminActiveSection === 'integrations' && (
+                  <div className="p-4 rounded-2xl bg-[#120d24] border border-cyan-500/30 space-y-2">
+                    <div className="font-bold text-cyan-300">Integrations & Storage</div>
+                    <div className="flex justify-between border-b border-white/5 py-2"><span className="text-slate-400">Firebase RTDB</span><b>{dbBase ? 'URL configured' : 'Not configured'}</b></div>
+                    <div className="flex justify-between border-b border-white/5 py-2"><span className="text-slate-400">Google account</span><b>{googleUser?.email ? 'Connected' : 'Disconnected'}</b></div>
+                    <div className="flex justify-between py-2"><span className="text-slate-400">Google Drive usage</span><b>Requires Drive API integration</b></div>
+                  </div>
+                )}
+
+                {adminActiveSection === 'logs' && (
+                  <div className="p-4 rounded-2xl bg-[#120d24] border border-violet-500/30 space-y-2">
+                    <div className="font-bold text-violet-300">System Logs & Backup</div>
+                    <p className="text-slate-400">Export the current owner configuration and transaction snapshot as a JSON backup.</p>
+                    <button type="button" onClick={() => {
+                      const payload = { exportedAt: new Date().toISOString(), globalConfig, transactions, blockedEmails: globalConfig.blockedEmails || [] };
+                      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a'); a.href = url; a.download = 'shortspilot-owner-backup.json'; a.click();
+                      URL.revokeObjectURL(url);
+                    }} className="px-4 py-2.5 rounded-xl bg-violet-600 text-white font-bold">Export Owner Backup</button>
+                    <p className="text-[10px] text-amber-300">This is a browser-side snapshot, not a full database backup or server audit log.</p>
+                  </div>
+                )}
+
                 <div className="p-3.5 rounded-2xl bg-[#120d24] border border-purple-500/30 space-y-2.5">
                   <div className="font-bold text-purple-300">Engine &amp; Access Controls</div>
                   <div className="flex items-center justify-between gap-2">
@@ -4432,6 +4572,21 @@ const loggedTxn = {
                       }`}
                     >
                       {globalConfig.ytAutoUploadActive !== false ? 'ENABLED' : 'PAUSED'}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-200 font-semibold">Auto Shorts Generation</span>
+                    <button type="button" onClick={() => setGlobalConfig(prev => ({ ...prev, autoShortsGeneration: prev.autoShortsGeneration === false }))}
+                      className={`px-3 py-1 rounded-full font-extrabold ${globalConfig.autoShortsGeneration !== false ? 'bg-emerald-500/20 border border-emerald-400 text-emerald-300' : 'bg-rose-500/20 border border-rose-400 text-rose-300'}`}>
+                      {globalConfig.autoShortsGeneration !== false ? 'ENABLED' : 'PAUSED'}
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-200 font-semibold">Daily Scheduler</span>
+                    <button type="button" onClick={() => setGlobalConfig(prev => ({ ...prev, autoScheduleEnabled: prev.autoScheduleEnabled === false }))}
+                      className={`px-3 py-1 rounded-full font-extrabold ${globalConfig.autoScheduleEnabled !== false ? 'bg-emerald-500/20 border border-emerald-400 text-emerald-300' : 'bg-rose-500/20 border border-rose-400 text-rose-300'}`}>
+                      {globalConfig.autoScheduleEnabled !== false ? 'ENABLED' : 'PAUSED'}
                     </button>
                   </div>
 
@@ -4561,6 +4716,20 @@ const loggedTxn = {
                       setGlobalConfig((prev) => ({ ...prev, receiverUpi: e.target.value }))
                     }
                     placeholder="Receiver UPI"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
+                  />
+                  <input
+                    type="email"
+                    value={globalConfig.ownerAlertEmail || ''}
+                    onChange={(e) => setGlobalConfig((prev) => ({ ...prev, ownerAlertEmail: e.target.value }))}
+                    placeholder="Owner alert email (optional)"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                  />
+                  <input
+                    type="url"
+                    value={globalConfig.paymentWebhookUrl || ''}
+                    onChange={(e) => setGlobalConfig((prev) => ({ ...prev, paymentWebhookUrl: e.target.value }))}
+                    placeholder="Payment webhook URL (configure server endpoint)"
                     className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
                   />
                   <input
