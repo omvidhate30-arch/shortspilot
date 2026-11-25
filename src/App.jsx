@@ -2971,7 +2971,7 @@ const loggedTxn = {
                         </span>
                       </h2>
                       <p className="text-[10.5px] lg:text-xs text-slate-300 font-medium">
-                        {manualPostMode ? 'Mode: Manual Post' : `Next: ${selectedTimeSlot}`}
+                        {manualPostMode ? 'Mode: Manual Post' : 'Next: ' + selectedTimeSlot}
                       </p>
                     </div>
                     <div
