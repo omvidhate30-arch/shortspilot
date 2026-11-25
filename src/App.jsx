@@ -29,6 +29,9 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
+// Replace this placeholder with the owner's exact Google account before deployment.
+const OWNER_ADMIN_EMAIL = 'YOUR_OWNER_GMAIL@gmail.com';
+const FIXED_BRAND_WATERMARK = 'Create by shortspilot.ai.in';
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
@@ -277,6 +280,18 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
           const sx = Math.max(0, (sw - cropW) / 2);
           const sy = Math.max(0, (sh - cropH) / 2);
           ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, 720, 1280);
+          // Burn the brand credit into the actual exported video frames (not just the preview).
+          ctx.save();
+          ctx.font = 'bold 22px Arial, sans-serif';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'bottom';
+          ctx.fillStyle = 'rgba(0,0,0,0.62)';
+          ctx.fillRect(720 - 310, 1280 - 48, 292, 34);
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = 'rgba(0,0,0,0.8)';
+          ctx.shadowBlur = 3;
+          ctx.fillText(FIXED_BRAND_WATERMARK, 700, 1280 - 23, 280);
+          ctx.restore();
           if (video.currentTime >= to || video.ended) {
             try {
               recorder.stop();
@@ -383,15 +398,13 @@ const requestGeminiHighlights = async ({ file, count, topic }) => {
 const buildMasterThumbnailPrompt = ({
   clip = {},
   customStyleNote = '',
-  watermarkText = 'Developed by shortspilot.in'
+  watermarkText = FIXED_BRAND_WATERMARK
 } = {}) => {
   const title = String(clip?.title || 'Viral Short').trim();
   const hookText = String(clip?.thumbnailHook || 'WAIT FOR END 😱').trim();
   const description = String(clip?.description || '').trim();
   const hashtags = String(clip?.hashtags || '#Shorts #ViralShorts').trim();
-  const credit = String(
-    watermarkText || clip?.watermarkText || 'Developed by shortspilot.in'
-  ).trim();
+  const credit = String(watermarkText || FIXED_BRAND_WATERMARK).trim();
 
   const extraStyle = String(customStyleNote || '').trim()
     ? `\n- Custom Style Note: ${String(customStyleNote).trim()}`
@@ -419,7 +432,7 @@ const sendThumbnailPromptToAI = async ({
   clip = {},
   customStyleNote = '',
   target = 'gemini',
-  watermarkText = 'Developed by shortspilot.in'
+  watermarkText = FIXED_BRAND_WATERMARK
 } = {}) => {
   const finalPrompt = buildMasterThumbnailPrompt({
     clip,
@@ -448,7 +461,7 @@ const sendThumbnailPromptToAI = async ({
 const generateThumbnailBlob = async ({
   hookText = 'WAIT FOR END 😱',
   subText = 'VIRAL SHORT',
-  watermarkText = 'Developed by shortspilot.in',
+  watermarkText = FIXED_BRAND_WATERMARK,
   palette = ['#ec4899', '#22d3ee', '#070510'],
   videoBlob = null,
   seekSec = 2
@@ -681,7 +694,9 @@ const generateThumbnailBlob = async ({
     return { blob: null, dataUrl: '' };
   }
 };
+```[cite: 3]
 
+Jab aap **`2`** bhejenge, main **Step 2 of 3** bhejunga.
 const readLocalRegistry = () => {
   try {
     const raw = JSON.parse(localStorage.getItem('sp_user_registry') || '{}');
@@ -818,7 +833,7 @@ const buildClipPackage = (
   rawTopic,
   index = 0,
   partLabel = '',
-  watermarkText = 'Developed by shortspilot.in',
+  watermarkText = FIXED_BRAND_WATERMARK,
   durationLabel = '',
   hookText = ''
 ) => {
@@ -1606,6 +1621,11 @@ export default function App() {
   const [manualGoogleName, setManualGoogleName] = useState('');
 
   const isGoogleConnected = Boolean(googleUser?.email);
+  const isOwnerAdmin = Boolean(
+    OWNER_ADMIN_EMAIL &&
+      OWNER_ADMIN_EMAIL !== 'YOUR_OWNER_GMAIL@gmail.com' &&
+      String(googleUser?.email || '').trim().toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase()
+  );
   const activeAccountEmail = getActiveAccountKey(googleUser);
   const pendingActionRef = useRef(null);
 
@@ -1637,7 +1657,7 @@ export default function App() {
           monthlyPrice: saved.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
           yearlyPrice: saved.yearlyPrice || '3999',
-          watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
+          watermarkText: FIXED_BRAND_WATERMARK,
           ownerAlertEmail: saved.ownerAlertEmail || '',
           paymentWebhookUrl: saved.paymentWebhookUrl || '',
           ytAutoUploadActive: saved.ytAutoUploadActive !== false,
@@ -1663,7 +1683,7 @@ export default function App() {
       couponCode: 'SAVE200',
       couponDiscount: '200',
       freeLimit: 3,
-      watermarkText: 'Developed by shortspilot.in',
+      watermarkText: FIXED_BRAND_WATERMARK,
       ownerAlertEmail: '',
       paymentWebhookUrl: '',
       ytAutoUploadActive: true,
@@ -1676,8 +1696,7 @@ export default function App() {
       adTitleText:
         'Upgrade to Yearly VIP (₹3,999/yr) for Priority 4x Daily Shorts Slots',
       adCtaLabel: 'Explore VIP',
-      adClickUrl: 'https://www.shortspilot.in',
-      adminPin: '9767905729'
+      adClickUrl: 'https://www.shortspilot.in'
     };
   });
 
@@ -1778,7 +1797,7 @@ export default function App() {
         clip,
         customStyleNote: '',
         target,
-        watermarkText: globalConfig.watermarkText || 'Developed by shortspilot.in'
+        watermarkText: FIXED_BRAND_WATERMARK
       });
     },
     [globalConfig.watermarkText]
@@ -2316,7 +2335,7 @@ export default function App() {
           monthlyPrice: cfgData.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
           yearlyPrice: cfgData.yearlyPrice || '3999',
-          watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in',
+          watermarkText: FIXED_BRAND_WATERMARK,
           blockedEmails: Array.isArray(cfgData.blockedEmails)
             ? cfgData.blockedEmails
             : prev.blockedEmails || []
@@ -2391,7 +2410,7 @@ export default function App() {
       }
       const durLabel = formatClockTime(Math.min(meta.duration, 180));
       const hookLabel = selectedThumbConcept?.hookText || 'WAIT FOR END 😱';
-      const watermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
+      const watermark = FIXED_BRAND_WATERMARK;
       const aiMeta = buildClipPackage(
         detectedTopic,
         i,
@@ -2483,7 +2502,7 @@ export default function App() {
       const meta = await readVideoMetadata(file);
       const totalDur = Number(meta.duration) || 0;
       if (totalDur < 5) throw new Error('Video bahut chhota hai.');
-      const watermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
+      const watermark = FIXED_BRAND_WATERMARK;
       const defaultHook = selectedThumbConcept?.hookText || 'WATCH THIS!';
       let highlights;
 
@@ -2601,8 +2620,9 @@ export default function App() {
       setLoginError(error?.message || 'Smart clipping failed.');
     }
   };
+```[cite: 3]
 
-  const handleGenerateThumbnails = (e) => {
+const handleGenerateThumbnails = (e) => {
     e.preventDefault();
     const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
     setThumbConcepts(updated);
@@ -2693,7 +2713,7 @@ export default function App() {
   const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
   const currentMonthlyPrice = globalConfig.monthlyPrice || '99';
   const currentYearlyPrice = globalConfig.yearlyPrice || '3999';
-  const currentWatermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
+  const currentWatermark = FIXED_BRAND_WATERMARK;
   const safeAdUrl = sanitizeMediaUrl(globalConfig.adClickUrl) || 'https://www.shortspilot.in';
 
   if (!isAdminOpen && (globalConfig?.maintenanceMode || isCurrentUserBlocked)) {
@@ -2726,7 +2746,16 @@ export default function App() {
           requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset')
         }
         onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
-        onOpenAdmin={() => requireGoogleAuth(() => setIsAdminOpen(true), 'Full Control Admin Console')}
+        onOpenAdmin={() =>
+          requireGoogleAuth(() => {
+            if (!isOwnerAdmin) {
+              window.alert('Owner Admin access is restricted to the configured owner Gmail.');
+              return;
+            }
+            setAdminUnlocked(true);
+            setIsAdminOpen(true);
+          }, 'Full Control Admin Console')
+        }
         onOpenTerms={() => requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions')}
         onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
         onGoogleLogout={logoutGoogle}
@@ -3333,7 +3362,7 @@ export default function App() {
               </div>
 
               <footer className="pt-2 pb-1 flex flex-wrap items-center justify-between gap-2 text-[10.5px] text-slate-400 border-t border-white/10">
-                <span>{currentWatermark}</span>
+                <span>{FIXED_BRAND_WATERMARK}</span>
                 <button
                   type="button"
                   onClick={() =>
@@ -3670,29 +3699,8 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="space-y-1.5 pt-1">
-                  <label className="text-[11px] text-slate-400 font-bold">
-                    Brand Watermark / Credit
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={globalConfig.watermarkText || ''}
-                      onChange={(e) =>
-                        setGlobalConfig((prev) => ({ ...prev, watermarkText: e.target.value }))
-                      }
-                      className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        localStorage.setItem('sp_global_config', JSON.stringify(globalConfig))
-                      }
-                      className="px-4 py-2 rounded-xl bg-emerald-500 text-black font-extrabold cursor-pointer"
-                    >
-                      Save
-                    </button>
-                  </div>
+                <div className="space-y-1 pt-1 text-[11px] text-cyan-300 font-bold">
+                  Permanent watermark: {FIXED_BRAND_WATERMARK}
                 </div>
               </div>
 
@@ -3722,7 +3730,7 @@ export default function App() {
               </div>
             </div>
           )}
-        </div>
+          </div>
 
         <button
           type="button"
@@ -4219,7 +4227,7 @@ export default function App() {
                   <LogOut className="w-3.5 h-3.5" /> Logout
                 </button>
               )}
-              <div className="text-[10px] text-slate-500">{currentWatermark}</div>
+              <div className="text-[10px] text-slate-500">{FIXED_BRAND_WATERMARK}</div>
             </div>
           </div>
           <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
@@ -4316,7 +4324,7 @@ export default function App() {
                 className="w-full aspect-[9/16] bg-black"
               />
               <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/65 border border-white/15 text-[8.5px] font-extrabold text-cyan-300 pointer-events-none">
-                {previewClip.watermarkText || currentWatermark}
+                {FIXED_BRAND_WATERMARK}
               </div>
             </div>
 
@@ -4337,7 +4345,7 @@ export default function App() {
         </div>
       )}
 
-      {isAdminOpen && isGoogleConnected && (
+      {isAdminOpen && isGoogleConnected && isOwnerAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-lg rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3.5 max-h-[90vh] overflow-y-auto">
             <button
@@ -4350,12 +4358,19 @@ export default function App() {
             <h3 className="text-base font-extrabold text-white">
               🔐 Full Control Owner Admin Console
             </h3>
+            <p className="text-[10px] text-amber-300">
+              Owner Gmail configured in source: {OWNER_ADMIN_EMAIL}. Secure server-side authorization and Firebase rules must also be configured before public launch.
+            </p>
 
             {!adminUnlocked ? (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (adminPinInput.trim() === (globalConfig.adminPin || '9767905729')) {
+                  if (
+                    isOwnerAdmin &&
+                    adminPinInput.trim() &&
+                    adminPinInput.trim() === String(globalConfig.adminPin || '')
+                  ) {
                     setAdminUnlocked(true);
                     setAdminError('');
                     fetchFirebaseData();
@@ -4369,7 +4384,7 @@ export default function App() {
                   type="password"
                   value={adminPinInput}
                   onChange={(e) => setAdminPinInput(e.target.value)}
-                  placeholder="Enter Admin PIN"
+                  placeholder="Optional legacy admin PIN (if configured)"
                   className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
                 />
                 {adminError && <p className="text-xs text-rose-400">{adminError}</p>}
@@ -4520,15 +4535,9 @@ export default function App() {
                       className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
                     />
                   </div>
-                  <input
-                    type="text"
-                    value={globalConfig.watermarkText || ''}
-                    onChange={(e) =>
-                      setGlobalConfig((prev) => ({ ...prev, watermarkText: e.target.value }))
-                    }
-                    placeholder="Brand Watermark"
-                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
-                  />
+                  <div className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-cyan-500/30 text-cyan-300 font-mono">
+                    Permanent watermark: {FIXED_BRAND_WATERMARK}
+                  </div>
                   <input
                     type="text"
                     value={globalConfig.receiverUpi}
@@ -4606,7 +4615,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={async () => {
-                    localStorage.setItem('sp_global_config', JSON.stringify(globalConfig));
+                    localStorage.setItem(
+                      'sp_global_config',
+                      JSON.stringify({ ...globalConfig, watermarkText: FIXED_BRAND_WATERMARK })
+                    );
                     localStorage.setItem('sp_firebase_url', liveDbUrl);
                     setTier('pro');
                     setAutoPublishStatus('Full Control Config Saved ✅');
@@ -4615,7 +4627,10 @@ export default function App() {
                         await fetch(`${dbBase}/siteConfig.json`, {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(globalConfig)
+                          body: JSON.stringify({
+                            ...globalConfig,
+                            watermarkText: FIXED_BRAND_WATERMARK
+                          })
                         });
                       } catch {}
                     }
@@ -4653,3 +4668,4 @@ export default function App() {
     </div>
   );
 }
+```[cite: 3]
