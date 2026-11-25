@@ -1824,7 +1824,11 @@ export default function App() {
 
       // Never trust the filename, title, or #Shorts tag: inspect the actual media.
       try {
-        let media = await readVideoMetadataStrict(fileBlob, media.duration);
+        // Read source metadata before using its duration as a fallback.
+        // Referencing `media.duration` in its own `let` initializer causes a TDZ
+        // error: Cannot access 'media' before initialization.
+        const originalMedia = await readVideoMetadataStrict(fileBlob);
+        let media = originalMedia;
         if (media.duration > 180) {
           return { uploaded: false, videoId: '', error: 'A YouTube Short cannot be longer than 3 minutes. Split the video into shorter clips.' };
         }
@@ -1832,7 +1836,7 @@ export default function App() {
         // Standardize non-9:16 media (including landscape 3840x2160) to a real portrait canvas.
         if (Math.abs(ratio - (9 / 16)) > 0.025) {
           fileBlob = await createVerticalShortBlob(fileBlob, 0, media.duration);
-          media = await readVideoMetadataStrict(fileBlob);
+          media = await readVideoMetadataStrict(fileBlob, originalMedia.duration);
         }
         const finalRatio = media.width / media.height;
         if (media.height <= media.width || Math.abs(finalRatio - (9 / 16)) > 0.04) {
