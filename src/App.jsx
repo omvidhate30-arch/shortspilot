@@ -2670,7 +2670,12 @@ const handleGenerateThumbnails = (e) => {
     const loggedTxn = {
       id: `RZP-${Date.now()}`,
       user: cleanEmail,
-      userKey: emailToKey(cleanEmail),
+userKey: cleanEmail
+  .replace(/\./g, '_')
+  .replace(/#/g, '_')
+  .replace(/\$/g, '_')
+  .replace(/\[/g, '_')
+  .replace(/\]/g, '_'),
       plan: selectedBilling,
       numericAmount: amt,
       amount: `₹${amt} (${selectedBilling})`,
