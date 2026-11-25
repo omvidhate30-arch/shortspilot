@@ -152,41 +152,85 @@ const readVideoMetadata = (file) =>
   });
 
 // Read real media dimensions/duration without assuming fallback values.
+
 const readVideoMetadataStrict = (file) =>
   new Promise((resolve, reject) => {
     if (!(file instanceof Blob) || !file.size) {
       reject(new Error('Video file missing ya empty hai'));
       return;
     }
+
     const url = URL.createObjectURL(file);
     const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.onloadedmetadata = () => {
+    let finished = false;
+    let metadataLoaded = false;
+
+    const cleanup = () => {
+      video.removeEventListener('loadedmetadata', checkMetadata);
+      video.removeEventListener('loadeddata', checkMetadata);
+      video.removeEventListener('error', handleError);
+      clearTimeout(timeout);
+      video.removeAttribute('src');
+      video.load();
+      URL.revokeObjectURL(url);
+    };
+
+    const finish = (error, result) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve(result);
+    };
+
+    const checkMetadata = () => {
+      if (video.readyState >= 1) metadataLoaded = true;
+      if (!metadataLoaded || video.readyState < 2) return;
+
       const result = {
         duration: Number(video.duration),
         width: Number(video.videoWidth),
         height: Number(video.videoHeight)
       };
-      URL.revokeObjectURL(url);
+
       if (
         !Number.isFinite(result.duration) ||
         result.duration <= 0 ||
-        !result.width ||
-        !result.height
+        result.width <= 0 ||
+        result.height <= 0
       ) {
-        reject(new Error('Video ki actual details read nahi ho paayi'));
-      } else {
-        resolve(result);
+        finish(new Error(
+          'Video metadata invalid hai. Video ko MP4 format mein convert karke try karein.'
+        ));
+        return;
       }
+
+      finish(null, result);
     };
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Video format read nahi ho paaya. MP4 ya WebM use karein.'));
+
+    const handleError = () => {
+      finish(new Error(
+        'Video decode nahi ho paaya. MP4 (H.264) format mein try karein.'
+      ));
     };
+
+    const timeout = setTimeout(() => {
+      finish(new Error(
+        'Video read karne mein timeout hua. Dobara upload karein.'
+      ));
+    }, 20000);
+
+    video.preload = 'auto';
+    video.muted = true;
+    video.playsInline = true;
+
+    video.addEventListener('loadedmetadata', checkMetadata);
+    video.addEventListener('loadeddata', checkMetadata);
+    video.addEventListener('error', handleError);
+
     video.src = url;
     video.load();
   });
-
 // Convert an input video into a real 9:16 vertical clip before YouTube upload.
 // Uses center-crop (720x1280) and keeps the source audio when the browser supports captureStream.
 const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
