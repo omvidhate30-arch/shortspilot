@@ -29,9 +29,6 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
-// Replace this placeholder with the owner's exact Google account before deployment.
-const OWNER_ADMIN_EMAIL = 'omvidhate30@gmail.com';
-const FIXED_BRAND_WATERMARK = 'Create by shortspilot.ai.in';
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
@@ -80,11 +77,6 @@ const emailToKey = (email = '') =>
     .trim()
     .toLowerCase()
     .replace(/[.#$[\]@]/g, '_');
-
-const getActiveAccountKey = (user) =>
-  String(user?.email || '')
-    .trim()
-    .toLowerCase();
 
 const sanitizeMediaUrl = (url = '') => {
   if (!url || typeof url !== 'string') return '';
@@ -151,68 +143,41 @@ const readVideoMetadata = (file) =>
     }
   });
 
-// Read real media dimensions/duration without assuming fallback values.
-
 const readVideoMetadataStrict = (file) =>
   new Promise((resolve, reject) => {
     if (!(file instanceof Blob) || !file.size) {
-      reject(new Error('Video file missing ya empty hai'));
+      reject(new Error('The video file is missing or empty.'));
       return;
     }
     const url = URL.createObjectURL(file);
     const video = document.createElement('video');
     video.preload = 'metadata';
-    video.muted = true;
-    video.playsInline = true;
-
-    let settled = false;
-    const cleanupAndFinish = (err, data) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      video.onloadedmetadata = null;
-      video.onloadeddata = null;
-      video.oncanplay = null;
-      video.onerror = null;
-      video.removeAttribute('src');
-      video.load();
+    video.onloadedmetadata = () => {
+      const result = {
+        duration: Number(video.duration),
+        width: Number(video.videoWidth),
+        height: Number(video.videoHeight)
+      };
       URL.revokeObjectURL(url);
-      if (err) reject(err);
-      else resolve(data);
-    };
-
-    const checkMetadata = () => {
-      const duration = Number(video.duration);
-      const width = Number(video.videoWidth);
-      const height = Number(video.videoHeight);
-      if (Number.isFinite(duration) && duration > 0 && width > 0 && height > 0) {
-        cleanupAndFinish(null, { duration, width, height });
+      if (
+        !Number.isFinite(result.duration) ||
+        result.duration <= 0 ||
+        !result.width ||
+        !result.height
+      ) {
+        reject(new Error("Unable to read the video's actual metadata."));
+      } else {
+        resolve(result);
       }
     };
-
-    const timer = setTimeout(() => {
-      checkMetadata();
-      if (!settled) {
-        cleanupAndFinish(
-          new Error('Video ki actual details read nahi ho paayi. MP4 (H.264) ya WebM try karein.')
-        );
-      }
-    }, 12000);
-
-    video.onloadedmetadata = checkMetadata;
-    video.onloadeddata = checkMetadata;
-    video.oncanplay = checkMetadata;
     video.onerror = () => {
-      cleanupAndFinish(
-        new Error('Video format read nahi ho paaya. MP4 (H.264) ya WebM use karein.')
-      );
+      URL.revokeObjectURL(url);
+      reject(new Error('Unable to read the video format. Please use MP4 or WebM.'));
     };
-
     video.src = url;
     video.load();
   });
-// Convert an input video into a real 9:16 vertical clip before YouTube upload.
-// Uses center-crop (720x1280) and keeps the source audio when the browser supports captureStream.
+
 const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
   new Promise(async (resolve, reject) => {
     if (!(file instanceof Blob)) return reject(new Error('Video file missing'));
@@ -243,7 +208,7 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
       cleanup();
       reject(err instanceof Error ? err : new Error('Video conversion failed'));
     };
-    video.onerror = () => fail(new Error('Video file read nahi ho paayi'));
+    video.onerror = () => fail(new Error('Unable to read the video file.'));
     video.onloadedmetadata = async () => {
       try {
         const duration = Number.isFinite(video.duration) ? video.duration : 0;
@@ -251,8 +216,8 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
         const requestedEnd =
           endSec == null ? Math.min(duration, from + 180) : Math.min(duration, Number(endSec));
         const to = Math.min(requestedEnd, from + 180);
-        if (!duration || to <= from) throw new Error('Video duration invalid hai');
-        if (to - from > 180) throw new Error('Short clip 3 minutes se zyada nahi ho sakta');
+        if (!duration || to <= from) throw new Error('The video duration is invalid.');
+        if (to - from > 180) throw new Error('A Short cannot be longer than 3 minutes.');
         const canvas = document.createElement('canvas');
         canvas.width = 720;
         canvas.height = 1280;
@@ -291,7 +256,7 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
           const outputType = recorder.mimeType || mimeType || 'video/webm';
           const result = new Blob(chunks, { type: outputType });
           cleanup();
-          if (!result.size) reject(new Error('Converted video empty hai'));
+          if (!result.size) reject(new Error('The converted video is empty.'));
           else resolve(result);
         };
         const drawFrame = () => {
@@ -304,18 +269,6 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
           const sx = Math.max(0, (sw - cropW) / 2);
           const sy = Math.max(0, (sh - cropH) / 2);
           ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, 720, 1280);
-          // Burn the brand credit into the actual exported video frames (not just the preview).
-          ctx.save();
-          ctx.font = 'bold 22px Arial, sans-serif';
-          ctx.textAlign = 'right';
-          ctx.textBaseline = 'bottom';
-          ctx.fillStyle = 'rgba(0,0,0,0.62)';
-          ctx.fillRect(720 - 310, 1280 - 48, 292, 34);
-          ctx.fillStyle = '#ffffff';
-          ctx.shadowColor = 'rgba(0,0,0,0.8)';
-          ctx.shadowBlur = 3;
-          ctx.fillText(FIXED_BRAND_WATERMARK, 700, 1280 - 23, 280);
-          ctx.restore();
           if (video.currentTime >= to || video.ended) {
             try {
               recorder.stop();
@@ -335,100 +288,18 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
     video.load();
   });
 
-const sampleVideoFramesForAI = async (file, maxFrames = 24) => {
-  if (!(file instanceof Blob)) throw new Error('Video file missing');
-  const url = URL.createObjectURL(file);
-  const video = document.createElement('video');
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = 'metadata';
-  video.src = url;
-  try {
-    await new Promise((resolve, reject) => {
-      video.onloadedmetadata = resolve;
-      video.onerror = () => reject(new Error('Video read nahi ho paayi'));
-    });
-    const duration = Number(video.duration) || 0;
-    if (!duration) throw new Error('Video duration nahi mili');
-    const count = Math.max(
-      2,
-      Math.min(maxFrames, Math.ceil(duration / Math.max(2, duration / maxFrames)))
-    );
-    const canvas = document.createElement('canvas');
-    canvas.width = 480;
-    canvas.height = 270;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Frame canvas unavailable');
-    const frames = [];
-    for (let i = 0; i < count; i++) {
-      const time = Math.min(duration - 0.15, (duration * (i + 0.5)) / count);
-      await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('Video frame seek timeout')), 10000);
-        video.onseeked = () => {
-          clearTimeout(timer);
-          resolve();
-        };
-        video.currentTime = Math.max(0, time);
-      });
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.55);
-      frames.push({ time: Number(time.toFixed(2)), data: dataUrl.split(',')[1] });
-    }
-    return { duration, frames };
-  } finally {
-    video.pause();
-    video.removeAttribute('src');
-    video.load();
-    URL.revokeObjectURL(url);
-  }
-};
-
-const requestGeminiHighlights = async ({ file, count, topic }) => {
-  const sampled = await sampleVideoFramesForAI(file, 24);
-  const response = await fetch('/api/analyze-highlights', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      duration: sampled.duration,
-      count,
-      topic: String(topic || 'YouTube Short'),
-      frames: sampled.frames
-    })
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.error || `Gemini analysis failed (${response.status})`);
-  }
-  if (!Array.isArray(payload.clips) || payload.clips.length !== count) {
-    throw new Error('Gemini ne required number of valid clips return nahi kiye.');
-  }
-  return payload.clips
-    .map((clip) => ({
-      startSec: Math.max(0, Number(clip.startSec) || 0),
-      endSec: Math.min(sampled.duration, Number(clip.endSec) || 0),
-      title: String(clip.title || topic || 'YouTube Short').slice(0, 90),
-      thumbnailHook: String(clip.thumbnailHook || 'WATCH THIS!').slice(0, 22),
-      description: String(clip.description || '').slice(0, 1500),
-      hashtags: Array.isArray(clip.hashtags)
-        ? clip.hashtags
-            .map((tag) => String(tag).replace(/^#?/, '#'))
-            .slice(0, 3)
-            .join(' ')
-        : ''
-    }))
-    .filter((clip) => clip.endSec > clip.startSec);
-};
-
 const buildMasterThumbnailPrompt = ({
   clip = {},
   customStyleNote = '',
-  watermarkText = FIXED_BRAND_WATERMARK
+  watermarkText = 'Developed by shortspilot.in'
 } = {}) => {
   const title = String(clip?.title || 'Viral Short').trim();
   const hookText = String(clip?.thumbnailHook || 'WAIT FOR END 😱').trim();
   const description = String(clip?.description || '').trim();
   const hashtags = String(clip?.hashtags || '#Shorts #ViralShorts').trim();
-  const credit = String(watermarkText || FIXED_BRAND_WATERMARK).trim();
+  const credit = String(
+    watermarkText || clip?.watermarkText || 'Developed by shortspilot.in'
+  ).trim();
 
   const extraStyle = String(customStyleNote || '').trim()
     ? `\n- Custom Style Note: ${String(customStyleNote).trim()}`
@@ -456,7 +327,7 @@ const sendThumbnailPromptToAI = async ({
   clip = {},
   customStyleNote = '',
   target = 'gemini',
-  watermarkText = FIXED_BRAND_WATERMARK
+  watermarkText = 'Developed by shortspilot.in'
 } = {}) => {
   const finalPrompt = buildMasterThumbnailPrompt({
     clip,
@@ -485,7 +356,7 @@ const sendThumbnailPromptToAI = async ({
 const generateThumbnailBlob = async ({
   hookText = 'WAIT FOR END 😱',
   subText = 'VIRAL SHORT',
-  watermarkText = FIXED_BRAND_WATERMARK,
+  watermarkText = 'Developed by shortspilot.in',
   palette = ['#ec4899', '#22d3ee', '#070510'],
   videoBlob = null,
   seekSec = 2
@@ -548,10 +419,7 @@ const generateThumbnailBlob = async ({
     if (videoEl) {
       ctx.save();
       ctx.filter = 'blur(18px) brightness(0.45) saturate(1.35)';
-      const bgScale = Math.max(
-        canvas.width / videoEl.videoWidth,
-        canvas.height / videoEl.videoHeight
-      );
+      const bgScale = Math.max(canvas.width / videoEl.videoWidth, canvas.height / videoEl.videoHeight);
       const bgW = videoEl.videoWidth * bgScale;
       const bgH = videoEl.videoHeight * bgScale;
       ctx.drawImage(videoEl, (canvas.width - bgW) / 2, (canvas.height - bgH) / 2, bgW, bgH);
@@ -612,20 +480,9 @@ const generateThumbnailBlob = async ({
       const fScale = Math.max(frameW / videoEl.videoWidth, frameH / videoEl.videoHeight);
       const fW = videoEl.videoWidth * fScale;
       const fH = videoEl.videoHeight * fScale;
-      ctx.drawImage(
-        videoEl,
-        frameX + (frameW - fW) / 2,
-        frameY + (frameH - fH) / 2,
-        fW,
-        fH
-      );
+      ctx.drawImage(videoEl, frameX + (frameW - fW) / 2, frameY + (frameH - fH) / 2, fW, fH);
     } else {
-      const cardGrad = ctx.createLinearGradient(
-        frameX,
-        frameY,
-        frameX + frameW,
-        frameY + frameH
-      );
+      const cardGrad = ctx.createLinearGradient(frameX, frameY, frameX + frameW, frameY + frameH);
       cardGrad.addColorStop(0, '#1e1b4b');
       cardGrad.addColorStop(0.5, '#3b0764');
       cardGrad.addColorStop(1, '#0f172a');
@@ -642,14 +499,8 @@ const generateThumbnailBlob = async ({
     ctx.stroke();
     ctx.restore();
 
-    const hookTextClean = String(hookText || 'WAIT FOR END 😱')
-      .trim()
-      .toUpperCase()
-      .slice(0, 22);
-    const subTextClean = String(subText || 'VIRAL HIGHLIGHT')
-      .trim()
-      .toUpperCase()
-      .slice(0, 28);
+    const hookTextClean = String(hookText || 'WAIT FOR END 😱').trim().toUpperCase().slice(0, 22);
+    const subTextClean = String(subText || 'VIRAL HIGHLIGHT').trim().toUpperCase().slice(0, 28);
 
     ctx.save();
     const bannerGrad = ctx.createLinearGradient(76, 1110, 1004, 1255);
@@ -766,18 +617,14 @@ const openClipsDB = () => {
   return cachedDbPromise;
 };
 
-const idbSaveClip = async (clipObj, activeEmail = '') => {
+const idbSaveClip = async (clipObj) => {
   try {
     const db = await openClipsDB();
-    const owner = String(activeEmail || clipObj?.ownerEmail || '')
-      .trim()
-      .toLowerCase();
     return new Promise((resolve) => {
       const tx = db.transaction(IDB_STORE, 'readwrite');
       const { croppedUrl, ...persistable } = clipObj;
       tx.objectStore(IDB_STORE).put({
         ...persistable,
-        ownerEmail: owner,
         savedAt: Date.now()
       });
       tx.oncomplete = () => resolve(true);
@@ -788,20 +635,14 @@ const idbSaveClip = async (clipObj, activeEmail = '') => {
   }
 };
 
-const idbGetClipsForAccount = async (activeEmail = '') => {
-  const targetEmail = String(activeEmail || '')
-    .trim()
-    .toLowerCase();
-  if (!targetEmail) return [];
+const idbGetAllClips = async () => {
   try {
     const db = await openClipsDB();
     return new Promise((resolve) => {
       const tx = db.transaction(IDB_STORE, 'readonly');
       const req = tx.objectStore(IDB_STORE).getAll();
       req.onsuccess = () => {
-        const items = (req.result || [])
-          .filter((item) => String(item?.ownerEmail || '').trim().toLowerCase() === targetEmail)
-          .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+        const items = (req.result || []).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
         resolve(
           items.map((item) => {
             const baseUrl = item.blob instanceof Blob ? URL.createObjectURL(item.blob) : '';
@@ -855,7 +696,7 @@ const buildClipPackage = (
   rawTopic,
   index = 0,
   partLabel = '',
-  watermarkText = FIXED_BRAND_WATERMARK,
+  watermarkText = 'Developed by shortspilot.in',
   durationLabel = '',
   hookText = ''
 ) => {
@@ -981,10 +822,10 @@ const GoogleVerificationGuideModal = React.memo(
     const guideSteps = [
       {
         badge: 'STEP 1 OF 3 • CLICK ADVANCED',
-        title: '1. Warning Screen Par "Advanced" Dabaye',
+        title: '1. Click "Advanced" on the warning screen',
         desc: blockedOptionName
-          ? `"${blockedOptionName}" use karne ke liye Google login karein. Google verification pending hone par screen par "Advanced" option dikhega — uspe click karein.`
-          : 'Google verification pending hone ki wajah se login screen par warning dikh sakti hai. Neeche left mein "Advanced" par click karein.',
+          ? `To use "${blockedOptionName}", sign in with Google. If Google verification is pending, click "Advanced" on the warning screen.`
+          : 'If Google verification is pending, a warning may appear on the sign-in screen. Click "Advanced" at the lower left.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2.5 select-none">
             <div className="flex items-center gap-2">
@@ -1011,8 +852,8 @@ const GoogleVerificationGuideModal = React.memo(
       },
       {
         badge: 'STEP 2 OF 3 • GO TO SHORTSPILOT',
-        title: '2. "Go to shortspilot.in" Par Click Karein',
-        desc: 'Advanced khulne ke baad neeche "Go to shortspilot.in (unsafe)" ka link aayega — us link par click karke aage badhein.',
+        title: '2. Click "Go to shortspilot.in"',
+        desc: 'After expanding Advanced, click the "Go to shortspilot.in (unsafe)" link to continue.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2 select-none">
             <div className="text-[10px] font-bold text-slate-500">Advanced options opened:</div>
@@ -1022,13 +863,13 @@ const GoogleVerificationGuideModal = React.memo(
             <div className="p-2 rounded-lg bg-cyan-50 border-2 border-rose-500 text-[10px] font-extrabold text-blue-700 underline animate-pulse">
               👆 Go to shortspilot.in (unsafe)
             </div>
-                      </div>
+          </div>
         )
       },
       {
         badge: 'STEP 3 OF 3 • ALLOW & CONTINUE',
-        title: '3. Permission Allow Karke Continue Karein',
-        desc: 'Agli screen par YouTube upload permission check karke "Continue" dabaye, phir aapka account connect ho jayega.',
+        title: '3. Allow permissions and continue',
+        desc: 'On the next screen, review the YouTube upload permission and click "Continue" to connect your account.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2 select-none">
             <div className="text-[10.5px] font-extrabold text-slate-800">
@@ -1607,7 +1448,6 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
     </button>
   </nav>
 ));
-
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
@@ -1643,12 +1483,6 @@ export default function App() {
   const [manualGoogleName, setManualGoogleName] = useState('');
 
   const isGoogleConnected = Boolean(googleUser?.email);
-  const isOwnerAdmin = Boolean(
-    OWNER_ADMIN_EMAIL &&
-      OWNER_ADMIN_EMAIL !== 'YOUR_OWNER_GMAIL@gmail.com' &&
-      String(googleUser?.email || '').trim().toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase()
-  );
-  const activeAccountEmail = getActiveAccountKey(googleUser);
   const pendingActionRef = useRef(null);
 
   const openGoogleGuidePopup = useCallback((actionFn = null, optionLabel = 'Google Login') => {
@@ -1679,7 +1513,7 @@ export default function App() {
           monthlyPrice: saved.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
           yearlyPrice: saved.yearlyPrice || '3999',
-          watermarkText: FIXED_BRAND_WATERMARK,
+          watermarkText: saved.watermarkText || 'Developed by shortspilot.in',
           ownerAlertEmail: saved.ownerAlertEmail || '',
           paymentWebhookUrl: saved.paymentWebhookUrl || '',
           ytAutoUploadActive: saved.ytAutoUploadActive !== false,
@@ -1705,7 +1539,7 @@ export default function App() {
       couponCode: 'SAVE200',
       couponDiscount: '200',
       freeLimit: 3,
-      watermarkText: FIXED_BRAND_WATERMARK,
+      watermarkText: 'Developed by shortspilot.in',
       ownerAlertEmail: '',
       paymentWebhookUrl: '',
       ytAutoUploadActive: true,
@@ -1718,13 +1552,27 @@ export default function App() {
       adTitleText:
         'Upgrade to Yearly VIP (₹3,999/yr) for Priority 4x Daily Shorts Slots',
       adCtaLabel: 'Explore VIP',
-      adClickUrl: 'https://www.shortspilot.in'
+      adClickUrl: 'https://www.shortspilot.in',
+      adminPin: '9767905729'
     };
   });
 
-  const [igData, setIgData] = useState({ username: '', token: '', connected: false });
-  const [igUsernameDraft, setIgUsernameDraft] = useState('');
-  const [igTokenDraft, setIgTokenDraft] = useState('');
+  const [igData, setIgData] = useState(() => {
+    try {
+      const reg = readLocalRegistry()['creator@shortspilot.in'];
+      if (reg?.igToken) {
+        return {
+          username: reg.igUsername || '@instagram_user',
+          token: reg.igToken,
+          connected: true
+        };
+      }
+    } catch {}
+    return { username: '', token: '', connected: false };
+  });
+
+  const [igUsernameDraft, setIgUsernameDraft] = useState(() => igData.username || '');
+  const [igTokenDraft, setIgTokenDraft] = useState(() => igData.token || '');
   const [isIgModalOpen, setIsIgModalOpen] = useState(false);
   const [igError, setIgError] = useState('');
 
@@ -1767,7 +1615,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! ShortsPilot auto-post by default aur #Shorts mode par set hai.'
+      text: 'Welcome! ShortsPilot is configured for automatic posting and #Shorts mode by default.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -1819,26 +1667,23 @@ export default function App() {
         clip,
         customStyleNote: '',
         target,
-        watermarkText: FIXED_BRAND_WATERMARK
+        watermarkText: globalConfig.watermarkText || 'Developed by shortspilot.in'
       });
     },
     [globalConfig.watermarkText]
   );
 
   const applyConnectedGoogleProfile = useCallback((profile, tokens = {}) => {
-    const cleanEmail = String(profile?.email || '').trim().toLowerCase();
-    if (!cleanEmail) return;
-
     const userPayload = {
       name: profile.name || 'YouTube Creator',
-      email: cleanEmail,
+      email: profile.email,
       avatar: profile.avatar || '',
       channelId: profile.channelId || '',
       connectedAt: Date.now()
     };
 
     setGoogleUser(userPayload);
-    setCheckoutEmail(cleanEmail);
+    setCheckoutEmail((prev) => prev || profile.email);
     try {
       localStorage.setItem('sp_google_user', JSON.stringify(userPayload));
       localStorage.setItem('shortspilot_google_user', JSON.stringify(userPayload));
@@ -1860,7 +1705,7 @@ export default function App() {
       } catch {}
     }
 
-    saveLocalRegistry(cleanEmail, {
+    saveLocalRegistry(profile.email, {
       name: userPayload.name,
       avatar: userPayload.avatar,
       channelId: userPayload.channelId
@@ -1955,7 +1800,7 @@ export default function App() {
         return {
           uploaded: false,
           videoId: '',
-          error: 'YouTube token nahi mila — Google login dobara karein'
+          error: 'YouTube token not found. Please sign in with Google again.'
         };
       }
 
@@ -1964,7 +1809,7 @@ export default function App() {
         return {
           uploaded: false,
           videoId: '',
-          error: 'Video file missing ya empty hai'
+          error: 'The video file is missing or empty.'
         };
       }
 
@@ -1975,7 +1820,7 @@ export default function App() {
             uploaded: false,
             videoId: '',
             error:
-              'YouTube Short 3 minutes se lamba nahi ho sakta. Video ko chhote clips mein split karein.'
+              'A YouTube Short cannot be longer than 3 minutes. Split the video into shorter clips.'
           };
         }
         const ratio = media.width / media.height;
@@ -1988,21 +1833,21 @@ export default function App() {
           return {
             uploaded: false,
             videoId: '',
-            error: `Short format verify nahi hua (${media.width}x${media.height}). Video upload rok diya hai.`
+            error: `Short format verification failed (${media.width}x${media.height}). The upload was stopped.`
           };
         }
         if (media.duration > 180) {
           return {
             uploaded: false,
             videoId: '',
-            error: 'Converted video 3 minutes se lambi hai.'
+            error: 'The converted video is longer than 3 minutes.'
           };
         }
       } catch (mediaError) {
         return {
           uploaded: false,
           videoId: '',
-          error: mediaError?.message || 'Video format verify nahi hua'
+          error: mediaError?.message || 'Video format verification failed.'
         };
       }
 
@@ -2022,7 +1867,7 @@ export default function App() {
         },
         status: {
           privacyStatus: 'public',
-                    selfDeclaredMadeForKids: false
+          selfDeclaredMadeForKids: false
         }
       };
 
@@ -2146,7 +1991,7 @@ export default function App() {
       );
 
       if (!ytRes.uploaded) {
-        setLoginError(`YouTube Upload Error: ${ytRes.error || 'Upload failed'}`);
+        setLoginError(`YouTube upload failed: ${ytRes.error || 'Upload failed'}`);
       }
 
       setAutoPublishStatus('');
@@ -2189,58 +2034,15 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-
-    setPreviewClip(null);
-    setVideoQueue((prev) => {
-      prev.forEach((c) => {
-        if (c?.croppedUrl && c.croppedUrl.startsWith('blob:')) {
-          try {
-            URL.revokeObjectURL(c.croppedUrl.split('#')[0]);
-          } catch {}
-        }
-      });
-      return [];
-    });
-
-    if (!activeAccountEmail) {
-      setIgData({ username: '', token: '', connected: false });
-      setIgUsernameDraft('');
-      setIgTokenDraft('');
-      return () => {
-        active = false;
-      };
-    }
-
-    try {
-      const reg = readLocalRegistry()[activeAccountEmail];
-      if (reg?.igToken) {
-        const nextIg = {
-          username: reg.igUsername || '@instagram_user',
-          token: reg.igToken,
-          connected: true
-        };
-        setIgData(nextIg);
-        setIgUsernameDraft(nextIg.username);
-        setIgTokenDraft(nextIg.token);
-      } else {
-        setIgData({ username: '', token: '', connected: false });
-        setIgUsernameDraft('');
-        setIgTokenDraft('');
-      }
-    } catch {
-      setIgData({ username: '', token: '', connected: false });
-    }
-
-    idbGetClipsForAccount(activeAccountEmail).then((clips) => {
-      if (active) {
+    idbGetAllClips().then((clips) => {
+      if (active && clips.length > 0) {
         setVideoQueue(clips);
       }
     });
-
     return () => {
       active = false;
     };
-  }, [activeAccountEmail]);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -2284,14 +2086,14 @@ export default function App() {
               { accessToken: queryToken, refreshToken: queryRefresh }
             );
           } else {
-            setLoginError('Google profile read nahi ho paya.');
+            setLoginError('Unable to read the Google profile.');
           }
         })
         .catch(() => setLoginError('Google profile fetch error.'))
         .finally(() => setIsLoggingIn(false));
     } else if (oauthCode && !window.location.hash.includes('access_token=')) {
       setLoginError(
-        'OAuth code mila, par access_token redirect nahi hua. /api/youtube/callback check karein.'
+        'OAuth code was received, but the access token was not returned. Check /api/youtube/callback.'
       );
       setIsLoggingIn(false);
     }
@@ -2357,7 +2159,7 @@ export default function App() {
           monthlyPrice: cfgData.monthlyPrice || '99',
           yearlyOriginalPrice: '6999',
           yearlyPrice: cfgData.yearlyPrice || '3999',
-          watermarkText: FIXED_BRAND_WATERMARK,
+          watermarkText: cfgData.watermarkText || 'Developed by shortspilot.in',
           blockedEmails: Array.isArray(cfgData.blockedEmails)
             ? cfgData.blockedEmails
             : prev.blockedEmails || []
@@ -2389,16 +2191,12 @@ export default function App() {
       return setIgError('Enter a valid Instagram Token.');
     }
 
-    if (!activeAccountEmail) {
-      return setIgError('Pehle Google Gmail se login karein.');
-    }
-
     setIgData({
       username: formattedUser,
       token: cleanToken,
       connected: true
     });
-    saveLocalRegistry(activeAccountEmail, {
+    saveLocalRegistry((googleUser?.email || 'creator@shortspilot.in').toLowerCase(), {
       igUsername: formattedUser,
       igToken: cleanToken
     });
@@ -2409,11 +2207,6 @@ export default function App() {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (files.length === 0) return;
-
-    if (!activeAccountEmail) {
-      openGoogleGuidePopup(null, 'Upload Shorts');
-      return;
-    }
 
     setLoginError('');
     setAutoPublishStatus('Generating Thumbnail, Description & Auto-Posting Short...');
@@ -2427,12 +2220,12 @@ export default function App() {
       try {
         shortBlob = await createVerticalShortBlob(file, 0, Math.min(meta.duration, 180));
       } catch (conversionError) {
-        setLoginError(`Video convert nahi hua: ${conversionError?.message || 'Unknown error'}`);
+        setLoginError(`Video conversion failed: ${conversionError?.message || 'Unknown error'}`);
         continue;
       }
       const durLabel = formatClockTime(Math.min(meta.duration, 180));
       const hookLabel = selectedThumbConcept?.hookText || 'WAIT FOR END 😱';
-      const watermark = FIXED_BRAND_WATERMARK;
+      const watermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
       const aiMeta = buildClipPackage(
         detectedTopic,
         i,
@@ -2471,13 +2264,12 @@ export default function App() {
         } else {
           uploadError = ytRes.error || 'Token missing';
           clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
-          setLoginError(`YouTube Upload Nahi Hua: ${uploadError}`);
+          setLoginError(`YouTube upload failed: ${uploadError}`);
         }
       }
 
       const readyClip = {
         id: `${Date.now()}-${Math.random()}`,
-        ownerEmail: activeAccountEmail,
         title: aiMeta.title,
         mediaFormat: 'short',
         hashtags: aiMeta.hashtags,
@@ -2499,7 +2291,7 @@ export default function App() {
       };
 
       setVideoQueue((prev) => [readyClip, ...prev]);
-      await idbSaveClip(readyClip, activeAccountEmail);
+      await idbSaveClip(readyClip);
     }
     setAutoPublishStatus('');
   };
@@ -2509,140 +2301,113 @@ export default function App() {
     e.target.value = '';
     if (!file) return;
 
-    if (!activeAccountEmail) {
-      openGoogleGuidePopup(null, 'AI Clip Cutter');
-      return;
-    }
-
     setIsSplitterModalOpen(false);
     setLoginError('');
-    const count = Math.max(1, Math.min(5, Number(clipSplitCount) || 3));
-    setAutoPublishStatus(`Gemini AI video ke highlights analyze kar raha hai (${count} clips)...`);
+    const count = Number(clipSplitCount) || 3;
+    setAutoPublishStatus(`Generating Thumbnails & Cutting ${count} Shorts...`);
 
-    try {
-      const detectedTopic = detectTopicFromFile(file.name);
-      const meta = await readVideoMetadata(file);
-      const totalDur = Number(meta.duration) || 0;
-      if (totalDur < 5) throw new Error('Video bahut chhota hai.');
-      const watermark = FIXED_BRAND_WATERMARK;
-      const defaultHook = selectedThumbConcept?.hookText || 'WATCH THIS!';
-      let highlights;
+    const detectedTopic = detectTopicFromFile(file.name);
+    const meta = await readVideoMetadata(file);
+    const totalDur = Math.max(15, meta.duration || 60);
+    const segDur = Math.max(5, Math.floor(totalDur / count));
+    const watermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
+    const hookLabel = selectedThumbConcept?.hookText || 'WAIT FOR END 😱';
+    const generated = [];
 
+    for (let i = 0; i < count; i++) {
+      const slotLabel = getNextSlotLabel(videoQueue.length + i);
+      const startSec = Math.floor(i * segDur);
+      const endSec =
+        i === count - 1 ? Math.floor(totalDur) : Math.min(Math.floor(totalDur), startSec + segDur);
+      const clipLength = Math.max(1, endSec - startSec);
+      if (clipLength > 180) {
+        setLoginError('Each Short must be shorter than 3 minutes. Increase the clip count.');
+        break;
+      }
+      let segmentBlob;
       try {
-        highlights = await requestGeminiHighlights({ file, count, topic: detectedTopic });
-      } catch (aiError) {
-        throw new Error(
-          `AI highlight analysis nahi ho paaya: ${aiError.message}. Equal parts automatically nahi banaye gaye; API setup check karein.`
+        segmentBlob = await createVerticalShortBlob(file, startSec, endSec);
+      } catch (conversionError) {
+        setLoginError(
+          `Part ${i + 1} conversion failed: ${conversionError?.message || 'Unknown error'}`
         );
+        break;
       }
+      const durLabel = formatClockTime(clipLength);
+      const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
+      const partLabel = count > 1 ? `Part ${i + 1}/${count}` : '';
+      const aiMeta = buildClipPackage(
+        detectedTopic,
+        i,
+        partLabel,
+        watermark,
+        durLabel,
+        hookLabel
+      );
+      const thumb = await generateThumbnailBlob({
+        hookText: hookLabel,
+        subText: `${detectedTopic} ${partLabel}`.trim(),
+        watermarkText: watermark,
+        palette: selectedThumbConcept?.palette,
+        videoBlob: segmentBlob,
+        seekSec: 1
+      });
 
-      if (highlights.length !== count) {
-        throw new Error(
-          `AI ne ${count} ke bajay ${highlights.length} valid clips diye. Dobara try karein.`
-        );
-      }
+      let clipStatus = manualPostMode
+        ? `Cut Ready (SHORT, ${timeRangeLabel}) • ${slotLabel}`
+        : `Scheduled (SHORT) • ${slotLabel}`;
+      let youtubeVideoId = '';
+      let uploadError = '';
 
-      const generated = [];
-      for (let i = 0; i < highlights.length; i++) {
-        const highlight = highlights[i];
-        const startSec = Math.max(0, Math.min(totalDur - 1, highlight.startSec));
-        const endSec = Math.min(totalDur, highlight.endSec);
-        const clipLength = endSec - startSec;
-        if (clipLength < 3 || clipLength > 180) {
-          throw new Error(
-            `AI clip ${i + 1} ki duration invalid hai (${Math.round(clipLength)} sec).`
-          );
-        }
-
-        setAutoPublishStatus(`Clip ${i + 1}/${count} cut aur thumbnail generate ho raha hai...`);
-        const slotLabel = getNextSlotLabel(videoQueue.length + i);
-        const durLabel = formatClockTime(clipLength);
-        const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
-        const partLabel = `AI Highlight ${i + 1}/${count}`;
-        const aiMetaBase = buildClipPackage(
-          detectedTopic,
-          i,
-          partLabel,
-          watermark,
-          durLabel,
-          highlight.thumbnailHook || defaultHook
-        );
-        const aiMeta = {
-          ...aiMetaBase,
-          title: highlight.title || aiMetaBase.title,
-          description: highlight.description || aiMetaBase.description,
-          hashtags: highlight.hashtags || aiMetaBase.hashtags
-        };
-
-        const segmentBlob = await createVerticalShortBlob(file, startSec, endSec);
-        const thumb = await generateThumbnailBlob({
-          hookText: highlight.thumbnailHook || defaultHook,
-          subText: highlight.title || detectedTopic,
-          watermarkText: watermark,
-          palette: selectedThumbConcept?.palette,
-          videoBlob: segmentBlob,
-          seekSec: Math.min(2, clipLength / 3)
+      if (!manualPostMode && globalConfig?.ytAutoUploadActive !== false && i < 4) {
+        const ytRes = await uploadClipToYouTube({
+          ...aiMeta,
+          mediaFormat: 'short',
+          blob: segmentBlob,
+          thumbnailBlob: thumb.blob
         });
 
-        let clipStatus = manualPostMode
-          ? `AI Cut Ready (SHORT, ${timeRangeLabel}) • ${slotLabel}`
-          : `Scheduled (SHORT) • ${slotLabel}`;
-        let youtubeVideoId = '';
-        let uploadError = '';
-
-        if (!manualPostMode && globalConfig?.ytAutoUploadActive !== false && i < 4) {
-          const ytRes = await uploadClipToYouTube({
-            ...aiMeta,
-            mediaFormat: 'short',
-            blob: segmentBlob,
-            thumbnailBlob: thumb.blob
-          });
-          if (ytRes.uploaded && ytRes.videoId) {
-            youtubeVideoId = ytRes.videoId;
-            clipStatus = `Uploaded SHORT (${youtubeVideoId}) • ${slotLabel} ✅`;
-          } else {
-            uploadError = ytRes.error || 'Token missing';
-            clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
-            setLoginError(`YouTube Upload Nahi Hua: ${uploadError}`);
-          }
+        if (ytRes.uploaded && ytRes.videoId) {
+          youtubeVideoId = ytRes.videoId;
+          clipStatus = `Uploaded SHORT (${youtubeVideoId}) • ${slotLabel} ✅`;
+        } else {
+          uploadError = ytRes.error || 'Token missing';
+          clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
+          setLoginError(`YouTube upload failed: ${uploadError}`);
         }
-
-        const clipItem = {
-          id: `${Date.now()}-${Math.random()}-${i}`,
-          ownerEmail: activeAccountEmail,
-          title: aiMeta.title,
-          mediaFormat: 'short',
-          hashtags: aiMeta.hashtags,
-          description: aiMeta.description,
-          watermarkText: aiMeta.watermarkText,
-          thumbnailHook: highlight.thumbnailHook || defaultHook,
-          thumbnailGradient:
-            selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
-          thumbnailDataUrl: thumb.dataUrl,
-          thumbnailBlob: thumb.blob,
-          slotLabel,
-          youtubeVideoId,
-          uploadError,
-          status: clipStatus,
-          hookScore: aiMeta.hookScore,
-          duration: durLabel,
-          croppedUrl: URL.createObjectURL(segmentBlob),
-          blob: segmentBlob,
-          startSec,
-          endSec
-        };
-        generated.push(clipItem);
-        await idbSaveClip(clipItem, activeAccountEmail);
       }
 
-      setVideoQueue((prev) => [...generated, ...prev]);
-      setAutoPublishStatus('');
-    } catch (error) {
-      setAutoPublishStatus('');
-      setLoginError(error?.message || 'Smart clipping failed.');
-    }
-  };
+      const clipItem = {
+        id: `${Date.now()}-${Math.random()}-${i}`,
+        title: aiMeta.title,
+        mediaFormat: 'short',
+        hashtags: aiMeta.hashtags,
+        description: aiMeta.description,
+        watermarkText: aiMeta.watermarkText,
+        thumbnailHook: hookLabel,
+        thumbnailGradient:
+          selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
+        thumbnailDataUrl: thumb.dataUrl,
+        thumbnailBlob: thumb.blob,
+        slotLabel,
+        youtubeVideoId,
+        uploadError,
+        status: clipStatus,
+        hookScore: aiMeta.hookScore,
+        duration: durLabel,
+        croppedUrl: URL.createObjectURL(segmentBlob),
+        blob: segmentBlob,
+        startSec,
+        endSec
+      };
 
+      generated.push(clipItem);
+      await idbSaveClip(clipItem);
+    }
+
+    setVideoQueue((prev) => [...generated, ...prev]);
+    setAutoPublishStatus('');
+  };
 const handleGenerateThumbnails = (e) => {
     e.preventDefault();
     const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
@@ -2675,7 +2440,7 @@ const handleGenerateThumbnails = (e) => {
 
     const cleanEmail = (checkoutEmail || googleUser?.email || '').trim().toLowerCase();
     if (!cleanEmail) {
-      return setCheckoutError('Pehle apna Gmail ID enter karein.');
+      return setCheckoutError('Please enter your Gmail address first.');
     }
 
     const amt =
@@ -2687,39 +2452,34 @@ const handleGenerateThumbnails = (e) => {
       selectedBilling === 'yearly' ? RAZORPAY_YEARLY_LINK : RAZORPAY_MONTHLY_LINK;
 
     if (!targetUrl) {
-      return setCheckoutError('Yearly plan ki alag Razorpay link abhi set nahi hai.');
+      return setCheckoutError(
+        'A separate Razorpay link has not been configured for the yearly plan yet.'
+      );
     }
-const loggedTxn = {
-      id: 'RZP-' + Date.now(),
+
+    const loggedTxn = {
+      id: `RZP-${Date.now()}`,
       user: cleanEmail,
       userKey: emailToKey(cleanEmail),
       plan: selectedBilling,
       numericAmount: amt,
-      amount: 'Rs. ' + amt + ' (' + selectedBilling + ')',
+      amount: `₹${amt} (${selectedBilling})`,
       status: 'Checkout Opened',
-      time: new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
     if (dbBase) {
       try {
-        const response = await fetch(dbBase + '/transactions.json', {
+        await fetch(`${dbBase}/transactions.json`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(loggedTxn)
         });
-        if (!response.ok) {
-          throw new Error('Transaction save failed: ' + response.status);
-        }
-      } catch (error) {
-        console.error('Transaction save error:', error);
-      }
+      } catch {}
     }
 
     setTransactions((prev) => [loggedTxn, ...prev]);
-    setCheckoutPendingMsg('Razorpay payment page open ho raha hai...');
+    setCheckoutPendingMsg('Opening the Razorpay payment page...');
     window.open(targetUrl, '_blank', 'noopener,noreferrer');
   }, [checkoutEmail, googleUser?.email, selectedBilling, globalConfig, dbBase]);
 
@@ -2732,7 +2492,7 @@ const loggedTxn = {
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'ShortsPilot auto-post by default aur #Shorts mode par set hai.'
+        text: 'ShortsPilot is configured for automatic posting and #Shorts mode by default.'
       }
     ]);
     setSupportInput('');
@@ -2741,7 +2501,7 @@ const loggedTxn = {
   const totalPostedCount = useMemo(() => videoQueue.length, [videoQueue.length]);
   const currentMonthlyPrice = globalConfig.monthlyPrice || '99';
   const currentYearlyPrice = globalConfig.yearlyPrice || '3999';
-  const currentWatermark = FIXED_BRAND_WATERMARK;
+  const currentWatermark = globalConfig.watermarkText || 'Developed by shortspilot.in';
   const safeAdUrl = sanitizeMediaUrl(globalConfig.adClickUrl) || 'https://www.shortspilot.in';
 
   if (!isAdminOpen && (globalConfig?.maintenanceMode || isCurrentUserBlocked)) {
@@ -2753,8 +2513,8 @@ const loggedTxn = {
           </h2>
           <p className="text-xs text-slate-300">
             {isCurrentUserBlocked
-              ? 'Aapka account owner admin dwara block kiya gaya hai.'
-              : globalConfig?.announcementBanner || 'Website abhi maintenance mode mein hai.'}
+              ? 'Your account has been blocked by the site administrator.'
+              : globalConfig?.announcementBanner || 'The website is currently in maintenance mode.'}
           </p>
         </div>
       </div>
@@ -2765,7 +2525,7 @@ const loggedTxn = {
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
         activeTab={activeTab}
-        onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), tab + ' tab')}
+        onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
         onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')}
         onOpenSplitter={() =>
           requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
@@ -2774,7 +2534,7 @@ const loggedTxn = {
           requireGoogleAuth(() => setIsThumbnailModalOpen(true), '9:16 Thumbnail Preset')
         }
         onOpenPricing={() => requireGoogleAuth(() => setIsPricingOpen(true), 'Offer Plans')}
-        onOpenAdmin={() => requireGoogleAuth(() => { if (!isOwnerAdmin) { window.alert('Owner Admin access is restricted to the configured owner Gmail.'); return; } setAdminUnlocked(true); setIsAdminOpen(true); }, 'Full Control Admin Console')}
+        onOpenAdmin={() => requireGoogleAuth(() => setIsAdminOpen(true), 'Full Control Admin Console')}
         onOpenTerms={() => requireGoogleAuth(() => setIsTermsOpen(true), 'Terms & Conditions')}
         onGoogleLogin={() => openGoogleGuidePopup(startGoogleLogin, 'Google Login')}
         onGoogleLogout={logoutGoogle}
@@ -2994,9 +2754,10 @@ const loggedTxn = {
                         </span>
                       </h2>
                       <p className="text-[10.5px] lg:text-xs text-slate-300 font-medium">
-                        {manualPostMode ? 'Mode: Manual Post' : 'Next: ' + selectedTimeSlot}
+                        {manualPostMode ? 'Mode: Manual Post' : `Next: ${selectedTimeSlot}`}
                       </p>
                     </div>
+
                     <div
                       onClick={() =>
                         requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')
@@ -3022,7 +2783,7 @@ const loggedTxn = {
                     type="button"
                     onClick={() =>
                       requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')
-                                          }
+                    }
                     className="w-full py-3 lg:py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs lg:text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(56,189,248,0.4)] border border-white/20 active:scale-95 transition-all cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-white" />
@@ -3032,8 +2793,9 @@ const loggedTxn = {
                         : 'Upload & Auto-Post Shorts'}
                     </span>
                   </button>
-               </div>
-               <div className="p-4 lg:p-6 rounded-[28px] bg-gradient-to-br from-[#231042] via-[#150b29] to-[#0c1428] border border-pink-500/50 flex flex-col justify-between space-y-3 shadow-[0_0_25px_rgba(236,72,153,0.22)]">
+                </div>
+
+                <div className="p-4 lg:p-6 rounded-[28px] bg-gradient-to-br from-[#231042] via-[#150b29] to-[#0c1428] border border-pink-500/50 flex flex-col justify-between space-y-3 shadow-[0_0_25px_rgba(236,72,153,0.22)]">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-10 h-10 lg:w-11 lg:h-11 rounded-2xl bg-pink-500/25 border border-pink-400/50 flex items-center justify-center shrink-0">
@@ -3070,7 +2832,7 @@ const loggedTxn = {
                         key={num}
                         type="button"
                         onClick={() =>
-                          requireGoogleAuth(() => setClipSplitCount(num), String(num) + ' Clips Mode')
+                          requireGoogleAuth(() => setClipSplitCount(num), `${num} Clips Mode`)
                         }
                         className={`py-2 lg:py-2.5 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
                           clipSplitCount === num
@@ -3379,7 +3141,7 @@ const loggedTxn = {
               </div>
 
               <footer className="pt-2 pb-1 flex flex-wrap items-center justify-between gap-2 text-[10.5px] text-slate-400 border-t border-white/10">
-                <span>{FIXED_BRAND_WATERMARK}</span>
+                <span>{currentWatermark}</span>
                 <button
                   type="button"
                   onClick={() =>
@@ -3716,7 +3478,30 @@ const loggedTxn = {
                   </button>
                 </div>
 
-                <div className="space-y-1 pt-1 text-[11px] text-cyan-300 font-bold">Permanent watermark: {FIXED_BRAND_WATERMARK}</div>
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[11px] text-slate-400 font-bold">
+                    Brand Watermark / Credit
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={globalConfig.watermarkText || ''}
+                      onChange={(e) =>
+                        setGlobalConfig((prev) => ({ ...prev, watermarkText: e.target.value }))
+                      }
+                      className="flex-1 px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        localStorage.setItem('sp_global_config', JSON.stringify(globalConfig))
+                      }
+                      className="px-4 py-2 rounded-xl bg-emerald-500 text-black font-extrabold cursor-pointer"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
@@ -3746,7 +3531,8 @@ const loggedTxn = {
             </div>
           )}
         </div>
-<button
+
+        <button
           type="button"
           onClick={() => requireGoogleAuth(() => setShowAiSupport(true), 'AI Support Chat')}
           aria-label="Floating AI Support"
@@ -3757,7 +3543,7 @@ const loggedTxn = {
 
         <MobileBottomNavBar
           activeTab={activeTab}
-          onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), String(tab) + ' tab')}
+          onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), `${tab} tab`)}
           onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')}
         />
       </div>
@@ -3787,24 +3573,23 @@ const loggedTxn = {
             <p className="text-[11px] text-slate-400">Service: ShortsPilot AI (shortspilot.in)</p>
             <div className="space-y-2 leading-relaxed">
               <p>
-                <b className="text-white">1. Content Rights:</b> Aap sirf wahi videos upload/cut aur
-                publish karein jinke rights aapke paas hain ya jo copyright guidelines ke anusaar
-                allowed hain.
+                <b className="text-white">1. Content Rights:</b> Only upload, edit, and publish
+                videos that you own or are authorized to use under applicable copyright guidelines.
               </p>
               <p>
-                <b className="text-white">2. YouTube &amp; Third-Party Rules:</b> Shorts YouTube ke
-                Community Guidelines aur Terms of Service ke mutabik publish kiye jaate hain;
-                platform moderation ya reach ki guarantee nahi deta.
+                <b className="text-white">2. YouTube &amp; Third-Party Rules:</b> Shorts are
+                published in accordance with YouTube Community Guidelines and Terms of Service; we
+                cannot guarantee platform moderation outcomes or reach.
               </p>
               <p>
-                <b className="text-white">3. Subscriptions &amp; Payments:</b> Plans (Monthly / Yearly)
-                digital automation access ke liye hain; Razorpay payment complete hone ke baad plan
-                active hota hai.
+                <b className="text-white">3. Subscriptions &amp; Payments:</b> Plans (Monthly /
+                Yearly) provide access to digital automation features. The plan becomes active after
+                the Razorpay payment is completed.
               </p>
               <p>
-                <b className="text-white">4. Local Storage &amp; Tokens:</b> Clips local IndexedDB mein
-                aur account/token details aapke browser storage mein save rehte hain; public ya
-                shared devices par logout karein.
+                <b className="text-white">4. Local Storage &amp; Tokens:</b> Clips are stored in
+                IndexedDB on your device, and account/token details are stored in your browser. On
+                public or shared devices, please sign out when finished.
               </p>
             </div>
             <button
@@ -4022,7 +3807,7 @@ const loggedTxn = {
               onClick={() => splitterInputRef.current?.click()}
               className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
             >
-                            Select Video &amp; Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}
+              Select Video &amp; Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}
             </button>
           </div>
         </div>
@@ -4241,7 +4026,7 @@ const loggedTxn = {
                   <LogOut className="w-3.5 h-3.5" /> Logout
                 </button>
               )}
-              <div className="text-[10px] text-slate-500">{FIXED_BRAND_WATERMARK}</div>
+              <div className="text-[10px] text-slate-500">{currentWatermark}</div>
             </div>
           </div>
           <div className="flex-1" onClick={() => setIsSettingsDrawerOpen(false)} />
@@ -4338,7 +4123,7 @@ const loggedTxn = {
                 className="w-full aspect-[9/16] bg-black"
               />
               <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/65 border border-white/15 text-[8.5px] font-extrabold text-cyan-300 pointer-events-none">
-                {FIXED_BRAND_WATERMARK}
+                {previewClip.watermarkText || currentWatermark}
               </div>
             </div>
 
@@ -4359,7 +4144,7 @@ const loggedTxn = {
         </div>
       )}
 
-      {isAdminOpen && isGoogleConnected && isOwnerAdmin && (
+      {isAdminOpen && isGoogleConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
           <div className="relative w-full max-w-lg rounded-3xl bg-[#0b0818] border border-purple-500/50 p-6 space-y-3.5 max-h-[90vh] overflow-y-auto">
             <button
@@ -4372,19 +4157,12 @@ const loggedTxn = {
             <h3 className="text-base font-extrabold text-white">
               🔐 Full Control Owner Admin Console
             </h3>
-            <p className="text-[10px] text-amber-300">
-              Owner Gmail configured in source: {OWNER_ADMIN_EMAIL}. Secure server-side authorization and Firebase rules must also be configured before public launch.
-            </p>
 
             {!adminUnlocked ? (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (
-                    isOwnerAdmin &&
-                    adminPinInput.trim() &&
-                    adminPinInput.trim() === String(globalConfig.adminPin || '')
-                  ) {
+                  if (adminPinInput.trim() === (globalConfig.adminPin || '9767905729')) {
                     setAdminUnlocked(true);
                     setAdminError('');
                     fetchFirebaseData();
@@ -4398,7 +4176,7 @@ const loggedTxn = {
                   type="password"
                   value={adminPinInput}
                   onChange={(e) => setAdminPinInput(e.target.value)}
-                  placeholder="Optional legacy admin PIN (if configured)"
+                  placeholder="Enter Admin PIN"
                   className="w-full px-3 py-2.5 rounded-xl bg-[#06040c] border border-slate-700 text-xs text-white"
                 />
                 {adminError && <p className="text-xs text-rose-400">{adminError}</p>}
@@ -4549,9 +4327,15 @@ const loggedTxn = {
                       className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
                     />
                   </div>
-                  <div className="px-2.5 py-2 rounded-lg bg-[#06040c] border border-cyan-500/30 text-cyan-300 font-mono">
-                    Permanent watermark: {FIXED_BRAND_WATERMARK}
-                  </div>
+                  <input
+                    type="text"
+                    value={globalConfig.watermarkText || ''}
+                    onChange={(e) =>
+                      setGlobalConfig((prev) => ({ ...prev, watermarkText: e.target.value }))
+                    }
+                    placeholder="Brand Watermark"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white font-mono"
+                  />
                   <input
                     type="text"
                     value={globalConfig.receiverUpi}
@@ -4629,10 +4413,7 @@ const loggedTxn = {
                 <button
                   type="button"
                   onClick={async () => {
-                    localStorage.setItem(
-                      'sp_global_config',
-                      JSON.stringify({ ...globalConfig, watermarkText: FIXED_BRAND_WATERMARK })
-                    );
+                    localStorage.setItem('sp_global_config', JSON.stringify(globalConfig));
                     localStorage.setItem('sp_firebase_url', liveDbUrl);
                     setTier('pro');
                     setAutoPublishStatus('Full Control Config Saved ✅');
@@ -4641,10 +4422,7 @@ const loggedTxn = {
                         await fetch(`${dbBase}/siteConfig.json`, {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            ...globalConfig,
-                            watermarkText: FIXED_BRAND_WATERMARK
-                          })
+                          body: JSON.stringify(globalConfig)
                         });
                       } catch {}
                     }
