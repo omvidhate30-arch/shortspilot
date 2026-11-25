@@ -2644,7 +2644,6 @@ export default function App() {
       setLoginError(error?.message || 'Smart clipping failed.');
     }
   };
-```[cite: 3]
 
 const handleGenerateThumbnails = (e) => {
     e.preventDefault();
