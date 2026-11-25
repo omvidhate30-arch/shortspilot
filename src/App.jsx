@@ -143,8 +143,9 @@ const readVideoMetadata = (file) =>
     }
   });
 
-// Read real media dimensions/duration without assuming fallback values.
-const readVideoMetadataStrict = (file, fallbackDuration = null) =>
+// Read media metadata. MediaRecorder WebM files may omit a finite duration;
+// in that case use metadata recorded by our own 720x1280 Short exporter.
+const readVideoMetadataStrict = (file, fallbackMetadata = null) =>
   new Promise((resolve, reject) => {
     if (!(file instanceof Blob) || !file.size) {
       reject(new Error('The video file is missing or empty.'));
@@ -171,19 +172,24 @@ const readVideoMetadataStrict = (file, fallbackDuration = null) =>
     video.preload = 'metadata';
     video.muted = true;
     video.onloadedmetadata = () => {
-      const width = Number(video.videoWidth);
-      const height = Number(video.videoHeight);
+      const fallback = typeof fallbackMetadata === 'number'
+        ? { duration: fallbackMetadata }
+        : (fallbackMetadata && typeof fallbackMetadata === 'object' ? fallbackMetadata : {});
+      const browserWidth = Number(video.videoWidth);
+      const browserHeight = Number(video.videoHeight);
       const browserDuration = Number(video.duration);
-      // MediaRecorder-generated WebM files may report Infinity/NaN for duration
-      // even when the original source duration is known and the video is valid.
+      // Our canvas exporter always records a 720x1280 video. Chromium's
+      // MediaRecorder WebM may expose Infinity for duration, so retain the
+      // known source/segment duration rather than rejecting a valid exported clip.
+      const width = browserWidth > 0 ? browserWidth : Number(fallback.width);
+      const height = browserHeight > 0 ? browserHeight : Number(fallback.height);
       const duration = Number.isFinite(browserDuration) && browserDuration > 0
         ? browserDuration
-        : (Number.isFinite(Number(fallbackDuration)) && Number(fallbackDuration) > 0
-          ? Number(fallbackDuration)
-          : NaN);
+        : Number(fallback.duration);
 
-      if (!width || !height || !Number.isFinite(duration) || duration <= 0) {
-        finish(new Error('Unable to read the video dimensions or duration. Please re-export the video as MP4 or WebM and try again.'));
+      if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0 ||
+          !Number.isFinite(duration) || duration <= 0) {
+        finish(new Error('Unable to verify this video. Re-import it so ShortsPilot can read its source duration and export a fresh 9:16 clip.'));
         return;
       }
       finish(null, { duration, width, height });
@@ -1799,6 +1805,18 @@ export default function App() {
     return '';
   }, [youtubeRefreshToken]);
 
+  const getClipDurationSeconds = (clip) => {
+    const explicit = Number(clip?.durationSeconds);
+    if (Number.isFinite(explicit) && explicit > 0) return explicit;
+    const rangeDuration = Number(clip?.endSec) - Number(clip?.startSec);
+    if (Number.isFinite(rangeDuration) && rangeDuration > 0) return rangeDuration;
+    const label = String(clip?.duration || '').trim();
+    const parts = label.split(':').map((part) => Number(part));
+    if (parts.length === 2 && parts.every(Number.isFinite)) return parts[0] * 60 + parts[1];
+    if (parts.length === 3 && parts.every(Number.isFinite)) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return 0;
+  };
+
   const uploadClipToYouTube = useCallback(
     async (clip) => {
       let token = youtubeAccessToken;
@@ -1827,7 +1845,13 @@ export default function App() {
         // Read source metadata before using its duration as a fallback.
         // Referencing `media.duration` in its own `let` initializer causes a TDZ
         // error: Cannot access 'media' before initialization.
-        const originalMedia = await readVideoMetadataStrict(fileBlob);
+        const knownDuration = getClipDurationSeconds(clip);
+        const isGeneratedShort = clip?.mediaFormat === 'short';
+        const originalMedia = await readVideoMetadataStrict(fileBlob, {
+          duration: knownDuration,
+          width: Number(clip?.outputWidth) || (isGeneratedShort ? 720 : 0),
+          height: Number(clip?.outputHeight) || (isGeneratedShort ? 1280 : 0)
+        });
         let media = originalMedia;
         if (media.duration > 180) {
           return { uploaded: false, videoId: '', error: 'A YouTube Short cannot be longer than 3 minutes. Split the video into shorter clips.' };
@@ -2250,6 +2274,9 @@ export default function App() {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
           mediaFormat: 'short',
+          durationSeconds: Math.min(meta.duration, 180),
+          outputWidth: 720,
+          outputHeight: 1280,
           blob: shortBlob,
           thumbnailBlob: thumb.blob
         });
@@ -2282,6 +2309,9 @@ export default function App() {
         status: clipStatus,
         hookScore: aiMeta.hookScore,
         duration: durLabel,
+        durationSeconds: Math.min(meta.duration, 180),
+        outputWidth: 720,
+        outputHeight: 1280,
         croppedUrl: objectUrl,
         blob: shortBlob
       };
@@ -2357,6 +2387,9 @@ export default function App() {
         const ytRes = await uploadClipToYouTube({
           ...aiMeta,
           mediaFormat: 'short',
+          durationSeconds: clipLength,
+          outputWidth: 720,
+          outputHeight: 1280,
           blob: segmentBlob,
           thumbnailBlob: thumb.blob
         });
@@ -2389,6 +2422,9 @@ export default function App() {
         status: clipStatus,
         hookScore: aiMeta.hookScore,
         duration: durLabel,
+        durationSeconds: clipLength,
+        outputWidth: 720,
+        outputHeight: 1280,
         croppedUrl: URL.createObjectURL(segmentBlob),
         blob: segmentBlob,
         startSec,
