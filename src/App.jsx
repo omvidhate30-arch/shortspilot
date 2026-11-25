@@ -159,74 +159,54 @@ const readVideoMetadataStrict = (file) =>
       reject(new Error('Video file missing ya empty hai'));
       return;
     }
-
     const url = URL.createObjectURL(file);
     const video = document.createElement('video');
-    let finished = false;
-    let metadataLoaded = false;
-
-    const cleanup = () => {
-      video.removeEventListener('loadedmetadata', checkMetadata);
-      video.removeEventListener('loadeddata', checkMetadata);
-      video.removeEventListener('error', handleError);
-      clearTimeout(timeout);
-      video.removeAttribute('src');
-      video.load();
-      URL.revokeObjectURL(url);
-    };
-
-    const finish = (error, result) => {
-      if (finished) return;
-      finished = true;
-      cleanup();
-      if (error) reject(error);
-      else resolve(result);
-    };
-
-    const checkMetadata = () => {
-      if (video.readyState >= 1) metadataLoaded = true;
-      if (!metadataLoaded || video.readyState < 2) return;
-
-      const result = {
-        duration: Number(video.duration),
-        width: Number(video.videoWidth),
-        height: Number(video.videoHeight)
-      };
-
-      if (
-        !Number.isFinite(result.duration) ||
-        result.duration <= 0 ||
-        result.width <= 0 ||
-        result.height <= 0
-      ) {
-        finish(new Error(
-          'Video metadata invalid hai. Video ko MP4 format mein convert karke try karein.'
-        ));
-        return;
-      }
-
-      finish(null, result);
-    };
-
-    const handleError = () => {
-      finish(new Error(
-        'Video decode nahi ho paaya. MP4 (H.264) format mein try karein.'
-      ));
-    };
-
-    const timeout = setTimeout(() => {
-      finish(new Error(
-        'Video read karne mein timeout hua. Dobara upload karein.'
-      ));
-    }, 20000);
-
-    video.preload = 'auto';
+    video.preload = 'metadata';
     video.muted = true;
     video.playsInline = true;
 
-    video.addEventListener('loadedmetadata', checkMetadata);
-    video.addEventListener('loadeddata', checkMetadata);
-    video.addEventListener('error', handleError);
+    let settled = false;
+    const cleanupAndFinish = (err, data) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      video.onloadedmetadata = null;
+      video.onloadeddata = null;
+      video.oncanplay = null;
+      video.onerror = null;
+      video.removeAttribute('src');
+      video.load();
+      URL.revokeObjectURL(url);
+      if (err) reject(err);
+      else resolve(data);
+    };
+
+    const checkMetadata = () => {
+      const duration = Number(video.duration);
+      const width = Number(video.videoWidth);
+      const height = Number(video.videoHeight);
+      if (Number.isFinite(duration) && duration > 0 && width > 0 && height > 0) {
+        cleanupAndFinish(null, { duration, width, height });
+      }
+    };
+
+    const timer = setTimeout(() => {
+      checkMetadata();
+      if (!settled) {
+        cleanupAndFinish(
+          new Error('Video ki actual details read nahi ho paayi. MP4 (H.264) ya WebM try karein.')
+        );
+      }
+    }, 12000);
+
+    video.onloadedmetadata = checkMetadata;
+    video.onloadeddata = checkMetadata;
+    video.oncanplay = checkMetadata;
+    video.onerror = () => {
+      cleanupAndFinish(
+        new Error('Video format read nahi ho paaya. MP4 (H.264) ya WebM use karein.')
+      );
+    };
 
     video.src = url;
     video.load();
