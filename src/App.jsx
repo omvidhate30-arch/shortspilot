@@ -2742,7 +2742,7 @@ const loggedTxn = {
     <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
         activeTab={activeTab}
-        onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), String(tab) + ' tab')}
+        onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), tab + ' tab')}
         onTriggerUpload={() => requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')}
         onOpenSplitter={() =>
           requireGoogleAuth(() => setIsSplitterModalOpen(true), 'AI Clip Cutter')
@@ -2974,7 +2974,6 @@ const loggedTxn = {
                         {manualPostMode ? 'Mode: Manual Post' : `Next: ${selectedTimeSlot}`}
                       </p>
                     </div>
-
                     <div
                       onClick={() =>
                         requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')
