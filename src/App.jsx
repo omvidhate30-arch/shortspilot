@@ -998,7 +998,7 @@ const GoogleVerificationGuideModal = React.memo(
             <div className="p-2 rounded-lg bg-cyan-50 border-2 border-rose-500 text-[10px] font-extrabold text-blue-700 underline animate-pulse">
               👆 Go to shortspilot.in (unsafe)
             </div>
-          </div>
+                      </div>
         )
       },
       {
@@ -1998,7 +1998,7 @@ export default function App() {
         },
         status: {
           privacyStatus: 'public',
-          selfDeclaredMadeForKids: false
+                    selfDeclaredMadeForKids: false
         }
       };
 
@@ -2618,7 +2618,6 @@ export default function App() {
       setLoginError(error?.message || 'Smart clipping failed.');
     }
   };
-```[cite: 3]
 
 const handleGenerateThumbnails = (e) => {
     e.preventDefault();
@@ -2999,7 +2998,7 @@ const loggedTxn = {
                     type="button"
                     onClick={() =>
                       requireGoogleAuth(() => fileInputRef.current?.click(), 'Upload Shorts')
-                    }
+                                          }
                     className="w-full py-3 lg:py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500 text-white font-extrabold text-xs lg:text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(56,189,248,0.4)] border border-white/20 active:scale-95 transition-all cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-white" />
@@ -3999,7 +3998,7 @@ const loggedTxn = {
               onClick={() => splitterInputRef.current?.click()}
               className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-extrabold text-xs cursor-pointer shadow-lg"
             >
-              Select Video &amp; Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}
+                            Select Video &amp; Cut {clipSplitCount} {clipSplitCount === 1 ? 'Short' : 'Shorts'}
             </button>
           </div>
         </div>
