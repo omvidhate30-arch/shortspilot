@@ -38,7 +38,7 @@ const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
 
 const RAZORPAY_MONTHLY_LINK = 'https://rzp.io/rzp/MwaHJEUU';
-const RAZORPAY_YEARLY_LINK = 'https://rzp.io/rzp/uEfZhLC';
+const RAZORPAY_YEARLY_LINK = '';
 
 const DAILY_AUTO_SLOTS = [
   { hour: 9, minute: 0, label: '09:00 AM' },
@@ -143,37 +143,60 @@ const readVideoMetadata = (file) =>
     }
   });
 
-const readVideoMetadataStrict = (file) =>
+// Read real media dimensions/duration without assuming fallback values.
+const readVideoMetadataStrict = (file, fallbackDuration = null) =>
   new Promise((resolve, reject) => {
     if (!(file instanceof Blob) || !file.size) {
       reject(new Error('The video file is missing or empty.'));
       return;
     }
+
     const url = URL.createObjectURL(file);
     const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.onloadedmetadata = () => {
-      const result = {
-        duration: Number(video.duration),
-        width: Number(video.videoWidth),
-        height: Number(video.videoHeight)
-      };
+    let settled = false;
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      clearTimeout(timeoutId);
       URL.revokeObjectURL(url);
-if (!Number.isFinite(result.duration) ||
-    result.duration <= 0 ||
-    !result.width ||
-    !result.height) {
-  reject(new Error("Unable to read the video's actual metadata."));
-}
+      if (error) reject(error);
+      else resolve(result);
+    };
+    const timeoutId = setTimeout(() => {
+      finish(new Error('Video metadata reading timed out. Please try another MP4 or WebM file.'));
+    }, 15000);
+
+    video.preload = 'metadata';
+    video.muted = true;
+    video.onloadedmetadata = () => {
+      const width = Number(video.videoWidth);
+      const height = Number(video.videoHeight);
+      const browserDuration = Number(video.duration);
+      // MediaRecorder-generated WebM files may report Infinity/NaN for duration
+      // even when the original source duration is known and the video is valid.
+      const duration = Number.isFinite(browserDuration) && browserDuration > 0
+        ? browserDuration
+        : (Number.isFinite(Number(fallbackDuration)) && Number(fallbackDuration) > 0
+          ? Number(fallbackDuration)
+          : NaN);
+
+      if (!width || !height || !Number.isFinite(duration) || duration <= 0) {
+        finish(new Error('Unable to read the video dimensions or duration. Please re-export the video as MP4 or WebM and try again.'));
+        return;
+      }
+      finish(null, { duration, width, height });
     };
     video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Unable to read the video format. Please use MP4 or WebM.'));
+      finish(new Error('Unable to read the video format. Please use a valid MP4 or WebM file.'));
     };
     video.src = url;
     video.load();
   });
 
+// Convert an input video into a real 9:16 vertical clip before YouTube upload.
+// Uses center-crop (720x1280) and keeps the source audio when the browser supports captureStream.
 const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
   new Promise(async (resolve, reject) => {
     if (!(file instanceof Blob)) return reject(new Error('Video file missing'));
@@ -198,9 +221,7 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
     const fail = (err) => {
       if (finished) return;
       finished = true;
-      try {
-        if (recorder && recorder.state !== 'inactive') recorder.stop();
-      } catch {}
+      try { if (recorder && recorder.state !== 'inactive') recorder.stop(); } catch {}
       cleanup();
       reject(err instanceof Error ? err : new Error('Video conversion failed'));
     };
@@ -209,8 +230,7 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
       try {
         const duration = Number.isFinite(video.duration) ? video.duration : 0;
         const from = Math.max(0, Math.min(Number(startSec) || 0, Math.max(0, duration - 0.1)));
-        const requestedEnd =
-          endSec == null ? Math.min(duration, from + 180) : Math.min(duration, Number(endSec));
+        const requestedEnd = endSec == null ? Math.min(duration, from + 180) : Math.min(duration, Number(endSec));
         const to = Math.min(requestedEnd, from + 180);
         if (!duration || to <= from) throw new Error('The video duration is invalid.');
         if (to - from > 180) throw new Error('A Short cannot be longer than 3 minutes.');
@@ -222,10 +242,7 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
         if (from > 0.05) {
           await new Promise((res, rej) => {
             const timeout = setTimeout(() => rej(new Error('Video seek timeout')), 10000);
-            video.onseeked = () => {
-              clearTimeout(timeout);
-              res();
-            };
+            video.onseeked = () => { clearTimeout(timeout); res(); };
             video.currentTime = from;
           });
         }
@@ -236,15 +253,11 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
           sourceStream.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
           combinedStream = canvasStream;
         }
-        const mimeType =
-          ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((type) =>
-            MediaRecorder.isTypeSupported(type)
-          ) || '';
+        const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+          .find((type) => MediaRecorder.isTypeSupported(type)) || '';
         recorder = new MediaRecorder(combinedStream, mimeType ? { mimeType } : undefined);
         const chunks = [];
-        recorder.ondataavailable = (event) => {
-          if (event.data?.size) chunks.push(event.data);
-        };
+        recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
         recorder.onerror = () => fail(new Error('Video recording failed'));
         recorder.onstop = () => {
           if (finished) return;
@@ -266,9 +279,7 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
           const sy = Math.max(0, (sh - cropH) / 2);
           ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, 720, 1280);
           if (video.currentTime >= to || video.ended) {
-            try {
-              recorder.stop();
-            } catch {}
+            try { recorder.stop(); } catch {}
             return;
           }
           rafId = requestAnimationFrame(drawFrame);
@@ -565,7 +576,6 @@ const generateThumbnailBlob = async ({
     return { blob: null, dataUrl: '' };
   }
 };
-
 const readLocalRegistry = () => {
   try {
     const raw = JSON.parse(localStorage.getItem('sp_user_registry') || '{}');
@@ -638,7 +648,9 @@ const idbGetAllClips = async () => {
       const tx = db.transaction(IDB_STORE, 'readonly');
       const req = tx.objectStore(IDB_STORE).getAll();
       req.onsuccess = () => {
-        const items = (req.result || []).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+        const items = (req.result || []).sort(
+          (a, b) => (b.savedAt || 0) - (a.savedAt || 0)
+        );
         resolve(
           items.map((item) => {
             const baseUrl = item.blob instanceof Blob ? URL.createObjectURL(item.blob) : '';
@@ -1444,6 +1456,7 @@ const MobileBottomNavBar = React.memo(({ activeTab, onSelectTab, onTriggerUpload
     </button>
   </nav>
 ));
+
 export default function App() {
   const [googleUser, setGoogleUser] = useState(() => {
     try {
@@ -1809,42 +1822,27 @@ export default function App() {
         };
       }
 
+      // Never trust the filename, title, or #Shorts tag: inspect the actual media.
       try {
-        let media = await readVideoMetadataStrict(fileBlob);
+        let media = await readVideoMetadataStrict(fileBlob, media.duration);
         if (media.duration > 180) {
-          return {
-            uploaded: false,
-            videoId: '',
-            error:
-              'A YouTube Short cannot be longer than 3 minutes. Split the video into shorter clips.'
-          };
+          return { uploaded: false, videoId: '', error: 'A YouTube Short cannot be longer than 3 minutes. Split the video into shorter clips.' };
         }
         const ratio = media.width / media.height;
-        if (Math.abs(ratio - 9 / 16) > 0.025) {
+        // Standardize non-9:16 media (including landscape 3840x2160) to a real portrait canvas.
+        if (Math.abs(ratio - (9 / 16)) > 0.025) {
           fileBlob = await createVerticalShortBlob(fileBlob, 0, media.duration);
           media = await readVideoMetadataStrict(fileBlob);
         }
         const finalRatio = media.width / media.height;
-        if (media.height <= media.width || Math.abs(finalRatio - 9 / 16) > 0.04) {
-          return {
-            uploaded: false,
-            videoId: '',
-            error: `Short format verification failed (${media.width}x${media.height}). The upload was stopped.`
-          };
+        if (media.height <= media.width || Math.abs(finalRatio - (9 / 16)) > 0.04) {
+          return { uploaded: false, videoId: '', error: `Short format verification failed (${media.width}x${media.height}). The upload was stopped.` };
         }
         if (media.duration > 180) {
-          return {
-            uploaded: false,
-            videoId: '',
-            error: 'The converted video is longer than 3 minutes.'
-          };
+          return { uploaded: false, videoId: '', error: 'The converted video is longer than 3 minutes.' };
         }
       } catch (mediaError) {
-        return {
-          uploaded: false,
-          videoId: '',
-          error: mediaError?.message || 'Video format verification failed.'
-        };
+        return { uploaded: false, videoId: '', error: mediaError?.message || 'Video format verification failed.' };
       }
 
       const cleanTitleBase = String(clip?.title || 'Viral Short')
@@ -1876,9 +1874,7 @@ export default function App() {
         form.append(
           'file',
           fileBlob,
-          `${String(clip?.title || 'short').replace(/[^\w.-]+/g, '_') || 'short'}.${
-            fileBlob.type.includes('webm') ? 'webm' : 'mp4'
-          }`
+          `${String(clip?.title || 'short').replace(/[^\w.-]+/g, '_') || 'short'}.${fileBlob.type.includes('webm') ? 'webm' : 'mp4'}`
         );
 
         return fetch(
@@ -1987,7 +1983,7 @@ export default function App() {
       );
 
       if (!ytRes.uploaded) {
-        setLoginError(`YouTube upload failed: ${ytRes.error || 'Upload failed'}`);
+        setLoginError(`YouTube Upload Error: ${ytRes.error || 'Upload failed'}`);
       }
 
       setAutoPublishStatus('');
@@ -2324,9 +2320,7 @@ export default function App() {
       try {
         segmentBlob = await createVerticalShortBlob(file, startSec, endSec);
       } catch (conversionError) {
-        setLoginError(
-          `Part ${i + 1} conversion failed: ${conversionError?.message || 'Unknown error'}`
-        );
+        setLoginError(`Part ${i + 1} conversion failed: ${conversionError?.message || 'Unknown error'}`);
         break;
       }
       const durLabel = formatClockTime(clipLength);
@@ -2404,7 +2398,7 @@ export default function App() {
     setVideoQueue((prev) => [...generated, ...prev]);
     setAutoPublishStatus('');
   };
-const handleGenerateThumbnails = (e) => {
+  const handleGenerateThumbnails = (e) => {
     e.preventDefault();
     const updated = buildThumbnailConcepts(thumbTopicInput || 'VIRAL');
     setThumbConcepts(updated);
@@ -2448,9 +2442,7 @@ const handleGenerateThumbnails = (e) => {
       selectedBilling === 'yearly' ? RAZORPAY_YEARLY_LINK : RAZORPAY_MONTHLY_LINK;
 
     if (!targetUrl) {
-      return setCheckoutError(
-        'A separate Razorpay link has not been configured for the yearly plan yet.'
-      );
+      return setCheckoutError('A separate Razorpay link has not been configured for the yearly plan yet.');
     }
 
     const loggedTxn = {
@@ -3569,23 +3561,19 @@ const handleGenerateThumbnails = (e) => {
             <p className="text-[11px] text-slate-400">Service: ShortsPilot AI (shortspilot.in)</p>
             <div className="space-y-2 leading-relaxed">
               <p>
-                <b className="text-white">1. Content Rights:</b> Only upload, edit, and publish
-                videos that you own or are authorized to use under applicable copyright guidelines.
+                <b className="text-white">1. Content Rights:</b> Only upload, edit, and publish videos that you own or are authorized to use under applicable copyright guidelines.
               </p>
               <p>
-                <b className="text-white">2. YouTube &amp; Third-Party Rules:</b> Shorts are
-                published in accordance with YouTube Community Guidelines and Terms of Service; we
-                cannot guarantee platform moderation outcomes or reach.
+                <b className="text-white">2. YouTube &amp; Third-Party Rules:</b> Shorts are published in accordance with YouTube Community Guidelines and Terms of Service;
+                we cannot guarantee platform moderation outcomes or reach.
               </p>
               <p>
-                <b className="text-white">3. Subscriptions &amp; Payments:</b> Plans (Monthly /
-                Yearly) provide access to digital automation features. The plan becomes active after
-                the Razorpay payment is completed.
+                <b className="text-white">3. Subscriptions &amp; Payments:</b> Plans (Monthly / Yearly)
+                provide access to digital automation features. The plan becomes active after the Razorpay payment is completed.
               </p>
               <p>
-                <b className="text-white">4. Local Storage &amp; Tokens:</b> Clips are stored in
-                IndexedDB on your device, and account/token details are stored in your browser. On
-                public or shared devices, please sign out when finished.
+                <b className="text-white">4. Local Storage &amp; Tokens:</b> Clips are stored in IndexedDB on your device, and account/token details are stored in your browser. On public or
+                shared devices, please sign out when finished.
               </p>
             </div>
             <button
