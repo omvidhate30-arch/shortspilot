@@ -30,7 +30,7 @@ import {
 
 const DEFAULT_FIREBASE_URL = 'https://shortspilot-live-default-rtdb.firebaseio.com';
 // Replace this placeholder with the owner's exact Google account before deployment.
-const OWNER_ADMIN_EMAIL = 'YOUR_OWNER_GMAIL@gmail.com';
+const OWNER_ADMIN_EMAIL = 'omvidhate30@gmail.com';
 const FIXED_BRAND_WATERMARK = 'Create by shortspilot.ai.in';
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
