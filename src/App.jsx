@@ -2678,7 +2678,7 @@ userKey: cleanEmail
   .replace(/\]/g, '_'),
       plan: selectedBilling,
       numericAmount: amt,
-      amount: `₹${amt} (${selectedBilling})`,
+amount: 'Rs.' + amt + ' (' + selectedBilling + ')',
       status: 'Checkout Opened',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
