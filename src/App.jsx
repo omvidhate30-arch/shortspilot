@@ -2668,7 +2668,7 @@ const handleGenerateThumbnails = (e) => {
     }
 
     const loggedTxn = {
-      id: `RZP-${Date.now()}`,
+id: 'RZP-' + Date.now(),
       user: cleanEmail,
 userKey: cleanEmail
   .replace(/\./g, '_')
