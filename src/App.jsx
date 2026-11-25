@@ -1733,7 +1733,7 @@ export default function App() {
   const [igError, setIgError] = useState('');
 
   const [activeTab, setActiveTab] = useState('home');
-  const [tier, setTier] = useState('pro');
+  const [tier, setTier] = useState('free');
   const [videoQueue, setVideoQueue] = useState([]);
 
   const [clipSplitCount, setClipSplitCount] = useState(3);
@@ -1793,6 +1793,9 @@ export default function App() {
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminError, setAdminError] = useState('');
   const [adminActiveSection, setAdminActiveSection] = useState('overview');
+  const [proTargetEmail, setProTargetEmail] = useState('');
+  const [proActionStatus, setProActionStatus] = useState('');
+  const [isSavingAdminConfig, setIsSavingAdminConfig] = useState(false);
   const [blockedEmailInput, setBlockedEmailInput] = useState('');
   const [liveDbUrl, setLiveDbUrl] = useState(
     () => localStorage.getItem('sp_firebase_url') || DEFAULT_FIREBASE_URL
@@ -2388,6 +2391,34 @@ export default function App() {
   useEffect(() => {
     fetchFirebaseData();
   }, [fetchFirebaseData]);
+
+  useEffect(() => {
+    const email = String(googleUser?.email || '').trim().toLowerCase();
+    if (!email) return;
+    if (email === OWNER_ADMIN_EMAIL.toLowerCase()) {
+      setTier('pro');
+      return;
+    }
+    let cancelled = false;
+    const loadPlan = async () => {
+      try {
+        const response = await fetch(`${dbBase}/userPlans/${encodeURIComponent(emailToKey(email))}.json`);
+        if (!response.ok) throw new Error('Plan lookup failed');
+        const planData = await response.json();
+        if (cancelled) return;
+        const localRecord = readLocalRegistry()[email] || {};
+        const effectivePlan = planData?.tier || localRecord?.tier || 'free';
+        setTier(String(effectivePlan).toLowerCase() === 'pro' ? 'pro' : 'free');
+      } catch {
+        if (!cancelled) {
+          const localRecord = readLocalRegistry()[email] || {};
+          setTier(String(localRecord.tier || 'free').toLowerCase() === 'pro' ? 'pro' : 'free');
+        }
+      }
+    };
+    loadPlan();
+    return () => { cancelled = true; };
+  }, [googleUser?.email, dbBase]);
 
   const handleSaveInstagramToken = async (e) => {
     e?.preventDefault();
@@ -4741,6 +4772,81 @@ const loggedTxn = {
                   />
                 </div>
 
+                <div className="p-3.5 rounded-2xl bg-[#120d24] border border-amber-400/35 space-y-3">
+                  <div className="font-bold text-amber-300">👑 Pro Access Manager</div>
+                  <p className="text-[10px] text-slate-400">Give any registered user Pro access, or revoke it whenever you want. Use the exact Gmail they use to sign in.</p>
+                  <input
+                    type="email"
+                    value={proTargetEmail}
+                    onChange={(e) => setProTargetEmail(e.target.value)}
+                    placeholder="Enter user's Google Gmail"
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#06040c] border border-slate-700 text-white"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const email = proTargetEmail.trim().toLowerCase();
+                        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                          setProActionStatus('Please enter a valid Gmail address.');
+                          return;
+                        }
+                        if (email === OWNER_ADMIN_EMAIL.toLowerCase()) {
+                          setProActionStatus('Owner account already has permanent Pro access.');
+                          return;
+                        }
+                        const record = { tier: 'pro', grantedBy: OWNER_ADMIN_EMAIL, updatedAt: Date.now() };
+                        saveLocalRegistry(email, record);
+                        try {
+                          const response = await fetch(`${dbBase}/userPlans/${encodeURIComponent(emailToKey(email))}.json`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(record)
+                          });
+                          if (!response.ok) throw new Error(`Firebase returned ${response.status}`);
+                          setProActionStatus(`Pro access granted to ${email}.`);
+                        } catch (error) {
+                          setProActionStatus(`Saved on this browser only. Firebase sync failed: ${error.message}`);
+                        }
+                      }}
+                      className="py-2.5 rounded-xl bg-emerald-600 text-white font-extrabold"
+                    >
+                      Give Pro
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const email = proTargetEmail.trim().toLowerCase();
+                        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                          setProActionStatus('Please enter a valid Gmail address.');
+                          return;
+                        }
+                        if (email === OWNER_ADMIN_EMAIL.toLowerCase()) {
+                          setProActionStatus('Owner Pro access cannot be revoked.');
+                          return;
+                        }
+                        saveLocalRegistry(email, { tier: 'free', revokedBy: OWNER_ADMIN_EMAIL, updatedAt: Date.now() });
+                        try {
+                          const response = await fetch(`${dbBase}/userPlans/${encodeURIComponent(emailToKey(email))}.json`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ tier: 'free', revokedBy: OWNER_ADMIN_EMAIL, updatedAt: Date.now() })
+                          });
+                          if (!response.ok) throw new Error(`Firebase returned ${response.status}`);
+                          setProActionStatus(`Pro access revoked for ${email}; account is now Free.`);
+                        } catch (error) {
+                          setProActionStatus(`Saved on this browser only. Firebase sync failed: ${error.message}`);
+                        }
+                      }}
+                      className="py-2.5 rounded-xl bg-rose-600 text-white font-extrabold"
+                    >
+                      Remove Pro
+                    </button>
+                  </div>
+                  {proActionStatus && <p className="text-[10px] text-cyan-300">{proActionStatus}</p>}
+                  <p className="text-[9px] text-amber-300">For cross-device access, Firebase RTDB rules must allow only the verified owner/admin backend to write /userPlans. Browser-only fallback does not update other users' devices.</p>
+                </div>
+
                 <div className="p-3.5 rounded-2xl bg-[#120d24] border border-rose-500/30 space-y-2">
                   <div className="font-bold text-rose-300">Blocked User Emails</div>
                   <div className="flex gap-2">
@@ -4800,31 +4906,31 @@ const loggedTxn = {
                 <button
                   type="button"
                   onClick={async () => {
-                    localStorage.setItem(
-                      'sp_global_config',
-                      JSON.stringify({ ...globalConfig, watermarkText: FIXED_BRAND_WATERMARK })
-                    );
-                    localStorage.setItem('sp_firebase_url', liveDbUrl);
-                    setTier('pro');
-                    setAutoPublishStatus('Full Control Config Saved ✅');
-                    if (dbBase) {
-                      try {
-                        await fetch(`${dbBase}/siteConfig.json`, {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            ...globalConfig,
-                            watermarkText: FIXED_BRAND_WATERMARK
-                          })
-                        });
-                      } catch {}
+                    setIsSavingAdminConfig(true);
+                    const payload = { ...globalConfig, watermarkText: FIXED_BRAND_WATERMARK };
+                    try {
+                      localStorage.setItem('sp_global_config', JSON.stringify(payload));
+                      localStorage.setItem('sp_firebase_url', liveDbUrl);
+                      if (!dbBase) throw new Error('Firebase URL is empty.');
+                      const response = await fetch(`${dbBase}/siteConfig.json`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                      });
+                      if (!response.ok) throw new Error(`Firebase returned ${response.status}`);
+                      setAutoPublishStatus('Owner settings saved to Firebase successfully ✅');
+                    } catch (error) {
+                      setAutoPublishStatus(`Local settings saved; cloud sync failed: ${error.message}`);
+                    } finally {
+                      setIsSavingAdminConfig(false);
+                      setTimeout(() => setAutoPublishStatus(''), 5000);
                     }
-                    setTimeout(() => setAutoPublishStatus(''), 2500);
                   }}
                   className="w-full py-2.5 rounded-xl bg-emerald-500 text-black font-extrabold cursor-pointer"
                 >
-                  Save All Full Control Settings
+                  {isSavingAdminConfig ? 'Saving...' : 'Save All Full Control Settings'}
                 </button>
+                {autoPublishStatus && <p className="text-[10px] text-cyan-300">{autoPublishStatus}</p>}
 
                 <div className="space-y-1.5">
                   <div className="font-bold text-amber-300">
