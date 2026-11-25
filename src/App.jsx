@@ -2685,7 +2685,7 @@ amount: 'Rs.' + amt + ' (' + selectedBilling + ')',
 
     if (dbBase) {
       try {
-        await fetch(`${dbBase}/transactions.json`, {
+await fetch(dbBase + '/transactions.json', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(loggedTxn)
