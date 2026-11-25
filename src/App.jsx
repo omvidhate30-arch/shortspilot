@@ -159,16 +159,12 @@ const readVideoMetadataStrict = (file) =>
         height: Number(video.videoHeight)
       };
       URL.revokeObjectURL(url);
-      if (
-        !Number.isFinite(result.duration) ||
-        result.duration <= 0 ||
-        !result.width ||
-        !result.height
-      ) {
-        reject(new Error("Unable to read the video's actual metadata."));
-      } else {
-        resolve(result);
-      }
+if (!Number.isFinite(result.duration) ||
+    result.duration <= 0 ||
+    !result.width ||
+    !result.height) {
+  reject(new Error("Unable to read the video's actual metadata."));
+}
     };
     video.onerror = () => {
       URL.revokeObjectURL(url);
