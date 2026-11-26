@@ -483,7 +483,6 @@ const requestGeminiMetadata = async (file) => {
     const value = String(tag || '').trim();
     return value ? (value.startsWith('#') ? value : `#${value}`) : '';
   }).filter(Boolean))].slice(0, 5);
-  if (!hashtags.includes('#Shorts')) hashtags.unshift('#Shorts');
   return {
     title: String(payload.title).trim().slice(0, 95),
     description: String(payload.description).trim().slice(0, 1800),
@@ -2132,7 +2131,7 @@ export default function App() {
         .replace(/\b\d{3,4}\s*x\s*\d{3,4}\b/gi, ' ')
         .replace(/\s+/g, ' ')
         .trim();
-      const cleanTitle = `${cleanTitleBase} #Shorts`
+      const cleanTitle = cleanTitleBase
         .replace(/\s+/g, ' ')
         .slice(0, 100);
 
@@ -2611,7 +2610,7 @@ export default function App() {
       const aiMeta = {
         ...baseMeta,
         title: videoMetadata.title,
-        description: `${videoMetadata.description}\n\n${videoMetadata.hashtags}\n\n${watermark}`,
+        description: [videoMetadata.description, videoMetadata.hashtags].filter(Boolean).join('\n\n'),
         hashtags: videoMetadata.hashtags
       };
       const thumb = await generateThumbnailBlob({
@@ -2740,21 +2739,20 @@ export default function App() {
           durLabel,
           highlight.thumbnailHook || defaultHook
         );
+        const segmentBlob = await createVerticalShortBlob(file, startSec, endSec);
+        setAutoPublishStatus(`Gemini is creating a unique title, description and hashtags for clip ${i + 1}/${count}...`);
+        const segmentMetadata = await requestGeminiMetadata(segmentBlob);
         const aiMeta = {
           ...aiMetaBase,
-          // Keep the AI-generated hook in the YouTube title field.
-          title: String(highlight.thumbnailHook || defaultHook || aiMetaBase.title)
-            .replace(/\s+/g, ' ')
-            .trim()
-            .slice(0, 95),
-          description: highlight.description || aiMetaBase.description,
-          hashtags: highlight.hashtags || aiMetaBase.hashtags
+          title: segmentMetadata.title,
+          description: [segmentMetadata.description, segmentMetadata.hashtags].filter(Boolean).join('\n\n'),
+          hashtags: segmentMetadata.hashtags,
+          thumbnailHook: segmentMetadata.thumbnailHook || segmentMetadata.title
         };
 
-        const segmentBlob = await createVerticalShortBlob(file, startSec, endSec);
         const thumb = await generateThumbnailBlob({
-          hookText: highlight.thumbnailHook || defaultHook,
-          subText: highlight.title || detectedTopic,
+          hookText: aiMeta.thumbnailHook,
+          subText: segmentMetadata.title || detectedTopic,
           watermarkText: watermark,
           palette: selectedThumbConcept?.palette,
           videoBlob: segmentBlob,
@@ -2792,7 +2790,7 @@ export default function App() {
           hashtags: aiMeta.hashtags,
           description: aiMeta.description,
           watermarkText: aiMeta.watermarkText,
-          thumbnailHook: highlight.thumbnailHook || defaultHook,
+          thumbnailHook: aiMeta.thumbnailHook || segmentMetadata.title,
           thumbnailGradient:
             selectedThumbConcept?.gradient || 'from-pink-600 via-purple-900 to-slate-950',
           thumbnailDataUrl: thumb.dataUrl,
