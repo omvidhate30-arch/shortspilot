@@ -4,7 +4,8 @@ export default async function handler(req, res) {
   }
 
   const { messages, apiKey } = req.body;
-  // Admin Panel या Vercel Env से DeepSeek Key लेगा
+
+  // Admin Panel ya Vercel Env se DeepSeek Key lega
   const DEEPSEEK_API_KEY = apiKey || process.env.DEEPSEEK_API_KEY;
 
   if (!DEEPSEEK_API_KEY) {
@@ -44,7 +45,7 @@ Rules:
         model: 'deepseek-chat',
         messages: [
           { role: 'system', content: systemPrompt },
-          ...messages.slice(-6) // आखिरी 6 मैसेज ही भेजें ताकि टोकन बचें
+          ...messages.slice(-6)
         ],
         temperature: 0.5,
         max_tokens: 300
@@ -52,11 +53,17 @@ Rules:
     });
 
     const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content || "माफ़ कीजिए, अभी सर्वर व्यस्त है। कृपया थोड़ी देर बाद प्रयास करें।";
-    
+
+    const reply =
+      data.choices?.[0]?.message?.content ||
+      "माफ़ कीजिए, अभी सर्वर व्यस्त है। कृपया थोड़ी देर बाद प्रयास करें।";
+
     return res.status(200).json({ reply });
+
   } catch (error) {
     console.error('Support AI Error:', error);
-    return res.status(500).json({ error: 'Failed to connect to Support AI' });
+    return res.status(500).json({
+      error: 'Failed to connect to Support AI'
+    });
   }
 }
