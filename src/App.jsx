@@ -3579,7 +3579,7 @@ const loggedTxn = {
                               {clip.title}
                             </div>
                             <div className="text-[10px] text-emerald-400 font-bold">
-                              SHORT • {clip.status?.includes('Could not read the video's actual details.') ? '' : clip.status} • {clip.duration}
+                              SHORT • {clip.status?.includes("Could not read the video's actual details.") ? '' : clip.status} • {clip.duration}
                             </div>
                           </div>
                         </div>
