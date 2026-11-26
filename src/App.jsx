@@ -155,7 +155,7 @@ const readVideoMetadata = (file) =>
 const readVideoMetadataStrict = (file) =>
   new Promise((resolve, reject) => {
     if (!(file instanceof Blob) || !file.size) {
-      reject(new Error('Video file missing ya empty hai'));
+      reject(new Error('The video file is missing or empty.'));
       return;
     }
     const url = URL.createObjectURL(file);
@@ -174,14 +174,14 @@ const readVideoMetadataStrict = (file) =>
         !result.width ||
         !result.height
       ) {
-        reject(new Error('Video ki actual details read nahi ho paayi'));
+        reject(new Error('Could not read the video's actual details.'));
       } else {
         resolve(result);
       }
     };
     video.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('Video format read nahi ho paaya. MP4 ya WebM use karein.'));
+      reject(new Error('Could not read this video format. Please use MP4 or WebM.'));
     };
     video.src = url;
     video.load();
@@ -219,7 +219,7 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
       cleanup();
       reject(err instanceof Error ? err : new Error('Video conversion failed'));
     };
-    video.onerror = () => fail(new Error('Video file read nahi ho paayi'));
+    video.onerror = () => fail(new Error('Could not read the video file.'));
     video.onloadedmetadata = async () => {
       try {
         const duration = Number.isFinite(video.duration) ? video.duration : 0;
@@ -227,8 +227,8 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
         const requestedEnd =
           endSec == null ? Math.min(duration, from + 180) : Math.min(duration, Number(endSec));
         const to = Math.min(requestedEnd, from + 180);
-        if (!duration || to <= from) throw new Error('Video duration invalid hai');
-        if (to - from > 180) throw new Error('Short clip 3 minutes se zyada nahi ho sakta');
+        if (!duration || to <= from) throw new Error('The video duration is invalid.');
+        if (to - from > 180) throw new Error('A Short cannot be longer than 3 minutes.');
         const canvas = document.createElement('canvas');
         canvas.width = 720;
         canvas.height = 1280;
@@ -267,7 +267,7 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
           const outputType = recorder.mimeType || mimeType || 'video/webm';
           const result = new Blob(chunks, { type: outputType });
           cleanup();
-          if (!result.size) reject(new Error('Converted video empty hai'));
+          if (!result.size) reject(new Error('The converted video is empty.'));
           else resolve(result);
         };
         const drawFrame = () => {
@@ -338,10 +338,10 @@ const sampleVideoFramesForAI = async (file, maxFrames = 24) => {
   try {
     await new Promise((resolve, reject) => {
       video.onloadedmetadata = resolve;
-      video.onerror = () => reject(new Error('Video read nahi ho paayi'));
+      video.onerror = () => reject(new Error('Could not read the video.'));
     });
     const duration = Number(video.duration) || 0;
-    if (!duration) throw new Error('Video duration nahi mili');
+    if (!duration) throw new Error('Video duration was not found.');
     const count = Math.max(
       2,
       Math.min(maxFrames, Math.ceil(duration / Math.max(2, duration / maxFrames)))
@@ -385,7 +385,7 @@ const requestGeminiMetadata = async (file) => {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || `Gemini metadata failed (${response.status})`);
   if (!payload.title || !payload.description || !Array.isArray(payload.hashtags)) {
-    throw new Error('Gemini ne complete metadata return nahi kiya.');
+    throw new Error('Gemini did not return complete metadata.');
   }
   const hashtags = [...new Set(payload.hashtags.map(tag => {
     const value = String(tag || '').trim();
@@ -417,7 +417,7 @@ const requestGeminiHighlights = async ({ file, count, topic }) => {
     throw new Error(payload.error || `Gemini analysis failed (${response.status})`);
   }
   if (!Array.isArray(payload.highlights) || payload.highlights.length !== count) {
-    throw new Error('Gemini ne required number of valid clips return nahi kiye.');
+    throw new Error('Gemini did not return the required number of valid clips.');
   }
   return payload.highlights
     .map((clip) => ({
@@ -999,10 +999,10 @@ const GoogleVerificationGuideModal = React.memo(
     const guideSteps = [
       {
         badge: 'STEP 1 OF 3 • CLICK ADVANCED',
-        title: '1. Warning Screen Par "Advanced" Dabaye',
+        title: '1. Select "Advanced" on the warning screen',
         desc: blockedOptionName
-          ? `"${blockedOptionName}" use karne ke liye Google login karein. Google verification pending hone par screen par "Advanced" option dikhega — uspe click karein.`
-          : 'Google verification pending hone ki wajah se login screen par warning dikh sakti hai. Neeche left mein "Advanced" par click karein.',
+          ? `Sign in with Google to use "${blockedOptionName}". If Google verification is still pending, select "Advanced" on the warning screen.`
+          : 'A warning may appear while Google verification is pending. Select "Advanced" in the lower-left corner.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2.5 select-none">
             <div className="flex items-center gap-2">
@@ -1029,8 +1029,8 @@ const GoogleVerificationGuideModal = React.memo(
       },
       {
         badge: 'STEP 2 OF 3 • GO TO SHORTSPILOT',
-        title: '2. "Go to shortspilot.in" Par Click Karein',
-        desc: 'Advanced khulne ke baad neeche "Go to shortspilot.in (unsafe)" ka link aayega — us link par click karke aage badhein.',
+        title: '2. Select "Go to shortspilot.in"',
+        desc: 'After opening Advanced, select the "Go to shortspilot.in (unsafe)" link to continue.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2 select-none">
             <div className="text-[10px] font-bold text-slate-500">Advanced options opened:</div>
@@ -1045,8 +1045,8 @@ const GoogleVerificationGuideModal = React.memo(
       },
       {
         badge: 'STEP 3 OF 3 • ALLOW & CONTINUE',
-        title: '3. Permission Allow Karke Continue Karein',
-        desc: 'Agli screen par YouTube upload permission check karke "Continue" dabaye, phir aapka account connect ho jayega.',
+        title: '3. Grant Permission and Continue',
+        desc: 'On the next screen, review the YouTube upload permission and select "Continue" to connect your account.',
         renderVisual: () => (
           <div className="w-full rounded-2xl bg-white text-slate-900 p-3.5 shadow-inner border border-slate-300 space-y-2 select-none">
             <div className="text-[10.5px] font-extrabold text-slate-800">
@@ -1791,7 +1791,7 @@ export default function App() {
   const [supportMessages, setSupportMessages] = useState([
     {
       role: 'ai',
-      text: 'Namaste! ShortsPilot auto-post by default aur #Shorts mode par set hai.'
+      text: 'Welcome! ShortsPilot is configured for automatic posting in #Shorts mode by default.'
     }
   ]);
   const [supportInput, setSupportInput] = useState('');
@@ -1821,6 +1821,8 @@ export default function App() {
     () => localStorage.getItem('sp_firebase_url') || DEFAULT_FIREBASE_URL
   );
   const [transactions, setTransactions] = useState([]);
+  const [registeredUsers, setRegisteredUsers] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
 
   const fileInputRef = useRef(null);
   const splitterInputRef = useRef(null);
@@ -1983,7 +1985,7 @@ export default function App() {
         return {
           uploaded: false,
           videoId: '',
-          error: 'YouTube token nahi mila — Google login dobara karein'
+          error: 'YouTube token not found. Please sign in with Google again.'
         };
       }
 
@@ -1992,7 +1994,7 @@ export default function App() {
         return {
           uploaded: false,
           videoId: '',
-          error: 'Video file missing ya empty hai'
+          error: 'The video file is missing or empty.'
         };
       }
 
@@ -2003,7 +2005,7 @@ export default function App() {
             uploaded: false,
             videoId: '',
             error:
-              'YouTube Short 3 minutes se lamba nahi ho sakta. Video ko chhote clips mein split karein.'
+              'A YouTube Short cannot be longer than 3 minutes. Split the video into shorter clips.'
           };
         }
         const ratio = media.width / media.height;
@@ -2016,21 +2018,21 @@ export default function App() {
           return {
             uploaded: false,
             videoId: '',
-            error: `Short format verify nahi hua (${media.width}x${media.height}). Video upload rok diya hai.`
+            error: `Short format verification failed (${media.width}x${media.height}). Upload was stopped.`,
           };
         }
         if (media.duration > 180) {
           return {
             uploaded: false,
             videoId: '',
-            error: 'Converted video 3 minutes se lambi hai.'
+            error: 'The converted video is longer than 3 minutes.'
           };
         }
       } catch (mediaError) {
         return {
           uploaded: false,
           videoId: '',
-          error: mediaError?.message || 'Video format verify nahi hua'
+          error: mediaError?.message || 'Video format verification failed'
         };
       }
 
@@ -2318,14 +2320,14 @@ export default function App() {
               { accessToken: queryToken, refreshToken: queryRefresh }
             );
           } else {
-            setLoginError('Google profile read nahi ho paya.');
+            setLoginError('Could not read the Google profile.');
           }
         })
         .catch(() => setLoginError('Google profile fetch error.'))
         .finally(() => setIsLoggingIn(false));
     } else if (oauthCode && !window.location.hash.includes('access_token=')) {
       setLoginError(
-        'OAuth code mila, par access_token redirect nahi hua. /api/youtube/callback check karein.'
+        'An OAuth code was received, but no access token was returned. Check /api/youtube/callback.'
       );
       setIsLoggingIn(false);
     }
@@ -2378,9 +2380,10 @@ export default function App() {
   const fetchFirebaseData = useCallback(async () => {
     if (!dbBase) return;
     try {
-      const [cfgRes, txnRes] = await Promise.all([
+      const [cfgRes, txnRes, usersRes] = await Promise.all([
         fetch(`${dbBase}/siteConfig.json`),
-        fetch(`${dbBase}/transactions.json`)
+        fetch(`${dbBase}/transactions.json`),
+        fetch(`${dbBase}/userPlans.json`)
       ]);
       const cfgData = await cfgRes.json();
       if (cfgData && typeof cfgData === 'object') {
@@ -2397,7 +2400,12 @@ export default function App() {
             : prev.blockedEmails || []
         }));
       }
-      const txnData = await txnRes.json();
+      const [txnData, usersData] = await Promise.all([txnRes.json(), usersRes.json()]);
+      setRegisteredUsers(
+        usersData && typeof usersData === 'object'
+          ? Object.entries(usersData).map(([key, value]) => ({ key, ...(value || {}), email: value?.email || key }))
+          : []
+      );
       setTransactions(
         txnData && typeof txnData === 'object'
           ? Object.entries(txnData)
@@ -2452,7 +2460,7 @@ export default function App() {
     }
 
     if (!activeAccountEmail) {
-      return setIgError('Pehle Google Gmail se login karein.');
+      return setIgError('Please sign in with your Google account first.');
     }
 
     setIgData({
@@ -2493,17 +2501,17 @@ export default function App() {
       try {
         shortBlob = await createVerticalShortBlob(file, 0, Math.min(meta.duration, 180));
       } catch (conversionError) {
-        setLoginError(`Video convert nahi hua: ${conversionError?.message || 'Unknown error'}`);
+        setLoginError(`Video conversion failed: ${conversionError?.message || 'Unknown error'}`);
         continue;
       }
       const durLabel = formatClockTime(Math.min(meta.duration, 180));
       const watermark = FIXED_BRAND_WATERMARK;
-      setAutoPublishStatus(`Gemini AI video ${i + 1}/${files.length} analyze kar raha hai...`);
+      setAutoPublishStatus(`Gemini AI is analyzing video ${i + 1}/${files.length}...`);
       let videoMetadata;
       try {
         videoMetadata = await requestGeminiMetadata(file);
       } catch (metadataError) {
-        setLoginError(`Gemini analysis nahi ho paaya: ${metadataError.message}. Vercel par GEMINI_API_KEY check karke dobara upload karein.`);
+        setLoginError(`Gemini analysis failed: ${metadataError.message}. Check GEMINI_API_KEY in Vercel, then upload again.`);
         continue;
       }
       const hookLabel = videoMetadata.thumbnailHook || videoMetadata.title;
@@ -2544,7 +2552,7 @@ export default function App() {
         } else {
           uploadError = ytRes.error || 'Token missing';
           clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
-          setLoginError(`YouTube Upload Nahi Hua: ${uploadError}`);
+          setLoginError(`YouTube upload failed: ${uploadError}`);
         }
       }
 
@@ -2590,13 +2598,13 @@ export default function App() {
     setIsSplitterModalOpen(false);
     setLoginError('');
     const count = Math.max(1, Math.min(5, Number(clipSplitCount) || 3));
-    setAutoPublishStatus(`Gemini AI video ke highlights analyze kar raha hai (${count} clips)...`);
+    setAutoPublishStatus(`Gemini AI is analyzing video highlights (${count} clips)...`);
 
     try {
       const detectedTopic = detectTopicFromFile(file.name);
       const meta = await readVideoMetadata(file);
       const totalDur = Number(meta.duration) || 0;
-      if (totalDur < 5) throw new Error('Video bahut chhota hai.');
+      if (totalDur < 5) throw new Error('The video is too short.');
       const watermark = FIXED_BRAND_WATERMARK;
       const defaultHook = selectedThumbConcept?.hookText || 'WATCH THIS!';
       let highlights;
@@ -2605,13 +2613,13 @@ export default function App() {
         highlights = await requestGeminiHighlights({ file, count, topic: detectedTopic });
       } catch (aiError) {
         throw new Error(
-          `AI highlight analysis nahi ho paaya: ${aiError.message}. Equal parts automatically nahi banaye gaye; API setup check karein.`
+          `AI highlight analysis failed: ${aiError.message}. Equal-length clips were not created automatically. Check the API setup.`
         );
       }
 
       if (highlights.length !== count) {
         throw new Error(
-          `AI ne ${count} ke bajay ${highlights.length} valid clips diye. Dobara try karein.`
+          `AI returned ${highlights.length} valid clips instead of ${count}. Please try again.`
         );
       }
 
@@ -2623,11 +2631,11 @@ export default function App() {
         const clipLength = endSec - startSec;
         if (clipLength < 3 || clipLength > 180) {
           throw new Error(
-            `AI clip ${i + 1} ki duration invalid hai (${Math.round(clipLength)} sec).`
+            `AI clip ${i + 1} has an invalid duration (${Math.round(clipLength)} seconds).`
           );
         }
 
-        setAutoPublishStatus(`Clip ${i + 1}/${count} cut aur thumbnail generate ho raha hai...`);
+        setAutoPublishStatus(`Cutting clip ${i + 1}/${count} and generating its thumbnail...`);
         const slotLabel = getNextSlotLabel(videoQueue.length + i);
         const durLabel = formatClockTime(clipLength);
         const timeRangeLabel = `${formatClockTime(startSec)}–${formatClockTime(endSec)}`;
@@ -2680,7 +2688,7 @@ export default function App() {
           } else {
             uploadError = ytRes.error || 'Token missing';
             clipStatus = `Not Uploaded (${slotLabel}): ${uploadError}`;
-            setLoginError(`YouTube Upload Nahi Hua: ${uploadError}`);
+            setLoginError(`YouTube upload failed: ${uploadError}`);
           }
         }
 
@@ -2752,7 +2760,7 @@ const handleGenerateThumbnails = (e) => {
 
     const cleanEmail = (checkoutEmail || googleUser?.email || '').trim().toLowerCase();
     if (!cleanEmail) {
-      return setCheckoutError('Pehle apna Gmail ID enter karein.');
+      return setCheckoutError('Please enter your Gmail address first.');
     }
 
     const amt =
@@ -2764,7 +2772,7 @@ const handleGenerateThumbnails = (e) => {
       selectedBilling === 'yearly' ? RAZORPAY_YEARLY_LINK : RAZORPAY_MONTHLY_LINK;
 
     if (!targetUrl) {
-      return setCheckoutError('Yearly plan ki alag Razorpay link abhi set nahi hai.');
+      return setCheckoutError('A separate Razorpay link has not been configured for the yearly plan.');
     }
 const loggedTxn = {
       id: 'RZP-' + Date.now(),
@@ -2796,7 +2804,7 @@ const loggedTxn = {
     }
 
     setTransactions((prev) => [loggedTxn, ...prev]);
-    setCheckoutPendingMsg('Razorpay payment page open ho raha hai...');
+    setCheckoutPendingMsg('Opening the Razorpay payment page...');
     window.open(targetUrl, '_blank', 'noopener,noreferrer');
   }, [checkoutEmail, googleUser?.email, selectedBilling, globalConfig, dbBase]);
 
@@ -2809,7 +2817,7 @@ const loggedTxn = {
       { role: 'user', text: msg },
       {
         role: 'ai',
-        text: 'ShortsPilot auto-post by default aur #Shorts mode par set hai.'
+        text: 'ShortsPilot is configured for automatic posting in #Shorts mode by default.'
       }
     ]);
     setSupportInput('');
@@ -2830,8 +2838,8 @@ const loggedTxn = {
           </h2>
           <p className="text-xs text-slate-300">
             {isCurrentUserBlocked
-              ? 'Aapka account owner admin dwara block kiya gaya hai.'
-              : globalConfig?.announcementBanner || 'Website abhi maintenance mode mein hai.'}
+              ? 'Your account has been blocked by the owner administrator.'
+              : globalConfig?.announcementBanner || 'The website is currently in maintenance mode.'}
           </p>
         </div>
       </div>
@@ -3397,7 +3405,7 @@ const loggedTxn = {
                                 SHORT
                               </span>
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
-                                {clip.status?.includes('Video ki actual details read nahi ho paayi') ? '' : clip.status}
+                                {clip.status?.includes('Could not read the video's actual details.') ? '' : clip.status}
                               </span>
                               <span className="text-[9px] text-amber-300 font-bold">
                                 Hook: {clip.hookScore}
@@ -3418,7 +3426,7 @@ const loggedTxn = {
                       <div className="text-[9.5px] text-cyan-300/90 font-mono truncate bg-[#080512] px-2.5 py-1.5 rounded-lg border border-slate-800">
                         {clip.hashtags}
                       </div>
-                      {clip.uploadError && !String(clip.uploadError).includes('Video ki actual details read nahi ho paayi') && (
+                      {clip.uploadError && !String(clip.uploadError).includes('Could not read the video's actual details.') && (
                         <div className="text-[10px] text-rose-300 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-lg break-words">
                           {clip.uploadError}
                         </div>
@@ -3571,7 +3579,7 @@ const loggedTxn = {
                               {clip.title}
                             </div>
                             <div className="text-[10px] text-emerald-400 font-bold">
-                              SHORT • {clip.status?.includes('Video ki actual details read nahi ho paayi') ? '' : clip.status} • {clip.duration}
+                              SHORT • {clip.status?.includes('Could not read the video's actual details.') ? '' : clip.status} • {clip.duration}
                             </div>
                           </div>
                         </div>
@@ -3586,7 +3594,7 @@ const loggedTxn = {
                       <pre className="text-[10px] text-slate-300 whitespace-pre-wrap font-sans bg-[#070412] p-2.5 rounded-xl border border-slate-800 max-h-28 overflow-y-auto">
                         {clip.description}
                       </pre>
-                      {clip.uploadError && !String(clip.uploadError).includes('Video ki actual details read nahi ho paayi') && (
+                      {clip.uploadError && !String(clip.uploadError).includes('Could not read the video's actual details.') && (
                         <div className="text-[10px] text-rose-300 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-lg break-words">
                           {clip.uploadError}
                         </div>
@@ -3864,24 +3872,19 @@ const loggedTxn = {
             <p className="text-[11px] text-slate-400">Service: ShortsPilot AI (shortspilot.in)</p>
             <div className="space-y-2 leading-relaxed">
               <p>
-                <b className="text-white">1. Content Rights:</b> Aap sirf wahi videos upload/cut aur
-                publish karein jinke rights aapke paas hain ya jo copyright guidelines ke anusaar
-                allowed hain.
+                <b className="text-white">1. Content Rights:</b> Only upload, edit, and publish videos that you own or are authorized to use under applicable copyright rules.
               </p>
               <p>
                 <b className="text-white">2. YouTube &amp; Third-Party Rules:</b> Shorts YouTube ke
-                Community Guidelines aur Terms of Service ke mutabik publish kiye jaate hain;
-                platform moderation ya reach ki guarantee nahi deta.
+                Shorts must comply with YouTube Community Guidelines and Terms of Service. The platform does not guarantee moderation outcomes or reach.
               </p>
               <p>
                 <b className="text-white">3. Subscriptions &amp; Payments:</b> Plans (Monthly / Yearly)
-                digital automation access ke liye hain; Razorpay payment complete hone ke baad plan
-                active hota hai.
+                Subscriptions provide access to digital automation features. A plan is activated after the Razorpay payment is confirmed.
               </p>
               <p>
                 <b className="text-white">4. Local Storage &amp; Tokens:</b> Clips local IndexedDB mein
-                aur account/token details aapke browser storage mein save rehte hain; public ya
-                shared devices par logout karein.
+                Clips are stored in local IndexedDB, while account and token details are stored in your browser. Sign out on public or shared devices.
               </p>
             </div>
             <button
@@ -4527,10 +4530,10 @@ const loggedTxn = {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
                   {[
                     ['Overview', 'overview'], ['Users', 'users'], ['Plans & Pricing', 'plans'],
-                    ['Payments', 'payments'], ['Automation', 'automation'], ['Integrations', 'integrations'], ['Logs & Backup', 'logs']
+                    ['Payments', 'payments'], ['Automation', 'automation'], ['Integrations', 'integrations'], ['Security', 'security'], ['Logs & Backup', 'logs']
                   ].map(([label, key]) => (
                     <button key={key} type="button" onClick={() => setAdminActiveSection(key)}
                       className={`px-2 py-2.5 rounded-xl border font-bold transition-all ${adminActiveSection === key ? 'bg-purple-600/35 border-purple-400 text-white' : 'bg-[#100b1e] border-slate-800 text-slate-400 hover:text-white'}`}>
@@ -4589,8 +4592,32 @@ const loggedTxn = {
 
                 {adminActiveSection === 'users' && (
                   <div className="p-4 rounded-2xl bg-[#120d24] border border-rose-500/30 space-y-3">
-                    <div className="font-bold text-rose-300">Users & Accounts</div>
-                    <p className="text-slate-400">Manage account access with the block/unblock list below. A complete searchable user directory, account deletion and role management need a protected server-side users endpoint; this frontend does not currently expose one.</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-bold text-rose-300">Users & Accounts</div>
+                      <span className="text-[10px] text-slate-400">{registeredUsers.length} plan records loaded</span>
+                    </div>
+                    <input type="search" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} placeholder="Search by email" className="w-full px-3 py-2 rounded-xl bg-[#06040c] border border-slate-700 text-white" />
+                    {registeredUsers.length === 0 ? (
+                      <p className="text-slate-400">No user plan records were returned by Firebase. This list only includes accounts present in /userPlans; it is not a complete authentication-user directory.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto">
+                        {registeredUsers.filter((user) => String(user.email || '').toLowerCase().includes(userSearch.toLowerCase())).map((user) => {
+                          const email = String(user.email || '').toLowerCase();
+                          const isBlocked = (globalConfig.blockedEmails || []).includes(email);
+                          return (
+                            <div key={user.key} className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-[#080611] border border-slate-800">
+                              <div className="min-w-0"><div className="text-white font-bold break-all">{email}</div><div className="text-[10px] text-slate-400">Plan: {String(user.tier || 'free').toUpperCase()} • {isBlocked ? 'Blocked' : 'Active access'}</div></div>
+                              <div className="flex gap-2">
+                                <button type="button" onClick={async () => { const next = { ...user, tier: user.tier === 'pro' ? 'free' : 'pro', updatedAt: Date.now(), updatedBy: OWNER_ADMIN_EMAIL }; const response = await fetch(`${dbBase}/userPlans/${encodeURIComponent(user.key)}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) }); if (!response.ok) { setProActionStatus(`Could not update ${email}: Firebase returned ${response.status}`); return; } setRegisteredUsers((prev) => prev.map((item) => item.key === user.key ? next : item)); setProActionStatus(`${email} plan updated to ${next.tier.toUpperCase()}.`); }} className="px-3 py-1.5 rounded-lg bg-cyan-600 text-white font-bold">{user.tier === 'pro' ? 'Set Free' : 'Give Pro'}</button>
+                                <button type="button" onClick={() => setGlobalConfig((prev) => ({ ...prev, blockedEmails: isBlocked ? (prev.blockedEmails || []).filter((item) => item !== email) : Array.from(new Set([...(prev.blockedEmails || []), email])) }))} className={`px-3 py-1.5 rounded-lg font-bold ${isBlocked ? 'bg-emerald-700 text-white' : 'bg-rose-700 text-white'}`}>{isBlocked ? 'Unblock' : 'Block'}</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {proActionStatus && <p className="text-[10px] text-cyan-300">{proActionStatus}</p>}
+                    <p className="text-[10px] text-amber-300">For secure production control, protect Firebase writes with verified owner authentication and server-side authorization rules. This browser UI alone cannot secure user accounts or delete Firebase Authentication users.</p>
                   </div>
                 )}
 
@@ -4631,6 +4658,19 @@ const loggedTxn = {
                     <div className="flex justify-between border-b border-white/5 py-2"><span className="text-slate-400">Firebase RTDB</span><b>{dbBase ? 'URL configured' : 'Not configured'}</b></div>
                     <div className="flex justify-between border-b border-white/5 py-2"><span className="text-slate-400">Google account</span><b>{googleUser?.email ? 'Connected' : 'Disconnected'}</b></div>
                     <div className="flex justify-between py-2"><span className="text-slate-400">Google Drive usage</span><b>Requires Drive API integration</b></div>
+                  </div>
+                )}
+
+                {adminActiveSection === 'security' && (
+                  <div className="p-4 rounded-2xl bg-[#120d24] border border-rose-500/30 space-y-3">
+                    <div className="font-bold text-rose-300">Security & Access</div>
+                    <div className="grid md:grid-cols-2 gap-2">
+                      <div className="p-3 rounded-xl bg-[#080611] border border-slate-800"><div className="text-slate-400">Configured owner</div><b className="text-white break-all">{OWNER_ADMIN_EMAIL}</b></div>
+                      <div className="p-3 rounded-xl bg-[#080611] border border-slate-800"><div className="text-slate-400">Current session</div><b className={isOwnerAdmin ? 'text-emerald-300' : 'text-rose-300'}>{isOwnerAdmin ? 'Owner email matched' : 'Owner not verified'}</b></div>
+                      <div className="p-3 rounded-xl bg-[#080611] border border-slate-800"><div className="text-slate-400">Blocked email rules</div><b className="text-white">{(globalConfig.blockedEmails || []).length} configured</b></div>
+                      <div className="p-3 rounded-xl bg-[#080611] border border-slate-800"><div className="text-slate-400">Maintenance mode</div><b className="text-white">{globalConfig.maintenanceMode ? 'Enabled' : 'Disabled'}</b></div>
+                    </div>
+                    <p className="text-[10px] text-amber-300">Security requirement: use Firebase Authentication ID-token verification in server endpoints, restrict database writes to the verified owner, and never rely on this client-side email check as the only authorization layer.</p>
                   </div>
                 )}
 
@@ -4860,7 +4900,7 @@ const loggedTxn = {
                           setProActionStatus('Owner account already has permanent Pro access.');
                           return;
                         }
-                        const record = { tier: 'pro', grantedBy: OWNER_ADMIN_EMAIL, updatedAt: Date.now() };
+                        const record = { email, tier: 'pro', grantedBy: OWNER_ADMIN_EMAIL, updatedAt: Date.now() };
                         saveLocalRegistry(email, record);
                         try {
                           const response = await fetch(`${dbBase}/userPlans/${encodeURIComponent(emailToKey(email))}.json`, {
@@ -4890,12 +4930,12 @@ const loggedTxn = {
                           setProActionStatus('Owner Pro access cannot be revoked.');
                           return;
                         }
-                        saveLocalRegistry(email, { tier: 'free', revokedBy: OWNER_ADMIN_EMAIL, updatedAt: Date.now() });
+                        saveLocalRegistry(email, { email, tier: 'free', revokedBy: OWNER_ADMIN_EMAIL, updatedAt: Date.now() });
                         try {
                           const response = await fetch(`${dbBase}/userPlans/${encodeURIComponent(emailToKey(email))}.json`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ tier: 'free', revokedBy: OWNER_ADMIN_EMAIL, updatedAt: Date.now() })
+                            body: JSON.stringify({ email, tier: 'free', revokedBy: OWNER_ADMIN_EMAIL, updatedAt: Date.now() })
                           });
                           if (!response.ok) throw new Error(`Firebase returned ${response.status}`);
                           setProActionStatus(`Pro access revoked for ${email}; account is now Free.`);
