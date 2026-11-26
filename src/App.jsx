@@ -1639,7 +1639,7 @@ const TopHeader = React.memo(
     onGoogleLogout,
     onOpenSettings
   }) => (
-    <header className="flex items-center justify-between px-4 lg:px-8 pt-4 pb-3 bg-[#090614]/95 backdrop-blur sticky top-0 z-30 border-b border-purple-500/15">
+    <header className="w-full max-w-full min-w-0 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 px-3 sm:px-4 lg:px-8 pt-4 pb-3 bg-[#090614]/95 backdrop-blur sticky top-0 z-30 border-b border-purple-500/15">
       <div className="flex items-center gap-2.5">
         <button
           type="button"
@@ -3002,7 +3002,7 @@ const loggedTxn = {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
         activeTab={activeTab}
         onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), tab + ' tab')}
@@ -3026,7 +3026,7 @@ const loggedTxn = {
         videoCount={videoQueue.length}
       />
 
-      <div className="flex-1 min-h-screen bg-[#070510] text-white flex flex-col">
+      <div className="flex-1 min-w-0 w-full max-w-full min-h-screen bg-[#070510] text-white flex flex-col overflow-x-hidden">
         <TopHeader
           tier={tier}
           hasUnread={notificationsList.some((n) => n.unread)}
@@ -3075,7 +3075,7 @@ const loggedTxn = {
           className="hidden"
         />
 
-        <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-3 lg:pt-6 pb-32 lg:pb-12 space-y-4 lg:space-y-6">
+        <div className="flex-1 min-w-0 w-full max-w-none xl:max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 pt-3 lg:pt-6 pb-32 lg:pb-12 space-y-4 lg:space-y-6">
           {activeTab === 'home' && (
             <>
               <div className="flex justify-center">
