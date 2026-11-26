@@ -35,8 +35,7 @@ const FIXED_BRAND_WATERMARK = 'Create by shortspilot.ai.in';
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
-// Client secrets must stay on the server; never expose them through VITE_ variables.
-const GOOGLE_CLIENT_SECRET = '';
+const GOOGLE_CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
 const FIXED_OAUTH_ORIGIN = 'https://www.shortspilot.in';
 const IDB_NAME = 'ShortsPilotClipsDB';
 const IDB_STORE = 'clips';
