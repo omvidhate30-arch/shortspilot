@@ -3405,7 +3405,7 @@ const loggedTxn = {
                                 SHORT
                               </span>
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
-                                {clip.status?.includes('Could not read the video's actual details.') ? '' : clip.status}
+                               {clip.status?.includes("Could not read the video's actual details.") ? '' : clip.status}
                               </span>
                               <span className="text-[9px] text-amber-300 font-bold">
                                 Hook: {clip.hookScore}
