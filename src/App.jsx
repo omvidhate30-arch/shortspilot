@@ -152,39 +152,131 @@ const readVideoMetadata = (file) =>
   });
 
 // Read real media dimensions/duration without assuming fallback values.
+// Read actual video metadata reliably, including WebM files recorded in-browser.
+// Some MediaRecorder WebM files initially report duration=Infinity. In that case,
+// seek near the end so the browser can expose the real duration before validation.
 const readVideoMetadataStrict = (file) =>
   new Promise((resolve, reject) => {
     if (!(file instanceof Blob) || !file.size) {
       reject(new Error('The video file is missing or empty.'));
       return;
     }
-    const url = URL.createObjectURL(file);
+
+    let objectUrl = '';
+    let settled = false;
+    let durationProbeStarted = false;
     const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.onloadedmetadata = () => {
-      const result = {
-        duration: Number(video.duration),
-        width: Number(video.videoWidth),
-        height: Number(video.videoHeight)
-      };
-      URL.revokeObjectURL(url);
-      if (
-        !Number.isFinite(result.duration) ||
-        result.duration <= 0 ||
-        !result.width ||
-        !result.height
-      ) {
-        reject(new Error("Could not read the video's actual details."));
-      } else {
-        resolve(result);
+    video.preload = 'auto';
+    video.muted = true;
+    video.playsInline = true;
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      video.onloadedmetadata = null;
+      video.onloadeddata = null;
+      video.ondurationchange = null;
+      video.onseeked = null;
+      video.onerror = null;
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve(result);
+    };
+
+    const getDurationFromSeekable = () => {
+      try {
+        if (video.seekable && video.seekable.length) {
+          return Number(video.seekable.end(video.seekable.length - 1)) || 0;
+        }
+      } catch {}
+      return 0;
+    };
+
+    const validateAndFinish = () => {
+      if (settled) return;
+      const width = Number(video.videoWidth) || 0;
+      const height = Number(video.videoHeight) || 0;
+      let duration = Number(video.duration);
+
+      if (!Number.isFinite(duration) || duration <= 0) {
+        duration = getDurationFromSeekable();
+      }
+
+      if (width > 0 && height > 0 && Number.isFinite(duration) && duration > 0) {
+        finish(null, { duration, width, height });
+        return true;
+      }
+      return false;
+    };
+
+    const probeUnknownDuration = () => {
+      if (settled || durationProbeStarted) return;
+      const currentDuration = Number(video.duration);
+      if (Number.isFinite(currentDuration) && currentDuration > 0) {
+        validateAndFinish();
+        return;
+      }
+
+      durationProbeStarted = true;
+      try {
+        // Browsers commonly resolve an unknown WebM duration after this seek.
+        video.currentTime = 1e101;
+      } catch {
+        // Wait for durationchange/loadeddata or the timeout for a useful error.
       }
     };
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Could not read this video format. Please use MP4 or WebM.'));
+
+    video.onloadedmetadata = () => {
+      if (validateAndFinish()) return;
+      probeUnknownDuration();
     };
-    video.src = url;
-    video.load();
+
+    video.onloadeddata = () => {
+      if (validateAndFinish()) return;
+      probeUnknownDuration();
+    };
+
+    video.ondurationchange = () => {
+      if (validateAndFinish()) return;
+      probeUnknownDuration();
+    };
+
+    video.onseeked = () => {
+      if (validateAndFinish()) return;
+      // A seek-to-end can expose duration through currentTime/seekable.
+      const duration = getDurationFromSeekable() || Number(video.currentTime) || 0;
+      const width = Number(video.videoWidth) || 0;
+      const height = Number(video.videoHeight) || 0;
+      if (width > 0 && height > 0 && Number.isFinite(duration) && duration > 0) {
+        finish(null, { duration, width, height });
+      }
+    };
+
+    video.onerror = () => {
+      finish(new Error('The browser could not decode this video. Please try a standard MP4 (H.264) or WebM file.'));
+    };
+
+    const timeoutId = setTimeout(() => {
+      if (!validateAndFinish()) {
+        finish(new Error('Video details could not be loaded. Please reselect the original video and try again. If it is a recorded WebM, export it as MP4 (H.264) and retry.'));
+      }
+    }, 20000);
+
+    try {
+      objectUrl = URL.createObjectURL(file);
+      video.src = objectUrl;
+      video.load();
+    } catch {
+      finish(new Error('The browser could not open this video file.'));
+    }
   });
 
 // Convert an input video into a real 9:16 vertical clip before YouTube upload.
