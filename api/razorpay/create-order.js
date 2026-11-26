@@ -9,10 +9,13 @@ export default async function handler(req, res) {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      return res.status(500).json({ error: 'Razorpay API keys missing on server' });
+      return res.status(500).json({
+        error: 'Razorpay API keys missing on server'
+      });
     }
 
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+
     const response = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: {
@@ -28,8 +31,11 @@ export default async function handler(req, res) {
     });
 
     const order = await response.json();
+
     if (!response.ok) {
-      return res.status(400).json({ error: order?.error?.description || 'Order creation failed' });
+      return res.status(400).json({
+        error: order?.error?.description || 'Order creation failed'
+      });
     }
 
     return res.status(200).json({
@@ -38,7 +44,10 @@ export default async function handler(req, res) {
       currency: order.currency,
       keyId
     });
+
   } catch (err) {
-    return res.status(500).json({ error: err.message || 'Server error' });
+    return res.status(500).json({
+      error: err.message || 'Server error'
+    });
   }
 }
