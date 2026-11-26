@@ -151,112 +151,40 @@ const readVideoMetadata = (file) =>
     }
   });
 
-// Read actual video dimensions and duration. MediaRecorder-generated WebM files
-// can initially report Infinity for duration; seek near the end to make Chrome
-// discover the real duration before deciding that the media is invalid.
+// Read real media dimensions/duration without assuming fallback values.
 const readVideoMetadataStrict = (file) =>
   new Promise((resolve, reject) => {
     if (!(file instanceof Blob) || !file.size) {
       reject(new Error('Video file missing ya empty hai'));
       return;
     }
-
-    let url = '';
-    let settled = false;
+    const url = URL.createObjectURL(file);
     const video = document.createElement('video');
-    video.preload = 'auto';
-    video.muted = true;
-    video.playsInline = true;
-
-    const cleanup = () => {
-      video.onloadedmetadata = null;
-      video.ondurationchange = null;
-      video.onseeked = null;
-      video.onerror = null;
-      video.pause();
-      video.removeAttribute('src');
-      video.load();
-      if (url) URL.revokeObjectURL(url);
-    };
-
-    const finish = (error, result) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      if (error) reject(error);
-      else resolve(result);
-    };
-
-    const readResult = () => {
-      const duration = Number(video.duration);
-      const width = Number(video.videoWidth);
-      const height = Number(video.videoHeight);
-      if (
-        Number.isFinite(duration) &&
-        duration > 0 &&
-        width > 0 &&
-        height > 0
-      ) {
-        finish(null, { duration, width, height });
-        return true;
-      }
-      return false;
-    };
-
-    video.onerror = () =>
-      finish(new Error('Video format read nahi ho paaya. MP4 ya WebM use karein.'));
-
+    video.preload = 'metadata';
     video.onloadedmetadata = () => {
-      if (readResult()) return;
-
-      // WebM files recorded in-browser may not contain duration metadata.
-      // Seeking to a very large timestamp makes Chromium scan to the media end.
-      try {
-        video.currentTime = Number.MAX_SAFE_INTEGER;
-      } catch {
-        // Some containers reject seeking; durationchange/seekable may still help.
+      const result = {
+        duration: Number(video.duration),
+        width: Number(video.videoWidth),
+        height: Number(video.videoHeight)
+      };
+      URL.revokeObjectURL(url);
+      if (
+        !Number.isFinite(result.duration) ||
+        result.duration <= 0 ||
+        !result.width ||
+        !result.height
+      ) {
+        reject(new Error('Video ki actual details read nahi ho paayi'));
+      } else {
+        resolve(result);
       }
-
-      const ranges = video.seekable;
-      if (ranges && ranges.length) {
-        try {
-          const endTime = ranges.end(ranges.length - 1);
-          if (Number.isFinite(endTime) && endTime > 0) {
-            const duration = Number(video.duration);
-            if (Number.isFinite(duration) && duration > 0 && readResult()) return;
-            if (video.currentTime !== endTime) video.currentTime = endTime;
-          }
-        } catch {}
-      }
-      readResult();
     };
-
-    video.ondurationchange = () => readResult();
-    video.onseeked = () => readResult();
-
-    url = URL.createObjectURL(file);
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Video format read nahi ho paaya. MP4 ya WebM use karein.'));
+    };
     video.src = url;
     video.load();
-
-    // Avoid leaving a retry permanently pending on a malformed media file.
-    window.setTimeout(() => {
-      if (settled) return;
-      const ranges = video.seekable;
-      if (ranges && ranges.length) {
-        try {
-          const endTime = ranges.end(ranges.length - 1);
-          if (Number.isFinite(endTime) && endTime > 0) {
-            const width = Number(video.videoWidth);
-            const height = Number(video.videoHeight);
-            if (width > 0 && height > 0) {
-              finish(null, { duration: endTime, width, height });
-              return;
-            }
-          }
-        } catch {}
-      }
-      finish(new Error('Video ki actual details read nahi ho paayi. Video ko dobara MP4 mein export karke retry karein.'));
-    }, 12000);
   });
 
 // Convert an input video into a real 9:16 vertical clip before YouTube upload.
@@ -447,6 +375,31 @@ const sampleVideoFramesForAI = async (file, maxFrames = 24) => {
   }
 };
 
+const requestGeminiMetadata = async (file) => {
+  const sampled = await sampleVideoFramesForAI(file, 16);
+  const response = await fetch('/api/generate-metadata', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ duration: sampled.duration, frames: sampled.frames })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `Gemini metadata failed (${response.status})`);
+  if (!payload.title || !payload.description || !Array.isArray(payload.hashtags)) {
+    throw new Error('Gemini ne complete metadata return nahi kiya.');
+  }
+  const hashtags = [...new Set(payload.hashtags.map(tag => {
+    const value = String(tag || '').trim();
+    return value ? (value.startsWith('#') ? value : `#${value}`) : '';
+  }).filter(Boolean))].slice(0, 5);
+  if (!hashtags.includes('#Shorts')) hashtags.unshift('#Shorts');
+  return {
+    title: String(payload.title).trim().slice(0, 95),
+    description: String(payload.description).trim().slice(0, 1800),
+    hashtags: hashtags.join(' '),
+    thumbnailHook: String(payload.thumbnailHook || payload.title).trim().slice(0, 40)
+  };
+};
+
 const requestGeminiHighlights = async ({ file, count, topic }) => {
   const sampled = await sampleVideoFramesForAI(file, 24);
   const response = await fetch('/api/analyze-highlights', {
@@ -454,31 +407,26 @@ const requestGeminiHighlights = async ({ file, count, topic }) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       duration: sampled.duration,
-      count,
+      requestedClips: count,
       topic: String(topic || 'YouTube Short'),
-      frames: sampled.frames
+      frames: sampled.frames.map(frame => ({ dataUrl: `data:image/jpeg;base64,${frame.data}`, timestamp: frame.time }))
     })
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(payload.error || `Gemini analysis failed (${response.status})`);
   }
-  if (!Array.isArray(payload.clips) || payload.clips.length !== count) {
+  if (!Array.isArray(payload.highlights) || payload.highlights.length !== count) {
     throw new Error('Gemini ne required number of valid clips return nahi kiye.');
   }
-  return payload.clips
+  return payload.highlights
     .map((clip) => ({
-      startSec: Math.max(0, Number(clip.startSec) || 0),
-      endSec: Math.min(sampled.duration, Number(clip.endSec) || 0),
-      title: String(clip.title || topic || 'YouTube Short').slice(0, 90),
-      thumbnailHook: String(clip.thumbnailHook || 'WATCH THIS!').slice(0, 22),
-      description: String(clip.description || '').slice(0, 1500),
-      hashtags: Array.isArray(clip.hashtags)
-        ? clip.hashtags
-            .map((tag) => String(tag).replace(/^#?/, '#'))
-            .slice(0, 3)
-            .join(' ')
-        : ''
+      startSec: Math.max(0, Number(clip.start) || 0),
+      endSec: Math.min(sampled.duration, Number(clip.end) || 0),
+      title: String(clip.reason || topic || 'YouTube Short').slice(0, 90),
+      thumbnailHook: String(clip.hook || 'WATCH THIS!').slice(0, 22),
+      description: String(clip.reason || '').slice(0, 1500),
+      hashtags: ''
     }))
     .filter((clip) => clip.endSec > clip.startSec);
 };
@@ -2549,19 +2497,26 @@ export default function App() {
         continue;
       }
       const durLabel = formatClockTime(Math.min(meta.duration, 180));
-      const hookLabel = selectedThumbConcept?.hookText || 'WAIT FOR END 😱';
       const watermark = FIXED_BRAND_WATERMARK;
-      const aiMeta = buildClipPackage(
-        detectedTopic,
-        i,
-        '',
-        watermark,
-        durLabel,
-        hookLabel
-      );
+      setAutoPublishStatus(`Gemini AI video ${i + 1}/${files.length} analyze kar raha hai...`);
+      let videoMetadata;
+      try {
+        videoMetadata = await requestGeminiMetadata(file);
+      } catch (metadataError) {
+        setLoginError(`Gemini analysis nahi ho paaya: ${metadataError.message}. Vercel par GEMINI_API_KEY check karke dobara upload karein.`);
+        continue;
+      }
+      const hookLabel = videoMetadata.thumbnailHook || videoMetadata.title;
+      const baseMeta = buildClipPackage(detectedTopic, i, '', watermark, durLabel, hookLabel);
+      const aiMeta = {
+        ...baseMeta,
+        title: videoMetadata.title,
+        description: `${videoMetadata.description}\n\n${videoMetadata.hashtags}\n\n${watermark}`,
+        hashtags: videoMetadata.hashtags
+      };
       const thumb = await generateThumbnailBlob({
         hookText: hookLabel,
-        subText: detectedTopic,
+        subText: videoMetadata.title,
         watermarkText: watermark,
         palette: selectedThumbConcept?.palette,
         videoBlob: shortBlob,
@@ -4491,12 +4446,26 @@ const loggedTxn = {
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-base font-extrabold text-white">
-              🔐 Full Control Owner Admin Console
-            </h3>
-            <p className="text-[10px] text-amber-300">
-              Owner Gmail configured in source: {OWNER_ADMIN_EMAIL}. Secure server-side authorization and Firebase rules must also be configured before public launch.
-            </p>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pr-8">
+              <div>
+                <div className="text-lg md:text-xl font-black text-white">ShortsPilot Owner Console <span className="text-amber-300">👑</span></div>
+                <p className="text-[10px] text-slate-400 mt-1">Platform control center • account, users, plans, payments, automation & security</p>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2">
+                <div className="w-8 h-8 rounded-full bg-amber-300/15 border border-amber-300/30 flex items-center justify-center text-amber-200 font-black">O</div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-black tracking-widest text-amber-300">OWNER ACCOUNT</span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-300 text-[#211300] text-[8px] font-black">ADMIN</span>
+                  </div>
+                  <div className="text-[11px] font-bold text-white break-all">{googleUser?.email || OWNER_ADMIN_EMAIL}</div>
+                </div>
+                <button type="button" title="Copy owner Gmail" onClick={() => navigator.clipboard?.writeText(googleUser?.email || OWNER_ADMIN_EMAIL)} className="ml-1 p-1.5 rounded-lg hover:bg-white/10 text-amber-200"><Copy className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+            <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 px-3 py-2 text-[10px] text-amber-200/90">
+              Owner access is restricted to the configured Gmail. Before public launch, enforce owner roles and database permissions on the server; this browser-side console is not a substitute for server authorization.
+            </div>
 
             {!adminUnlocked ? (
               <form
@@ -4571,7 +4540,30 @@ const loggedTxn = {
                 </div>
 
                 {adminActiveSection === 'overview' && (
-                  <div className="grid lg:grid-cols-3 gap-3">
+                  <div className="space-y-3">
+                    <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-2.5">
+                      <div className="rounded-xl border border-amber-400/25 bg-gradient-to-br from-amber-400/10 to-transparent p-3">
+                        <div className="text-[9px] uppercase tracking-widest text-amber-300 font-black">Signed-in owner</div>
+                        <div className="mt-1 text-[11px] font-bold text-white break-all">{googleUser?.email || 'Not connected'}</div>
+                        <div className="mt-1 text-[9px] text-emerald-300">{isOwnerAdmin ? 'Owner identity matched' : 'Owner identity not matched'}</div>
+                      </div>
+                      <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3">
+                        <div className="text-[9px] uppercase tracking-widest text-cyan-300 font-black">Website</div>
+                        <a href="https://www.shortspilot.in" target="_blank" rel="noreferrer" className="mt-1 block text-[11px] font-bold text-white hover:text-cyan-300">shortspilot.in ↗</a>
+                        <div className="mt-1 text-[9px] text-slate-400">Public website URL configured in app</div>
+                      </div>
+                      <div className="rounded-xl border border-violet-400/20 bg-violet-400/5 p-3">
+                        <div className="text-[9px] uppercase tracking-widest text-violet-300 font-black">Data connection</div>
+                        <div className="mt-1 text-[11px] font-bold text-white">{dbBase ? 'Firebase URL set' : 'Not configured'}</div>
+                        <div className="mt-1 text-[9px] text-slate-400">Connection and security rules need server-side validation</div>
+                      </div>
+                      <div className="rounded-xl border border-rose-400/20 bg-rose-400/5 p-3">
+                        <div className="text-[9px] uppercase tracking-widest text-rose-300 font-black">Public launch gate</div>
+                        <div className="mt-1 text-[11px] font-bold text-white">Verification required</div>
+                        <div className="mt-1 text-[9px] text-slate-400">Google OAuth approval and backend security are separate tasks</div>
+                      </div>
+                    </div>
+                    <div className="grid lg:grid-cols-3 gap-3">
                     <div className="lg:col-span-2 p-4 rounded-2xl bg-[#120d24] border border-purple-500/30 space-y-2">
                       <div className="font-bold text-purple-300">Platform Health</div>
                       {[
@@ -4590,6 +4582,7 @@ const loggedTxn = {
                         className={`w-full py-3 rounded-xl font-black ${globalConfig.globalEmergencyStop ? 'bg-emerald-500 text-black' : 'bg-rose-600 text-white'}`}>
                         {globalConfig.globalEmergencyStop ? 'RESUME AUTOMATION' : 'STOP ALL AUTOMATION'}
                       </button>
+                    </div>
                     </div>
                   </div>
                 )}
