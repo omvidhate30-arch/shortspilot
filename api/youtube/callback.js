@@ -7,7 +7,10 @@ export default async function handler(req, res) {
 
   if (state) {
     try {
-      const decoded = JSON.parse(Buffer.from(String(state), 'base64').toString('utf-8'));
+      const decoded = JSON.parse(
+        Buffer.from(String(state), 'base64').toString('utf-8')
+      );
+
       if (decoded.cid) customClientId = String(decoded.cid).trim();
       if (decoded.csec) customClientSecret = String(decoded.csec).trim();
       if (decoded.origin) stateOrigin = String(decoded.origin).trim();
@@ -17,7 +20,9 @@ export default async function handler(req, res) {
   const baseOrigin = stateOrigin || 'https://www.shortspilot.in';
 
   if (error) {
-    return res.redirect(`${baseOrigin}/?error=${encodeURIComponent(String(error))}`);
+    return res.redirect(
+      `${baseOrigin}/?error=${encodeURIComponent(String(error))}`
+    );
   }
 
   if (!code) {
@@ -29,7 +34,11 @@ export default async function handler(req, res) {
     process.env.VITE_GOOGLE_CLIENT_ID ||
     '801917804614-9spn1qcm6fthoiro05tdqpisjt51u5d3.apps.googleusercontent.com';
 
-  const clientSecret = (customClientSecret || process.env.GOOGLE_CLIENT_SECRET || '').trim();
+  const clientSecret = (
+    customClientSecret ||
+    process.env.GOOGLE_CLIENT_SECRET ||
+    ''
+  ).trim();
 
   if (!clientSecret) {
     return res.redirect(`${baseOrigin}/?error=no_client_secret_found`);
@@ -40,7 +49,9 @@ export default async function handler(req, res) {
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
       body: new URLSearchParams({
         code: String(code),
         client_id: clientId,
@@ -54,19 +65,29 @@ export default async function handler(req, res) {
 
     if (!tokenData.access_token) {
       const reason =
-        tokenData.error_description || tokenData.error || 'token_exchange_failed';
-      return res.redirect(`${baseOrigin}/?error=${encodeURIComponent(reason)}`);
+        tokenData.error_description ||
+        tokenData.error ||
+        'token_exchange_failed';
+
+      return res.redirect(
+        `${baseOrigin}/?error=${encodeURIComponent(reason)}`
+      );
     }
 
     const hash = new URLSearchParams({
       access_token: tokenData.access_token,
-      ...(tokenData.refresh_token ? { refresh_token: tokenData.refresh_token } : {})
+      ...(tokenData.refresh_token
+        ? { refresh_token: tokenData.refresh_token }
+        : {})
     }).toString();
 
     return res.redirect(`${baseOrigin}/#${hash}`);
+
   } catch (err) {
     return res.redirect(
-      `${baseOrigin}/?error=${encodeURIComponent(err?.message || 'callback_exception')}`
+      `${baseOrigin}/?error=${encodeURIComponent(
+        err?.message || 'callback_exception'
+      )}`
     );
   }
 }
