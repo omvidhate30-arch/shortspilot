@@ -26,6 +26,7 @@ export const detectTopicFromFile = (fileName = '') => {
     .replace(/\b\d{4,}\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
   return base.length >= 2
     ? base.replace(/\b\w/g, (ch) => ch.toUpperCase())
     : 'Insane Viral Moment';
@@ -117,6 +118,7 @@ export const buildMasterThumbnailPrompt = ({
   const credit = String(
     watermarkText || clip?.watermarkText || 'Developed by shortspilot.in'
   ).trim();
+
   const extraStyle = String(customStyleNote || '').trim()
     ? `\n- Custom Style Note: ${String(customStyleNote).trim()}`
     : '';
@@ -150,17 +152,21 @@ export const sendThumbnailPromptToAI = async ({
     customStyleNote,
     watermarkText
   });
+
   try {
     if (typeof navigator !== 'undefined' && navigator?.clipboard?.writeText) {
       await navigator.clipboard.writeText(finalPrompt);
     }
   } catch {}
+
   const url =
     target === 'chatgpt'
       ? `https://chatgpt.com/?q=${encodeURIComponent(finalPrompt)}`
       : `https://gemini.google.com/app?q=${encodeURIComponent(finalPrompt)}`;
+
   if (typeof window !== 'undefined') {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
+
   return finalPrompt;
 };
