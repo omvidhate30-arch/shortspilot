@@ -3594,7 +3594,7 @@ const loggedTxn = {
                       <pre className="text-[10px] text-slate-300 whitespace-pre-wrap font-sans bg-[#070412] p-2.5 rounded-xl border border-slate-800 max-h-28 overflow-y-auto">
                         {clip.description}
                       </pre>
-                      {clip.uploadError && !String(clip.uploadError).includes('Could not read the video's actual details.') && (
+                      {clip.uploadError && !String(clip.uploadError).includes("Could not read the video's actual details.") && (
                         <div className="text-[10px] text-rose-300 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-lg break-words">
                           {clip.uploadError}
                         </div>
