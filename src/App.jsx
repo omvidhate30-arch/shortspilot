@@ -3426,7 +3426,7 @@ const loggedTxn = {
                       <div className="text-[9.5px] text-cyan-300/90 font-mono truncate bg-[#080512] px-2.5 py-1.5 rounded-lg border border-slate-800">
                         {clip.hashtags}
                       </div>
-                      {clip.uploadError && !String(clip.uploadError).includes('Could not read the video's actual details.') && (
+                      {clip.uploadError && !String(clip.uploadError).includes("Could not read the video's actual details.") && (
                         <div className="text-[10px] text-rose-300 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-lg break-words">
                           {clip.uploadError}
                         </div>
