@@ -28,12 +28,15 @@ export default async function handler(req, res) {
 Create unique YouTube Shorts metadata based only on visible content.
 Return JSON only:
 {
-"title": "Engaging accurate title under 90 characters",
-"description": "1-3 natural sentences",
-"hashtags": ["#Shorts", "#tag1", "#tag2", "#tag3"],
-"thumbnailHook": "2-5 words"
+  "title": "Engaging accurate title under 90 characters",
+  "description": "1-3 natural sentences",
+  "hashtags": ["#relevantTag1", "#relevantTag2", "#relevantTag3"],
+  "thumbnailHook": "2-5 words"
 }
-Do not invent facts or use generic repetitive metadata.`
+Do not invent facts or use generic repetitive metadata.
+Generate hashtags specifically for the visible subject and action in these frames.
+Do not force #Shorts, #Viral, #Trending, or any fixed hashtag unless it is genuinely relevant.
+Use different, content-specific hashtags for each different video.`
     }];
 
     for (const frame of frames.slice(0, 24)) {
@@ -106,10 +109,6 @@ Do not invent facts or use generic repetitive metadata.`
       return res.status(502).json({
         error: "Gemini metadata was incomplete."
       });
-    }
-
-    if (!hashtags.includes("#Shorts")) {
-      hashtags.unshift("#Shorts");
     }
 
     return res.status(200).json({
