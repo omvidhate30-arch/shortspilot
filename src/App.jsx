@@ -420,44 +420,103 @@ const createVerticalShortBlob = (file, startSec = 0, endSec = null) =>
   });
 
 const sampleVideoFramesForAI = async (file, maxFrames = 24) => {
-  if (!(file instanceof Blob)) throw new Error('Video file missing');
+  if (!(file instanceof Blob) || !file.size) {
+    throw new Error('Video file missing or empty.');
+  }
+
   const url = URL.createObjectURL(file);
   const video = document.createElement('video');
   video.muted = true;
   video.playsInline = true;
-  video.preload = 'metadata';
+  video.preload = 'auto';
+  video.setAttribute('webkit-playsinline', 'true');
   video.src = url;
-  try {
-    await new Promise((resolve, reject) => {
-      video.onloadedmetadata = resolve;
-      video.onerror = () => reject(new Error('Could not read the video.'));
+
+  const waitForEvent = (target, successEvents, errorMessage, timeoutMs = 20000) =>
+    new Promise((resolve, reject) => {
+      let timer;
+      const cleanup = () => {
+        successEvents.forEach((eventName) => target.removeEventListener(eventName, onSuccess));
+        target.removeEventListener('error', onError);
+        clearTimeout(timer);
+      };
+      const onSuccess = () => { cleanup(); resolve(); };
+      const onError = () => { cleanup(); reject(new Error(errorMessage)); };
+      successEvents.forEach((eventName) => target.addEventListener(eventName, onSuccess, { once: true }));
+      target.addEventListener('error', onError, { once: true });
+      timer = setTimeout(() => { cleanup(); reject(new Error(errorMessage)); }, timeoutMs);
     });
-    const duration = Number(video.duration) || 0;
-    if (!duration) throw new Error('Video duration was not found.');
-    const count = Math.max(
-      2,
-      Math.min(maxFrames, Math.ceil(duration / Math.max(2, duration / maxFrames)))
-    );
+
+  try {
+    if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
+      await waitForEvent(video, ['loadedmetadata'], 'Could not load video metadata. Try an MP4 (H.264) video.');
+    }
+
+    const duration = Number(video.duration);
+    if (!Number.isFinite(duration) || duration <= 0) {
+      throw new Error('Video duration was not found. Try exporting the video as MP4 (H.264).');
+    }
+    if (!video.videoWidth || !video.videoHeight) {
+      throw new Error('Video dimensions could not be read. Please try another video format.');
+    }
+
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      await waitForEvent(video, ['loadeddata', 'canplay'], 'The browser could not decode the first video frame. Try MP4 (H.264).');
+    }
+
+    const safeMaxFrames = Math.max(2, Math.min(24, Number(maxFrames) || 24));
+    const count = Math.max(2, Math.min(safeMaxFrames, Math.ceil(duration / Math.max(2, duration / safeMaxFrames))));
     const canvas = document.createElement('canvas');
     canvas.width = 480;
     canvas.height = 270;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Frame canvas unavailable');
     const frames = [];
-    for (let i = 0; i < count; i++) {
-      const time = Math.min(duration - 0.15, (duration * (i + 0.5)) / count);
+
+    const seekTo = async (requestedTime) => {
+      const targetTime = Math.max(0, Math.min(duration - 0.05, requestedTime));
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && Math.abs(video.currentTime - targetTime) < 0.04) return;
+
       await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('Video frame seek timeout')), 10000);
-        video.onseeked = () => {
+        let timer;
+        const cleanup = () => {
+          video.removeEventListener('seeked', onSeeked);
+          video.removeEventListener('error', onError);
           clearTimeout(timer);
-          resolve();
         };
-        video.currentTime = Math.max(0, time);
+        const onSeeked = () => { cleanup(); resolve(); };
+        const onError = () => { cleanup(); reject(new Error('The browser could not decode a video frame.')); };
+        video.addEventListener('seeked', onSeeked, { once: true });
+        video.addEventListener('error', onError, { once: true });
+        timer = setTimeout(() => {
+          cleanup();
+          reject(new Error('Video frame seek timed out. Try a smaller MP4 (H.264) video or re-export the original video.'));
+        }, 20000);
+        try {
+          video.currentTime = targetTime;
+          if (!video.seeking && Math.abs(video.currentTime - targetTime) < 0.04) {
+            cleanup();
+            resolve();
+          }
+        } catch {
+          cleanup();
+          reject(new Error('The browser could not seek this video. Try MP4 (H.264).'));
+        }
       });
+    };
+
+    for (let i = 0; i < count; i++) {
+      const time = Math.min(duration - 0.05, Math.max(0, (duration * (i + 0.5)) / count));
+      await seekTo(time);
+      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        await waitForEvent(video, ['loadeddata', 'canplay'], 'Video frame data is not available. Please try MP4 (H.264).');
+      }
+      if (!video.videoWidth || !video.videoHeight) throw new Error('Video frame is blank or unsupported.');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.55);
       frames.push({ time: Number(time.toFixed(2)), data: dataUrl.split(',')[1] });
     }
+
     return { duration, frames };
   } finally {
     video.pause();
