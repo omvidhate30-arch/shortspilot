@@ -198,7 +198,6 @@ export const analyzeVideoDeeply = (file) =>
       });
     };
   });
-
 export const buildDeepAiVideoPackage = (
   rawName,
   _videoAnalysis = {},
@@ -237,17 +236,10 @@ export const buildDeepAiVideoPackage = (
     storyBody =
       'Crazy GTA 6 action and next-gen details in action. Drop your thoughts in the comments below and subscribe for more daily Shorts!';
     tagList = [
-      '#GTA6',
-      '#GrandTheftAuto6',
-      '#GTA6Gameplay',
-      '#RockstarGames',
-      '#GTA',
-      '#GamingShorts',
-      '#OpenWorldGames',
-      '#NextGenGaming',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
+      '#GTA6', '#GrandTheftAuto6', '#GTA6Gameplay',
+      '#RockstarGames', '#GTA', '#GamingShorts',
+      '#OpenWorldGames', '#NextGenGaming',
+      '#Shorts', '#YouTubeShorts', '#ViralShorts'
     ];
   } else if (/(free\s?fire|\bff\b|booyah|headshot|clash\s?squad)/i.test(lower)) {
     category = 'Free Fire';
@@ -259,15 +251,9 @@ export const buildDeepAiVideoPackage = (
     storyBody =
       'Fast-paced Free Fire gameplay highlights with clean shots and intense moments. Comment your favorite moment below!';
     tagList = [
-      '#FreeFire',
-      '#FreeFireIndia',
-      '#FreeFireShorts',
-      '#FFShorts',
-      '#Headshot',
-      '#GamingShorts',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
+      '#FreeFire', '#FreeFireIndia', '#FreeFireShorts',
+      '#FFShorts', '#Headshot', '#GamingShorts',
+      '#Shorts', '#YouTubeShorts', '#ViralShorts'
     ];
   } else if (/(bgmi|pubg|clutch|squad)/i.test(lower)) {
     category = 'BGMI';
@@ -275,64 +261,37 @@ export const buildDeepAiVideoPackage = (
     storyBody =
       'High-pressure BGMI fight and clutch gameplay. Like and subscribe for daily gaming Shorts!';
     tagList = [
-      '#BGMI',
-      '#BGMIShorts',
-      '#BGMIIndia',
-      '#PUBGM',
-      '#ClutchMoment',
-      '#GamingShorts',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
+      '#BGMI', '#BGMIShorts', '#BGMIIndia', '#PUBGM',
+      '#ClutchMoment', '#GamingShorts',
+      '#Shorts', '#YouTubeShorts', '#ViralShorts'
     ];
   } else if (/(anime|naruto|goku|luffy|gojo|sukuna|amv|otaku|edit)/i.test(lower)) {
     category = 'Anime';
     hookTitle = `Chills Every Time in This ${displayTopic} Scene 😭🔥${partNote} #Shorts`;
     storyBody = `Unforgettable ${displayTopic} moment edited for pure hype and emotion. Comment your favorite character below!`;
     tagList = [
-      '#Anime',
-      '#AnimeEdit',
-      '#AnimeShorts',
-      '#AMV',
-      '#AnimeIndia',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
+      '#Anime', '#AnimeEdit', '#AnimeShorts', '#AMV',
+      '#AnimeIndia', '#Shorts', '#YouTubeShorts', '#ViralShorts'
     ];
   } else if (
-    /(car|bmw|supra|gtr|lamborghini|ferrari|porsche|bike|zx10r|kawasaki|duke|thar|scorpio|drift|exhaust)/i.test(
-      lower
-    )
+    /(car|bmw|supra|gtr|lamborghini|ferrari|porsche|bike|zx10r|kawasaki|duke|thar|scorpio|drift|exhaust)/i.test(lower)
   ) {
     category = 'Automobiles';
     hookTitle = `Listen To That ${displayTopic} Sound 🔊🔥${partNote} #Shorts`;
     storyBody = `Clean shots of ${displayTopic} turning heads everywhere. Which ride is your pick? Comment below!`;
     tagList = [
-      '#Cars',
-      '#Supercars',
-      '#CarShorts',
-      '#Superbikes',
-      '#CarLovers',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
+      '#Cars', '#Supercars', '#CarShorts', '#Superbikes',
+      '#CarLovers', '#Shorts', '#YouTubeShorts', '#ViralShorts'
     ];
   } else if (
-    /(tech|ai|mobile|iphone|android|laptop|coding|app|website|gadget|trick|tips)/i.test(
-      lower
-    )
+    /(tech|ai|mobile|iphone|android|laptop|coding|app|website|gadget|trick|tips)/i.test(lower)
   ) {
     category = 'Tech';
     hookTitle = `Smart ${displayTopic} Trick You Should Try Today ⚡${partNote} #Shorts`;
     storyBody = `Helpful ${displayTopic} tip made simple in under a minute. Save and share with a friend!`;
     tagList = [
-      '#Tech',
-      '#TechShorts',
-      '#TechTips',
-      '#AITools',
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts'
+      '#Tech', '#TechShorts', '#TechTips', '#AITools',
+      '#Shorts', '#YouTubeShorts', '#ViralShorts'
     ];
   } else {
     category = 'Viral';
@@ -344,12 +303,8 @@ export const buildDeepAiVideoPackage = (
     hookTitle = viralTitles[clipIndex % viralTitles.length];
     storyBody = `Watch ${displayTopic} till the end and share your reaction in the comments!`;
     tagList = [
-      '#Shorts',
-      '#YouTubeShorts',
-      '#ViralShorts',
-      '#Trending',
-      '#MustWatch',
-      '#Viral'
+      '#Shorts', '#YouTubeShorts', '#ViralShorts',
+      '#Trending', '#MustWatch', '#Viral'
     ];
   }
 
@@ -381,6 +336,7 @@ export const buildDeepAiVideoPackage = (
 export const buildShortsThumbnailConcepts = (topicInput) => {
   const base = (topicInput || '').trim() || 'GTA 6';
   const upperTopic = base.toUpperCase().slice(0, 24);
+
   return [
     {
       id: 't1',
