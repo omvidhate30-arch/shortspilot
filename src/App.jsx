@@ -174,7 +174,7 @@ const readVideoMetadataStrict = (file) =>
         !result.width ||
         !result.height
       ) {
-        reject(new Error('Could not read the video's actual details.'));
+        reject(new Error("Could not read the video's actual details."));
       } else {
         resolve(result);
       }
