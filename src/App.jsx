@@ -151,40 +151,112 @@ const readVideoMetadata = (file) =>
     }
   });
 
-// Read real media dimensions/duration without assuming fallback values.
+// Read actual video dimensions and duration. MediaRecorder-generated WebM files
+// can initially report Infinity for duration; seek near the end to make Chrome
+// discover the real duration before deciding that the media is invalid.
 const readVideoMetadataStrict = (file) =>
   new Promise((resolve, reject) => {
     if (!(file instanceof Blob) || !file.size) {
       reject(new Error('Video file missing ya empty hai'));
       return;
     }
-    const url = URL.createObjectURL(file);
+
+    let url = '';
+    let settled = false;
     const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.onloadedmetadata = () => {
-      const result = {
-        duration: Number(video.duration),
-        width: Number(video.videoWidth),
-        height: Number(video.videoHeight)
-      };
-      URL.revokeObjectURL(url);
+    video.preload = 'auto';
+    video.muted = true;
+    video.playsInline = true;
+
+    const cleanup = () => {
+      video.onloadedmetadata = null;
+      video.ondurationchange = null;
+      video.onseeked = null;
+      video.onerror = null;
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      if (url) URL.revokeObjectURL(url);
+    };
+
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve(result);
+    };
+
+    const readResult = () => {
+      const duration = Number(video.duration);
+      const width = Number(video.videoWidth);
+      const height = Number(video.videoHeight);
       if (
-        !Number.isFinite(result.duration) ||
-        result.duration <= 0 ||
-        !result.width ||
-        !result.height
+        Number.isFinite(duration) &&
+        duration > 0 &&
+        width > 0 &&
+        height > 0
       ) {
-        reject(new Error('Video ki actual details read nahi ho paayi'));
-      } else {
-        resolve(result);
+        finish(null, { duration, width, height });
+        return true;
       }
+      return false;
     };
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Video format read nahi ho paaya. MP4 ya WebM use karein.'));
+
+    video.onerror = () =>
+      finish(new Error('Video format read nahi ho paaya. MP4 ya WebM use karein.'));
+
+    video.onloadedmetadata = () => {
+      if (readResult()) return;
+
+      // WebM files recorded in-browser may not contain duration metadata.
+      // Seeking to a very large timestamp makes Chromium scan to the media end.
+      try {
+        video.currentTime = Number.MAX_SAFE_INTEGER;
+      } catch {
+        // Some containers reject seeking; durationchange/seekable may still help.
+      }
+
+      const ranges = video.seekable;
+      if (ranges && ranges.length) {
+        try {
+          const endTime = ranges.end(ranges.length - 1);
+          if (Number.isFinite(endTime) && endTime > 0) {
+            const duration = Number(video.duration);
+            if (Number.isFinite(duration) && duration > 0 && readResult()) return;
+            if (video.currentTime !== endTime) video.currentTime = endTime;
+          }
+        } catch {}
+      }
+      readResult();
     };
+
+    video.ondurationchange = () => readResult();
+    video.onseeked = () => readResult();
+
+    url = URL.createObjectURL(file);
     video.src = url;
     video.load();
+
+    // Avoid leaving a retry permanently pending on a malformed media file.
+    window.setTimeout(() => {
+      if (settled) return;
+      const ranges = video.seekable;
+      if (ranges && ranges.length) {
+        try {
+          const endTime = ranges.end(ranges.length - 1);
+          if (Number.isFinite(endTime) && endTime > 0) {
+            const width = Number(video.videoWidth);
+            const height = Number(video.videoHeight);
+            if (width > 0 && height > 0) {
+              finish(null, { duration: endTime, width, height });
+              return;
+            }
+          }
+        } catch {}
+      }
+      finish(new Error('Video ki actual details read nahi ho paayi. Video ko dobara MP4 mein export karke retry karein.'));
+    }, 12000);
   });
 
 // Convert an input video into a real 9:16 vertical clip before YouTube upload.
