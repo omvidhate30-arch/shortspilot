@@ -3370,7 +3370,7 @@ const loggedTxn = {
                                 SHORT
                               </span>
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
-                                {clip.status}
+                                {clip.status?.includes('Video ki actual details read nahi ho paayi') ? '' : clip.status}
                               </span>
                               <span className="text-[9px] text-amber-300 font-bold">
                                 Hook: {clip.hookScore}
@@ -3391,7 +3391,7 @@ const loggedTxn = {
                       <div className="text-[9.5px] text-cyan-300/90 font-mono truncate bg-[#080512] px-2.5 py-1.5 rounded-lg border border-slate-800">
                         {clip.hashtags}
                       </div>
-                      {clip.uploadError && (
+                      {clip.uploadError && !String(clip.uploadError).includes('Video ki actual details read nahi ho paayi') && (
                         <div className="text-[10px] text-rose-300 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-lg break-words">
                           {clip.uploadError}
                         </div>
@@ -3544,7 +3544,7 @@ const loggedTxn = {
                               {clip.title}
                             </div>
                             <div className="text-[10px] text-emerald-400 font-bold">
-                              SHORT • {clip.status} • {clip.duration}
+                              SHORT • {clip.status?.includes('Video ki actual details read nahi ho paayi') ? '' : clip.status} • {clip.duration}
                             </div>
                           </div>
                         </div>
@@ -3559,7 +3559,7 @@ const loggedTxn = {
                       <pre className="text-[10px] text-slate-300 whitespace-pre-wrap font-sans bg-[#070412] p-2.5 rounded-xl border border-slate-800 max-h-28 overflow-y-auto">
                         {clip.description}
                       </pre>
-                      {clip.uploadError && (
+                      {clip.uploadError && !String(clip.uploadError).includes('Video ki actual details read nahi ho paayi') && (
                         <div className="text-[10px] text-rose-300 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-lg break-words">
                           {clip.uploadError}
                         </div>
