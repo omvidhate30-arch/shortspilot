@@ -1,5 +1,5 @@
 // Vercel serverless endpoint: /api/analyze-highlights
-// Keep GEMINI_API_KEY in Vercel Environment Variables. Never expose it in frontend code.
+// Keep GEMINI_API_KEY in Vercel Environment Variables.
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -9,23 +9,43 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
+    return res.status(500).json({
+      error: "GEMINI_API_KEY is not configured on the server."
+    });
   }
 
   try {
     const { frames, duration, requestedClips = 3 } = req.body || {};
+
     if (!Array.isArray(frames) || frames.length < 2) {
-      return res.status(400).json({ error: "Send at least two sampled video frames." });
+      return res.status(400).json({
+        error: "Send at least two sampled video frames."
+      });
     }
 
     const safeFrames = frames.slice(0, 24).map((frame, index) => {
-      const raw = typeof frame === "string" ? frame : frame?.dataUrl || frame?.image || "";
-      const match = raw.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-      if (!match) throw new Error(`Frame ${index + 1} is not a supported base64 image.`);
+      const raw =
+        typeof frame === "string"
+          ? frame
+          : frame?.dataUrl || frame?.image || "";
+
+      const match = raw.match(
+        /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/
+      );
+
+      if (!match) {
+        throw new Error(
+          `Frame ${index + 1} is not a supported base64 image.`
+        );
+      }
+
       return {
         mimeType: match[1],
         data: match[2],
-        timestamp: typeof frame === "object" ? Number(frame.timestamp) || 0 : 0
+        timestamp:
+          typeof frame === "object"
+            ? Number(frame.timestamp) || 0
+            : 0
       };
     });
 
@@ -42,7 +62,12 @@ export default async function handler(req, res) {
       },
       ...safeFrames.flatMap((frame) => [
         { text: `Frame timestamp: ${frame.timestamp} seconds` },
-        { inline_data: { mime_type: frame.mimeType, data: frame.data } }
+        {
+          inline_data: {
+            mime_type: frame.mimeType,
+            data: frame.data
+          }
+        }
       ])
     ];
 
@@ -63,6 +88,7 @@ export default async function handler(req, res) {
     );
 
     const result = await response.json();
+
     if (!response.ok) {
       return res.status(response.status).json({
         error: result?.error?.message || "Gemini request failed."
@@ -75,18 +101,28 @@ export default async function handler(req, res) {
       .trim();
 
     if (!text) {
-      return res.status(502).json({ error: "Gemini returned an empty response." });
+      return res.status(502).json({
+        error: "Gemini returned an empty response."
+      });
     }
 
     let parsed;
+
     try {
       parsed = JSON.parse(text);
     } catch {
-      return res.status(502).json({ error: "Gemini returned invalid JSON.", raw: text });
+      return res.status(502).json({
+        error: "Gemini returned invalid JSON.",
+        raw: text
+      });
     }
 
-    const maxDuration = Number(duration) > 0 ? Number(duration) : Infinity;
-    const highlights = (Array.isArray(parsed.highlights) ? parsed.highlights : [])
+    const maxDuration =
+      Number(duration) > 0 ? Number(duration) : Infinity;
+
+    const highlights = (
+      Array.isArray(parsed.highlights) ? parsed.highlights : []
+    )
       .map((item) => ({
         start: Math.max(0, Number(item.start) || 0),
         end: Math.min(maxDuration, Number(item.end) || 0),
@@ -97,14 +133,16 @@ export default async function handler(req, res) {
       .slice(0, 5);
 
     if (!highlights.length) {
-      return res.status(502).json({ error: "No valid highlight segments were returned." });
+      return res.status(502).json({
+        error: "No valid highlight segments were returned."
+      });
     }
 
     return res.status(200).json({ highlights });
+
   } catch (error) {
-    return res.status(400).json({ error: error?.message || "Invalid request." });
+    return res.status(400).json({
+      error: error?.message || "Invalid request."
+    });
   }
 }
-```[cite: 3]
-
-Ise **`api/analyze-highlights.js`** mein save karein aur Vercel ke Environment Variables mein **`GEMINI_API_KEY`** set rakhein[cite: 3].
