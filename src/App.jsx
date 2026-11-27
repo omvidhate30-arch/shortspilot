@@ -1657,7 +1657,7 @@ const TopHeader = React.memo(
               <span className="text-white">Shorts</span>
               <span className="text-pink-400">Pilot AI</span>
             </div>
-            text-[8.5px] sm:text-[9.5px] text-slate-400 font-medium mt-0.5
+            <p className="text-[9.5px] text-slate-400 font-medium mt-0.5 whitespace-nowrap">
               Developed by shortspilot.in
             </p>
           </div>
