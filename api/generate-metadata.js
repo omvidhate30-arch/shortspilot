@@ -2,14 +2,16 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({
+      error: "Method not allowed"
+    });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     return res.status(500).json({
-      error: "GEMINI_API_KEY is not configured in Vercel."
+      error: "GEMINI_API_KEY is missing in Vercel Environment Variables."
     });
   }
 
@@ -25,64 +27,77 @@ export default async function handler(req, res) {
     const parts = [{
       text: `Analyze these frames from a ${Number(duration) || "unknown"} second video.
 
-Create unique YouTube Shorts metadata based only on visible content.
+Generate accurate YouTube Shorts metadata based only on visible content.
 
-Return JSON only:
+Return valid JSON:
 {
-  "title": "Engaging accurate title under 90 characters",
+  "title": "Engaging title under 90 characters",
   "description": "1-3 natural sentences",
-  "hashtags": ["#relevantTag1", "#relevantTag2", "#relevantTag3"],
+  "hashtags": ["#Shorts", "#relevantTag", "#relevantTag2"],
   "thumbnailHook": "2-5 words"
 }
 
 Do not invent facts.
-Generate relevant hashtags based on the video.
-Avoid generic repetitive metadata.`
+Use relevant hashtags.
+Avoid repetitive generic metadata.`
     }];
 
-    for (const frame of frames.slice(0, 24)) {
-      if (!frame.data) continue;
+    for (const frame of frames.slice(0, 16)) {
+      if (!frame || !frame.data) continue;
+
+      const imageData = String(frame.data).replace(
+        /^data:image\/[a-zA-Z0-9.+-]+;base64,/,
+        ""
+      );
 
       parts.push({
-        text: `Frame at ${Number(frame.time) || 0} seconds`
+        text: `Video frame at ${Number(frame.time) || 0} seconds`
       });
 
       parts.push({
         inline_data: {
           mime_type: "image/jpeg",
-          data: frame.data
+          data: imageData
         }
       });
     }
 
+    if (parts.length < 5) {
+      return res.status(400).json({
+        error: "Video frames contain insufficient image data."
+      });
+    }
+
     const apiUrl =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=" +
-      encodeURIComponent(apiKey);
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
     let result = null;
     let lastError = "Gemini request failed.";
 
-    // Retry temporary Gemini server errors
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        const response = await fetch(apiUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            contents: [{
-              role: "user",
-              parts
-            }],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.65
-            }
-          })
-        });
+        const response = await fetch(
+          `${apiUrl}?key=${encodeURIComponent(apiKey)}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              contents: [{
+                role: "user",
+                parts
+              }],
+              generationConfig: {
+                responseMimeType: "application/json",
+                temperature: 0.4,
+                maxOutputTokens: 1200
+              }
+            })
+          }
+        );
 
-        const responseData = await response.json();
+        const responseData = await response.json().catch(() => ({}));
 
         if (response.ok) {
           result = responseData;
@@ -90,22 +105,22 @@ Avoid generic repetitive metadata.`
         }
 
         lastError =
-          responseData?.error?.message || "Gemini request failed.";
+          responseData?.error?.message ||
+          `Gemini API error (${response.status})`;
 
-        const temporaryError =
-          response.status === 429 ||
-          response.status === 500 ||
-          response.status === 502 ||
-          response.status === 503 ||
-          response.status === 504;
+        const retryable = [
+          429, 500, 502, 503, 504
+        ].includes(response.status);
 
-        if (!temporaryError || attempt === 3) {
-          return res.status(response.status).json({
+        if (!retryable || attempt === 3) {
+          return res.status(502).json({
             error: lastError
           });
         }
+
       } catch (error) {
-        lastError = error.message || "Network request failed.";
+        lastError =
+          error.message || "Gemini network request failed.";
 
         if (attempt === 3) {
           return res.status(502).json({
@@ -114,7 +129,6 @@ Avoid generic repetitive metadata.`
         }
       }
 
-      // Wait before retry: 1 second, then 2 seconds
       await new Promise(resolve =>
         setTimeout(resolve, attempt * 1000)
       );
@@ -137,7 +151,15 @@ Avoid generic repetitive metadata.`
       });
     }
 
-    const data = JSON.parse(output);
+    let data;
+
+    try {
+      data = JSON.parse(output);
+    } catch {
+      return res.status(502).json({
+        error: "Gemini returned invalid JSON."
+      });
+    }
 
     const title = String(data.title || "").trim();
     const description = String(data.description || "").trim();
@@ -150,9 +172,11 @@ Avoid generic repetitive metadata.`
               .trim()
               .replace(/[^\p{L}\p{N}_#]/gu, "");
 
+            if (!clean) return "";
+
             return clean.startsWith("#")
               ? clean
-              : "#" + clean;
+              : `#${clean}`;
           })
           .filter(tag => tag.length > 1)
       )
@@ -170,10 +194,12 @@ Avoid generic repetitive metadata.`
       hashtags,
       thumbnailHook: String(
         data.thumbnailHook || title
-      ).slice(0, 40)
+      ).trim().slice(0, 40)
     });
 
   } catch (error) {
+    console.error("Generate metadata error:", error);
+
     return res.status(500).json({
       error: error.message || "Metadata generation failed."
     });
