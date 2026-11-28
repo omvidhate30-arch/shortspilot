@@ -533,21 +533,63 @@ const sampleVideoFramesForAI = async (file, maxFrames = 24) => {
 };
 
 const requestGeminiMetadata = async (file) => {
-  const sampled = await sampleVideoFramesForAI(file, 16);
-  const response = await fetch('/api/generate-metadata', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ duration: sampled.duration, frames: sampled.frames })
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `Gemini metadata failed (${response.status})`);
-  if (!payload.title || !payload.description || !Array.isArray(payload.hashtags)) {
-    throw new Error('Gemini did not return complete metadata.');
+  if (!(file instanceof Blob) || !file.size) {
+    throw new Error('Video file missing or empty. Please select the video again.');
   }
-  const hashtags = [...new Set(payload.hashtags.map(tag => {
-    const value = String(tag || '').trim();
-    return value ? (value.startsWith('#') ? value : `#${value}`) : '';
-  }).filter(Boolean))].slice(0, 5);
+
+  const sampled = await sampleVideoFramesForAI(file, 16);
+  if (!Array.isArray(sampled?.frames) || sampled.frames.length < 2) {
+    throw new Error('Could not extract enough video frames for Gemini analysis.');
+  }
+
+  let response;
+  try {
+    response = await fetch('/api/generate-metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        duration: sampled.duration,
+        frames: sampled.frames
+      })
+    });
+  } catch (networkError) {
+    throw new Error(
+      'Could not reach /api/generate-metadata. Confirm the Vercel API route is deployed and try again.'
+    );
+  }
+
+  const responseText = await response.text();
+  let payload = {};
+  try {
+    payload = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    throw new Error(
+      `The metadata API returned a non-JSON response (HTTP ${response.status}). Check the Vercel Function logs and API route path.`
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.error || `Metadata API request failed (HTTP ${response.status}).`
+    );
+  }
+
+  if (!payload.title || !payload.description || !Array.isArray(payload.hashtags)) {
+    throw new Error('Gemini returned incomplete metadata. Please try again.');
+  }
+
+  const hashtags = [...new Set(
+    payload.hashtags.map((tag) => {
+      const value = String(tag || '').trim();
+      if (!value) return '';
+      return value.startsWith('#') ? value : `#${value}`;
+    }).filter(Boolean)
+  )].slice(0, 5);
+
+  if (!hashtags.length) {
+    throw new Error('Gemini did not return any usable hashtags.');
+  }
+
   return {
     title: String(payload.title).trim().slice(0, 95),
     description: String(payload.description).trim().slice(0, 1800),
@@ -1639,7 +1681,7 @@ const TopHeader = React.memo(
     onGoogleLogout,
     onOpenSettings
   }) => (
-    <header className="w-full max-w-full min-w-0 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 px-3 sm:px-4 lg:px-8 pt-4 pb-3 bg-[#090614]/95 backdrop-blur sticky top-0 z-30 border-b border-purple-500/15">
+    <header className="flex items-center justify-between px-4 lg:px-8 pt-4 pb-3 bg-[#090614]/95 backdrop-blur sticky top-0 z-30 border-b border-purple-500/15">
       <div className="flex items-center gap-2.5">
         <button
           type="button"
@@ -1657,7 +1699,7 @@ const TopHeader = React.memo(
               <span className="text-white">Shorts</span>
               <span className="text-pink-400">Pilot AI</span>
             </div>
-            <p className="text-[9.5px] text-slate-400 font-medium mt-0.5 whitespace-nowrap">
+            <p className="text-[9.5px] text-slate-400 font-medium mt-0.5">
               Developed by shortspilot.in
             </p>
           </div>
@@ -3002,7 +3044,7 @@ const loggedTxn = {
   }
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
+    <div className="min-h-screen w-full bg-[#05030a] text-slate-100 font-sans flex selection:bg-pink-500 selection:text-white">
       <DesktopSidebar
         activeTab={activeTab}
         onSelectTab={(tab) => requireGoogleAuth(() => setActiveTab(tab), tab + ' tab')}
@@ -3026,7 +3068,7 @@ const loggedTxn = {
         videoCount={videoQueue.length}
       />
 
-      <div className="flex-1 min-w-0 w-full max-w-full min-h-screen bg-[#070510] text-white flex flex-col overflow-x-hidden">
+      <div className="flex-1 min-h-screen bg-[#070510] text-white flex flex-col">
         <TopHeader
           tier={tier}
           hasUnread={notificationsList.some((n) => n.unread)}
@@ -3075,7 +3117,7 @@ const loggedTxn = {
           className="hidden"
         />
 
-        <div className="flex-1 min-w-0 w-full max-w-none xl:max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 pt-3 lg:pt-6 pb-32 lg:pb-12 space-y-4 lg:space-y-6">
+        <div className="flex-1 w-full max-w-[460px] lg:max-w-6xl mx-auto px-4 lg:px-8 pt-3 lg:pt-6 pb-32 lg:pb-12 space-y-4 lg:space-y-6">
           {activeTab === 'home' && (
             <>
               <div className="flex justify-center">
